@@ -2804,7 +2804,7 @@ void rr_save_snapshot(const char *name, Error **errp)
 
     global_state_store_running();
 
-    QIOChannelFile* ioc = qio_channel_file_new_path(name, O_WRONLY | O_CREAT, 0660, NULL);
+    QIOChannelFile* ioc = qio_channel_file_new_path(name, O_WRONLY | O_CREAT | O_TRUNC, 0660, NULL);
     QEMUFile* snp = qemu_fopen_channel_output(QIO_CHANNEL(ioc));
 
     snapshot_ret = qemu_savevm_state(snp, &err);
@@ -2823,11 +2823,13 @@ void rr_load_snapshot(const char *name, Error **errp)
     int snapshot_ret;
     QIOChannelFile* ioc = NULL;
     QEMUFile* snp = NULL;
+    MigrationIncomingState* mis = migration_incoming_get_current();
 
-    vm_stop(RUN_STATE_PAUSED);
+
+    vm_stop(RUN_STATE_RESTORE_VM);
 
     printf("loading snapshot\n");
-    ioc = qio_channel_file_new_path(name, O_RDONLY, 0, NULL);
+    ioc = qio_channel_file_new_path(name, O_RDONLY | O_BINARY, 0, NULL);
     if (ioc == NULL) {
         printf ("snapshot file doesn't exist?\n");
         abort();
@@ -2835,17 +2837,18 @@ void rr_load_snapshot(const char *name, Error **errp)
     
     snp = qemu_fopen_channel_input(QIO_CHANNEL(ioc));
 
-    qemu_system_reset(SHUTDOWN_CAUSE_NONE);
-    MigrationIncomingState* mis = migration_incoming_get_current();
     mis->from_src_file = snp;
+
+    qemu_system_reset(SHUTDOWN_CAUSE_NONE);
     snapshot_ret = qemu_loadvm_state(snp);
-    qemu_fclose(snp);
-    migration_incoming_state_destroy();
+    // qemu_fclose(snp);
 
     if (snapshot_ret < 0) {
-        fprintf(stderr, "Failed to load vmstate\n");
+        error_setg(errp, QERR_IO_ERROR);
         return;
     }
+    migration_incoming_state_destroy();
+
     printf("... done.\n");
 }
 

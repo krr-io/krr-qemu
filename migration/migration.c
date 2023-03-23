@@ -309,7 +309,7 @@ void migration_incoming_state_destroy(void)
         mis->page_requested = NULL;
     }
 
-    yank_unregister_instance(MIGRATION_YANK_INSTANCE);
+    // yank_unregister_instance(MIGRATION_YANK_INSTANCE);
 }
 
 static void migrate_generate_event(int new_state)

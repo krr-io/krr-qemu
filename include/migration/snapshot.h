@@ -61,4 +61,7 @@ bool delete_snapshot(const char *name,
                     bool has_devices, strList *devices,
                     Error **errp);
 
+void rr_save_snapshot(const char *name, Error **errp);
+void rr_load_snapshot(const char *name, Error **errp);
+
 #endif

@@ -1097,6 +1097,24 @@ void hmp_savevm(Monitor *mon, const QDict *qdict)
     hmp_handle_error(mon, err);
 }
 
+void hmp_rr_record(Monitor *mon, const QDict *qdict)
+{
+    Error *err = NULL;
+
+    rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
+
+    hmp_handle_error(mon, err);
+}
+
+void hmp_rr_replay(Monitor *mon, const QDict *qdict)
+{
+    Error *err = NULL;
+
+    rr_load_snapshot(qdict_get_try_str(qdict, "name"), &err);
+
+    hmp_handle_error(mon, err);
+}
+
 void hmp_delvm(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;

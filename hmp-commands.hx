@@ -1746,3 +1746,34 @@ ERST
                       "\n\t\t\t -b to specify dirty bitmap as method of calculation)",
         .cmd        = hmp_calc_dirty_rate,
     },
+
+SRST
+``rr_record``
+  Start a round of dirty rate measurement with the period specified in *second*.
+  The result of the dirty rate measurement may be observed with ``info
+  dirty_rate`` command.
+ERST
+
+    {
+        .name       = "rr_record",
+        .args_type  = "name:s?",
+        .params     = "tag",
+        .help       = "",
+        .cmd        = hmp_rr_record,
+    },
+
+SRST
+``rr_replay``
+  Start a round of dirty rate measurement with the period specified in *second*.
+  The result of the dirty rate measurement may be observed with ``info
+  dirty_rate`` command.
+ERST
+
+    {
+        .name       = "rr_replay",
+        .args_type  = "name:s?",
+        .params     = "tag",
+        .help       = "",
+        .cmd        = hmp_rr_replay,
+    },
+

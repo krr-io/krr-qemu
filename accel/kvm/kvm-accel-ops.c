@@ -21,8 +21,43 @@
 #include "sysemu/cpus.h"
 #include "qemu/guest-random.h"
 #include "qapi/error.h"
+#include "exec/gdbstub.h"
 
 #include "kvm-cpus.h"
+
+target_ulong syscall_addr = 0xffffffff8111d0ef;
+target_ulong pf_excep_addr = 0xffffffff81200aa0;
+
+target_ulong last_removed_addr = 0;
+
+static void handle_on_bp(CPUState *cpu)
+{
+    printf("handle breakpoint\n");
+    if (cpu->singlestep_enabled != 0) {
+        if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_SW) > 0) {
+            printf("failed to insert bp\n");
+            abort();
+        }
+        cpu_single_step(cpu, 0);
+    } else {
+        target_ulong remove_addr;
+
+        if (cpu->kvm_run->debug.arch.pc == syscall_addr) {
+            printf("syscall happened\n");
+            remove_addr = syscall_addr;
+        } else {
+            printf("except happened\n");
+            remove_addr = pf_excep_addr;
+        }
+
+        cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
+        if (kvm_remove_breakpoint(cpu, remove_addr, 1, GDB_BREAKPOINT_SW) > 0) {
+            printf("failed to remove bp\n");
+            abort();
+        }
+        last_removed_addr = remove_addr;
+    }
+}
 
 static void *kvm_vcpu_thread_fn(void *arg)
 {
@@ -44,11 +79,22 @@ static void *kvm_vcpu_thread_fn(void *arg)
     cpu_thread_signal_created(cpu);
     qemu_guest_random_seed_thread_part2(cpu->random_seed);
 
+    int bp_ret;
+    bp_ret = kvm_insert_breakpoint(cpu, syscall_addr, 1, GDB_BREAKPOINT_SW);
+    bp_ret = kvm_insert_breakpoint(cpu, pf_excep_addr, 1, GDB_BREAKPOINT_SW);
+
+    if (bp_ret > 0) {
+        printf("failed to insert bp: %d\n", bp_ret);
+    } else {
+        printf("Inserted breakpoints\n");
+    }
+
     do {
         if (cpu_can_run(cpu)) {
             r = kvm_cpu_exec(cpu);
             if (r == EXCP_DEBUG) {
-                cpu_handle_guest_debug(cpu);
+                // cpu_handle_guest_debug(cpu);
+                handle_on_bp(cpu);
             }
         }
         qemu_wait_io_event(cpu);

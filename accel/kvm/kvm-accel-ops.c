@@ -30,14 +30,40 @@ target_ulong pf_excep_addr = 0xffffffff81200aa0;
 
 target_ulong last_removed_addr = 0;
 
+
+void rr_insert_breakpoints(void)
+{
+    int bp_ret;
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        bp_ret = kvm_insert_breakpoint(cpu, syscall_addr, 1, GDB_BREAKPOINT_SW);
+        bp_ret = kvm_insert_breakpoint(cpu, pf_excep_addr, 1, GDB_BREAKPOINT_SW);
+        // bp_ret = kvm_insert_hypercall(cpu, pf_excep_addr);
+        if (bp_ret > 0) {
+            printf("failed to insert bp: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints\n");
+        }
+    }
+}
+
 static void handle_on_bp(CPUState *cpu)
 {
     printf("handle breakpoint\n");
     if (cpu->singlestep_enabled != 0) {
-        if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_SW) > 0) {
-            printf("failed to insert bp\n");
-            abort();
+        if (last_removed_addr == syscall_addr) {
+            if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_SW) > 0) {
+                printf("failed to insert bp\n");
+                abort();
+            }
+        } else if (last_removed_addr == pf_excep_addr) {
+            if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_SW) > 0) {
+                printf("failed to insert hypercall\n");
+                abort();
+            }
         }
+
         cpu_single_step(cpu, 0);
     } else {
         target_ulong remove_addr;
@@ -45,16 +71,25 @@ static void handle_on_bp(CPUState *cpu)
         if (cpu->kvm_run->debug.arch.pc == syscall_addr) {
             printf("syscall happened\n");
             remove_addr = syscall_addr;
+
+            cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
+            if (kvm_remove_breakpoint(cpu, remove_addr, 1, GDB_BREAKPOINT_SW) > 0) {
+                printf("failed to remove bp\n");
+                abort();
+            }
+
         } else {
-            printf("except happened\n");
+            printf("exception happened\n");
+
             remove_addr = pf_excep_addr;
+
+            cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
+            if (kvm_remove_breakpoint(cpu, remove_addr, 1, GDB_BREAKPOINT_SW) > 0) {
+                printf("failed to remove bp\n");
+                abort();
+            }
         }
 
-        cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
-        if (kvm_remove_breakpoint(cpu, remove_addr, 1, GDB_BREAKPOINT_SW) > 0) {
-            printf("failed to remove bp\n");
-            abort();
-        }
         last_removed_addr = remove_addr;
     }
 }
@@ -78,16 +113,6 @@ static void *kvm_vcpu_thread_fn(void *arg)
     /* signal CPU creation */
     cpu_thread_signal_created(cpu);
     qemu_guest_random_seed_thread_part2(cpu->random_seed);
-
-    int bp_ret;
-    bp_ret = kvm_insert_breakpoint(cpu, syscall_addr, 1, GDB_BREAKPOINT_SW);
-    bp_ret = kvm_insert_breakpoint(cpu, pf_excep_addr, 1, GDB_BREAKPOINT_SW);
-
-    if (bp_ret > 0) {
-        printf("failed to insert bp: %d\n", bp_ret);
-    } else {
-        printf("Inserted breakpoints\n");
-    }
 
     do {
         if (cpu_can_run(cpu)) {

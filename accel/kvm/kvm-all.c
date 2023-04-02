@@ -3231,6 +3231,53 @@ int kvm_update_guest_debug(CPUState *cpu, unsigned long reinject_trap)
     return data.err;
 }
 
+int kvm_insert_hypercall(CPUState *cpu, target_ulong addr)
+{
+    struct kvm_sw_breakpoint *bp;
+    int err;
+
+    bp = g_new(struct kvm_sw_breakpoint, 1);
+    bp->pc = addr;
+    bp->use_count = 1;
+
+    err = kvm_arch_insert_sw_hypercall(cpu, bp);
+
+    if (err) {
+        g_free(bp);
+        return err;
+    }
+
+    QTAILQ_INSERT_HEAD(&cpu->kvm_state->kvm_sw_breakpoints, bp, entry);
+
+    return 0;
+}
+
+int kvm_remove_hypercall(CPUState *cpu, target_ulong addr)
+{
+    struct kvm_sw_breakpoint *bp;
+    int err;
+
+    bp = kvm_find_sw_breakpoint(cpu, addr);
+    if (!bp) {
+        return -ENOENT;
+    }
+
+    if (bp->use_count > 1) {
+        bp->use_count--;
+        return 0;
+    }
+
+    err = kvm_arch_remove_sw_hypercall(cpu, bp);
+    if (err) {
+        return err;
+    }
+
+    QTAILQ_REMOVE(&cpu->kvm_state->kvm_sw_breakpoints, bp, entry);
+    g_free(bp);
+
+    return 0;
+}
+
 int kvm_insert_breakpoint(CPUState *cpu, target_ulong addr,
                           target_ulong len, int type)
 {

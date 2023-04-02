@@ -3497,9 +3497,11 @@ int cpu_memory_rw_debug(CPUState *cpu, vaddr addr,
         if (is_write) {
             res = address_space_write_rom(cpu->cpu_ases[asidx].as, phys_addr,
                                           attrs, buf, l);
+            printf("write to memory %d\n", res);
         } else {
             res = address_space_read(cpu->cpu_ases[asidx].as, phys_addr,
                                      attrs, buf, l);
+            printf("read memory %d\n", res);
         }
         if (res != MEMTX_OK) {
             return -1;

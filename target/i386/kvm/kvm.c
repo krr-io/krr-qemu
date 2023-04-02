@@ -4691,8 +4691,41 @@ int kvm_arch_insert_sw_breakpoint(CPUState *cs, struct kvm_sw_breakpoint *bp)
 
     if (cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&bp->saved_insn, 1, 0) ||
         cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&int3, 1, 1)) {
+        printf("failed inserting breakpoint\n");
         return -EINVAL;
     }
+    return 0;
+}
+
+int kvm_arch_insert_sw_hypercall(CPUState *cs, struct kvm_sw_breakpoint *bp)
+{
+    uint8_t vmcall[3] = {0x0f, 0x01, 0xc1};
+
+    if (cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&bp->saved_insn, 3, 0) ||
+        cpu_memory_rw_debug(cs, bp->pc, &vmcall[0], 3, 1)) {
+         printf("failed memory rw\n");
+        return -EINVAL;
+    }
+
+    printf("inserted hypercall patch\n");
+    return 0;
+}
+
+int kvm_arch_remove_sw_hypercall(CPUState *cs, struct kvm_sw_breakpoint *bp)
+{
+    uint32_t vmcall[3];
+
+    if (cpu_memory_rw_debug(cs, bp->pc, vmcall, 1, 0)) {
+        return -EINVAL;
+    }
+    if (vmcall[0] != 0x0f) {
+        return 0;
+    }
+    if (cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&bp->saved_insn, 3, 1)) {
+        return -EINVAL;
+    }
+
+    printf("removed hypercall patch\n");
     return 0;
 }
 

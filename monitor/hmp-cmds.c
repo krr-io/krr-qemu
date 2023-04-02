@@ -56,6 +56,8 @@
 #include "migration/snapshot.h"
 #include "migration/misc.h"
 
+#include "accel/kvm/kvm-cpus.h"
+
 #ifdef CONFIG_SPICE
 #include <spice/enums.h>
 #endif
@@ -1101,7 +1103,9 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
 
-    rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
+    // rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
+
+    rr_insert_breakpoints();
 
     hmp_handle_error(mon, err);
 }

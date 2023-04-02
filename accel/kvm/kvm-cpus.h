@@ -19,4 +19,6 @@ void kvm_cpu_synchronize_post_reset(CPUState *cpu);
 void kvm_cpu_synchronize_post_init(CPUState *cpu);
 void kvm_cpu_synchronize_pre_loadvm(CPUState *cpu);
 
+void rr_insert_breakpoints(void);
+
 #endif /* KVM_CPUS_H */

@@ -262,6 +262,9 @@ int kvm_on_sigbus(int code, void *addr);
 
 void kvm_flush_coalesced_mmio_buffer(void);
 
+int kvm_insert_hypercall(CPUState *cpu, target_ulong addr);
+int kvm_remove_hypercall(CPUState *cpu, target_ulong addr);
+
 int kvm_insert_breakpoint(CPUState *cpu, target_ulong addr,
                           target_ulong len, int type);
 int kvm_remove_breakpoint(CPUState *cpu, target_ulong addr,
@@ -423,6 +426,9 @@ struct kvm_sw_breakpoint *kvm_find_sw_breakpoint(CPUState *cpu,
                                                  target_ulong pc);
 
 int kvm_sw_breakpoints_active(CPUState *cpu);
+
+int kvm_arch_insert_sw_hypercall(CPUState *cs, struct kvm_sw_breakpoint *bp);
+int kvm_arch_remove_sw_hypercall(CPUState *cs, struct kvm_sw_breakpoint *bp);
 
 int kvm_arch_insert_sw_breakpoint(CPUState *cpu,
                                   struct kvm_sw_breakpoint *bp);

@@ -1124,6 +1124,11 @@ void hmp_rr_replay(Monitor *mon, const QDict *qdict)
     hmp_handle_error(mon, err);
 }
 
+void hmp_rr_end_replay(Monitor *mon, const QDict *qdict)
+{
+    kvm_end_replay();
+}
+
 void hmp_delvm(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;

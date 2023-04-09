@@ -60,6 +60,7 @@ void hmp_loadvm(Monitor *mon, const QDict *qdict);
 void hmp_savevm(Monitor *mon, const QDict *qdict);
 void hmp_rr_record(Monitor *mon, const QDict *qdict);
 void hmp_rr_replay(Monitor *mon, const QDict *qdict);
+void hmp_rr_end_replay(Monitor *mon, const QDict *qdict);
 void hmp_delvm(Monitor *mon, const QDict *qdict);
 void hmp_rr_end_record(Monitor *mon, const QDict *qdict);
 void hmp_migrate_cancel(Monitor *mon, const QDict *qdict);

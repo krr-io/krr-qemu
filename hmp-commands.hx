@@ -1778,6 +1778,22 @@ ERST
     },
 
 SRST
+``rr_end_replay``
+  Start a round of dirty rate measurement with the period specified in *second*.
+  The result of the dirty rate measurement may be observed with ``info
+  dirty_rate`` command.
+ERST
+
+    {
+        .name       = "rr_end_replay",
+        .args_type  = "name:s?",
+        .params     = "tag",
+        .help       = "",
+        .cmd        = hmp_rr_end_replay,
+    },
+
+
+SRST
 ``rr_end_record``
   Start a round of dirty rate measurement with the period specified in *second*.
   The result of the dirty rate measurement may be observed with ``info

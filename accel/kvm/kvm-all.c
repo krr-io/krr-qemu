@@ -3300,6 +3300,28 @@ static void do_kvm_cpu_end_record(CPUState *cpu, run_on_cpu_data arg)
     }
 }
 
+static void do_kvm_cpu_start_replay(CPUState *cpu, run_on_cpu_data arg)
+{
+    int r = 0;
+
+    r = kvm_vcpu_ioctl(cpu, KVM_START_REPLAY);
+
+    if (r) {
+        printf("failed to start replay %d\n", r);
+    }
+}
+
+static void do_kvm_cpu_end_replay(CPUState *cpu, run_on_cpu_data arg)
+{
+    int r = 0;
+
+    r = kvm_vcpu_ioctl(cpu, KVM_END_REPLAY);
+
+    if (r) {
+        printf("failed to end replay %d\n", r);
+    }
+}
+
 int kvm_start_record(void) {
     CPUState *cpu;
 
@@ -3322,17 +3344,22 @@ int kvm_end_record(void) {
 
 int kvm_start_replay(void) {
     CPUState *cpu;
-    int r = 0;
 
     CPU_FOREACH(cpu) {
-        r = kvm_vcpu_ioctl(cpu, KVM_START_REPLAY);
+        run_on_cpu(cpu, do_kvm_cpu_start_replay, RUN_ON_CPU_NULL);
     }
 
-    if (r) {
-        printf("failed to start replay %d\n", r);
+    return 0;
+}
+
+int kvm_end_replay(void) {
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        run_on_cpu(cpu, do_kvm_cpu_end_replay, RUN_ON_CPU_NULL);
     }
 
-    return r;
+    return 0;
 }
 
 int kvm_insert_breakpoint(CPUState *cpu, target_ulong addr,

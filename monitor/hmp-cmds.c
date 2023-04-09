@@ -1103,11 +1103,16 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
 
-    // rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
-
+    rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
+    kvm_start_record();
     rr_insert_breakpoints();
 
     hmp_handle_error(mon, err);
+}
+
+void hmp_rr_end_record(Monitor *mon, const QDict *qdict)
+{
+    kvm_end_record();
 }
 
 void hmp_rr_replay(Monitor *mon, const QDict *qdict)

@@ -21,4 +21,8 @@ void kvm_cpu_synchronize_pre_loadvm(CPUState *cpu);
 
 void rr_insert_breakpoints(void);
 
+int kvm_start_record(void);
+int kvm_end_record(void);
+int kvm_start_replay(void);
+
 #endif /* KVM_CPUS_H */

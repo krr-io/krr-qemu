@@ -1627,6 +1627,11 @@ struct kvm_enc_region {
 /* Available with KVM_CAP_XSAVE2 */
 #define KVM_GET_XSAVE2		  _IOR(KVMIO,  0xcf, struct kvm_xsave)
 
+#define KVM_START_RECORD	_IO(KVMIO, 0xd0)
+#define KVM_END_RECORD		_IO(KVMIO, 0xd1)
+#define KVM_START_REPLAY    _IO(KVMIO, 0xd2)
+
+
 struct kvm_s390_pv_sec_parm {
 	__u64 origin;
 	__u64 length;

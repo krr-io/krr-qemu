@@ -3278,6 +3278,63 @@ int kvm_remove_hypercall(CPUState *cpu, target_ulong addr)
     return 0;
 }
 
+static void do_kvm_cpu_start_record(CPUState *cpu, run_on_cpu_data arg)
+{
+    int r = 0;
+
+    r = kvm_vcpu_ioctl(cpu, KVM_START_RECORD);
+
+    if (r) {
+        printf("failed to start record %d\n", r);
+    }
+}
+
+static void do_kvm_cpu_end_record(CPUState *cpu, run_on_cpu_data arg)
+{
+    int r = 0;
+
+    r = kvm_vcpu_ioctl(cpu, KVM_END_RECORD);
+
+    if (r) {
+        printf("failed to end record %d\n", r);
+    }
+}
+
+int kvm_start_record(void) {
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        run_on_cpu(cpu, do_kvm_cpu_start_record, RUN_ON_CPU_NULL);
+    }
+
+    return 0;
+}
+
+int kvm_end_record(void) {
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        run_on_cpu(cpu, do_kvm_cpu_end_record, RUN_ON_CPU_NULL);
+    }
+
+    return 0;
+}
+
+int kvm_start_replay(void) {
+    CPUState *cpu;
+    int r = 0;
+
+    CPU_FOREACH(cpu) {
+        r = kvm_vcpu_ioctl(cpu, KVM_START_REPLAY);
+    }
+
+    if (r) {
+        printf("failed to start replay %d\n", r);
+    }
+
+    return r;
+}
+
 int kvm_insert_breakpoint(CPUState *cpu, target_ulong addr,
                           target_ulong len, int type)
 {

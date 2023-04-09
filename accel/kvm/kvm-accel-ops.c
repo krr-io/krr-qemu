@@ -26,7 +26,7 @@
 #include "kvm-cpus.h"
 
 target_ulong syscall_addr = 0xffffffff8111d0ef;
-target_ulong pf_excep_addr = 0xffffffff81200aa0;
+target_ulong pf_excep_addr = 0xffffffff8111e449;
 
 target_ulong last_removed_addr = 0;
 
@@ -48,47 +48,44 @@ void rr_insert_breakpoints(void)
     }
 }
 
-static void handle_on_bp(CPUState *cpu)
+__attribute_maybe_unused__ static void handle_on_bp(CPUState *cpu)
 {
-    printf("handle breakpoint\n");
     if (cpu->singlestep_enabled != 0) {
-        if (last_removed_addr == syscall_addr) {
-            if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_SW) > 0) {
-                printf("failed to insert bp\n");
-                abort();
-            }
-        } else if (last_removed_addr == pf_excep_addr) {
-            if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_SW) > 0) {
-                printf("failed to insert hypercall\n");
-                abort();
-            }
+        // if (last_removed_addr == syscall_addr) {
+        if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_SW) > 0) {
+            printf("failed to insert bp\n");
+            abort();
         }
+        // } 
+        // else if (last_removed_addr == pf_excep_addr) {
+        //     if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_SW) > 0) {
+        //         printf("failed to insert hypercall\n");
+        //         abort();
+        //     }
+        // }
 
         cpu_single_step(cpu, 0);
     } else {
         target_ulong remove_addr;
 
-        if (cpu->kvm_run->debug.arch.pc == syscall_addr) {
-            printf("syscall happened\n");
-            remove_addr = syscall_addr;
+        // if (cpu->kvm_run->debug.arch.pc == syscall_addr) {
+        remove_addr = cpu->kvm_run->debug.arch.pc;
 
-            cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
-            if (kvm_remove_breakpoint(cpu, remove_addr, 1, GDB_BREAKPOINT_SW) > 0) {
-                printf("failed to remove bp\n");
-                abort();
-            }
-
-        } else {
-            printf("exception happened\n");
-
-            remove_addr = pf_excep_addr;
-
-            cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
-            if (kvm_remove_breakpoint(cpu, remove_addr, 1, GDB_BREAKPOINT_SW) > 0) {
-                printf("failed to remove bp\n");
-                abort();
-            }
+        cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
+        if (kvm_remove_breakpoint(cpu, remove_addr, 1, GDB_BREAKPOINT_SW) > 0) {
+            printf("failed to remove bp\n");
+            abort();
         }
+        // } 
+        // else {
+        //     remove_addr = pf_excep_addr;
+
+        //     cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
+        //     if (kvm_remove_breakpoint(cpu, remove_addr, 1, GDB_BREAKPOINT_SW) > 0) {
+        //         printf("failed to remove bp\n");
+        //         abort();
+        //     }
+        // }
 
         last_removed_addr = remove_addr;
     }

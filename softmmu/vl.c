@@ -129,6 +129,8 @@
 #include "qemu/guest-random.h"
 
 #include "config-host.h"
+#include "sysemu/kernel-rr.h"
+#include "accel/kvm/kvm-cpus.h"
 
 #define MAX_VIRTIO_CONSOLES 1
 
@@ -189,6 +191,8 @@ static int default_cdrom = 1;
 static int default_sdcard = 1;
 static int default_vga = 1;
 static int default_net = 1;
+
+static const char *kernel_replay_name;
 
 static struct {
     const char *driver;
@@ -2754,6 +2758,12 @@ void qmp_x_exit_preconfig(Error **errp)
         replay_vmstate_init();
     }
 
+    if (kernel_replay_name) {
+        rr_set_replay(true);
+        rr_load_snapshot(kernel_replay_name, NULL);
+        kvm_start_replay();
+    }
+
     if (incoming) {
         Error *local_err = NULL;
         if (strcmp(incoming, "defer") != 0) {
@@ -3657,6 +3667,9 @@ void qemu_init(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_nouserconfig:
                 /* Nothing to be parsed here. Especially, do not error out below. */
+                break;
+            case QEMU_OPTION_kernel_replay:
+                kernel_replay_name = optarg;
                 break;
             default:
                 if (os_parse_cmd_args(popt->index, optarg)) {

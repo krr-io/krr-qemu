@@ -25,5 +25,5 @@ int kvm_start_record(void);
 int kvm_end_record(void);
 int kvm_start_replay(void);
 int kvm_end_replay(void);
-
+int rr_get_vcpu_events(void);
 #endif /* KVM_CPUS_H */

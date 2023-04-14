@@ -272,6 +272,8 @@ int kvm_remove_breakpoint(CPUState *cpu, target_ulong addr,
 void kvm_remove_all_breakpoints(CPUState *cpu);
 int kvm_update_guest_debug(CPUState *cpu, unsigned long reinject_trap);
 
+int kvm_insert_sw_breakpoint_no_save(CPUState *cpu, target_ulong addr, target_ulong len);
+
 /* internal API */
 
 int kvm_ioctl(KVMState *s, int type, ...);
@@ -439,6 +441,8 @@ int kvm_arch_insert_hw_breakpoint(target_ulong addr,
 int kvm_arch_remove_hw_breakpoint(target_ulong addr,
                                   target_ulong len, int type);
 void kvm_arch_remove_all_hw_breakpoints(void);
+
+int kvm_arch_insert_sw_breakpoint_no_save(CPUState *cs, struct kvm_sw_breakpoint *bp, target_ulong len);
 
 void kvm_arch_update_guest_debug(CPUState *cpu, struct kvm_guest_debug *dbg);
 

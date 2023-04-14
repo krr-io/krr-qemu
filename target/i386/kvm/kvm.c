@@ -4691,7 +4691,21 @@ int kvm_arch_insert_sw_breakpoint(CPUState *cs, struct kvm_sw_breakpoint *bp)
 
     if (cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&bp->saved_insn, 1, 0) ||
         cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&int3, 1, 1)) {
-        printf("failed inserting breakpoint\n");
+        return -EINVAL;
+    }
+    return 0;
+}
+
+int kvm_arch_insert_sw_breakpoint_no_save(CPUState *cs, struct kvm_sw_breakpoint *bp, target_ulong len)
+{
+    printf("length = %lu\n", len);
+    uint8_t *int3_list = (uint8_t *) malloc(len * sizeof(uint8_t));
+
+    for (int i = 0; i < len; i++) {
+        int3_list[i] = 0xcc;
+    }
+
+    if (cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)int3_list, len, 1)) {
         return -EINVAL;
     }
     return 0;

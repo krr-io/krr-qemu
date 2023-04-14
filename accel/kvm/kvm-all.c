@@ -3322,7 +3322,49 @@ static void do_kvm_cpu_end_replay(CPUState *cpu, run_on_cpu_data arg)
     }
 }
 
-int kvm_start_record(void) {
+
+static void do_rr_get_vcpu_events(CPUState *cpu, run_on_cpu_data arg)
+{
+    struct rr_event_log_t event;
+    struct rr_event_info event_info;
+    int r = 0;
+    int i;
+
+    r = kvm_vcpu_ioctl(cpu, KVM_GET_RR_EVENT_NUMBER, &event_info);
+
+    if (r) {
+        printf("failed to get rr event number %d\n", r);
+        return;
+    }
+
+    printf("event number = %d\n", event_info.event_number);
+
+    for (i = 0; i < event_info.event_number; i++) {
+        r = kvm_vcpu_ioctl(cpu, KVM_GET_RR_NEXT_EVENT, &event);
+        if (r) {
+            printf("failed to get rr events %d\n", r);
+            return;
+        }
+
+        append_event(event);
+    }
+
+    return;
+}
+
+int rr_get_vcpu_events(void)
+{
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        run_on_cpu(cpu, do_rr_get_vcpu_events, RUN_ON_CPU_NULL);
+    }
+
+    return 0;
+}
+
+int kvm_start_record(void)
+{
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
@@ -3339,11 +3381,17 @@ int kvm_end_record(void) {
         run_on_cpu(cpu, do_kvm_cpu_end_record, RUN_ON_CPU_NULL);
     }
 
+    rr_get_vcpu_events();
+    rr_post_record();
+
+
     return 0;
 }
 
 int kvm_start_replay(void) {
     CPUState *cpu;
+
+    rr_pre_replay();
 
     CPU_FOREACH(cpu) {
         run_on_cpu(cpu, do_kvm_cpu_start_replay, RUN_ON_CPU_NULL);
@@ -3361,6 +3409,26 @@ int kvm_end_replay(void) {
 
     return 0;
 }
+
+int kvm_insert_sw_breakpoint_no_save(CPUState *cpu, target_ulong addr, target_ulong len)
+{
+    int err;
+    struct kvm_sw_breakpoint *bp;
+
+    bp = g_new(struct kvm_sw_breakpoint, 1);
+    bp->pc = addr;
+    bp->use_count = 1;
+
+    err = kvm_arch_insert_sw_breakpoint_no_save(cpu, bp, len);
+
+    if (err) {
+        g_free(bp);
+        return err;
+    }
+
+    return 0;
+}
+
 
 int kvm_insert_breakpoint(CPUState *cpu, target_ulong addr,
                           target_ulong len, int type)

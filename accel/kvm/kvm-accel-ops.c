@@ -24,11 +24,17 @@
 #include "exec/gdbstub.h"
 
 #include "kvm-cpus.h"
+#include "sysemu/kernel-rr.h"
 
 target_ulong syscall_addr = 0xffffffff8111d0ef;
 target_ulong pf_excep_addr = 0xffffffff8111e449;
 
 target_ulong last_removed_addr = 0;
+
+target_ulong userspace_start = 0x0000000000000000;
+target_ulong userspace_end = 0x00007fffffffffff;
+
+static void rr_insert_userspace_int(CPUState *cs);
 
 
 void rr_insert_breakpoints(void)
@@ -45,7 +51,28 @@ void rr_insert_breakpoints(void)
         } else {
             printf("Inserted breakpoints\n");
         }
+
+        if (rr_in_replay()) {
+            rr_insert_userspace_int(cpu);
+        }
     }
+}
+
+__attribute_maybe_unused__ static void rr_insert_userspace_int(CPUState *cs)
+{
+    int bp_ret;
+
+    target_ulong len = (userspace_end - userspace_start) / sizeof(uint8_t);
+
+    bp_ret = kvm_insert_sw_breakpoint_no_save(cs, userspace_start, len);
+    if (bp_ret > 0) {
+        printf("failed to insert bp: %d\n", bp_ret);
+        // break;
+    } else {
+        printf("inserted for user space\n");
+    }
+
+    return;
 }
 
 __attribute_maybe_unused__ static void handle_on_bp(CPUState *cpu)

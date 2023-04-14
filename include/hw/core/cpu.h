@@ -20,6 +20,8 @@
 #ifndef QEMU_CPU_H
 #define QEMU_CPU_H
 
+#include "linux-headers/linux/kernel_rr.h"
+
 #include "hw/qdev-core.h"
 #include "disas/dis-asm.h"
 #include "exec/cpu-common.h"
@@ -429,6 +431,8 @@ struct CPUState {
 
     /* track IOMMUs whose translations we've cached in the TCG TLB */
     GArray *iommu_notifiers;
+
+    rr_event_list *rr_events;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

@@ -8585,6 +8585,13 @@ static void i386_tr_init_disas_context(DisasContextBase *dcbase, CPUState *cpu)
     g_assert(SVME(dc) == ((flags & HF_SVME_MASK) != 0));
     g_assert(GUEST(dc) == ((flags & HF_GUEST_MASK) != 0));
 
+    if (cpl == 3) {
+        dcbase->in_user_mode = true;
+        return;
+    } else {
+        dcbase->in_user_mode = false;
+    }
+
     dc->cc_op = CC_OP_DYNAMIC;
     dc->cc_op_dirty = false;
     dc->popl_esp_hack = 0;

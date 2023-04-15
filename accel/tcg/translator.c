@@ -7,6 +7,9 @@
  * See the COPYING file in the top-level directory.
  */
 
+#include "linux-headers/linux/kernel_rr.h"
+#include "sysemu/kernel-rr.h"
+
 #include "qemu/osdep.h"
 #include "qemu/error-report.h"
 #include "tcg/tcg.h"
@@ -70,6 +73,10 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
     ops->init_disas_context(db, cpu);
     tcg_debug_assert(db->is_jmp == DISAS_NEXT);  /* no early exit */
 
+    if (rr_in_replay() && db->in_user_mode) {
+        printf("User mode\n");
+    }
+
     /* Reset the temp count so that we can identify leaks */
     tcg_clear_temp_count();
 
@@ -102,6 +109,9 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
             tcg_debug_assert(!(cflags & CF_MEMI_ONLY));
             ops->translate_insn(db, cpu);
         }
+
+        if(rr_in_replay())
+            gen_op_update_rr_icount();
 
         /* Stop translation if translate_insn so indicated.  */
         if (db->is_jmp != DISAS_NEXT) {

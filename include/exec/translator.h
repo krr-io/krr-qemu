@@ -86,6 +86,8 @@ typedef struct DisasContextBase {
      */
     target_ulong page_protect_end;
 #endif
+
+    bool in_user_mode;
 } DisasContextBase;
 
 /**

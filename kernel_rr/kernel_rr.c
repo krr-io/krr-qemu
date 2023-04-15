@@ -20,6 +20,11 @@ static int event_syscall_num = 0;
 static int event_exception_num = 0;
 static int event_interrupt_num = 0;
 
+long rr_get_next_event_inst(void)
+{
+    return (long) rr_event_log_head->inst_from_last;
+}
+
 int rr_in_replay(void)
 {
     return g_rr_in_replay;
@@ -149,4 +154,21 @@ void rr_post_record(void)
 void rr_pre_replay(void)
 {
     rr_load_events();
+}
+
+void rr_replay_interrupt(CPUState *cpu, int *interrupt)
+{
+    if (rr_event_log_head == NULL) {
+        *interrupt = -1;
+        return;
+    }
+
+    if (rr_event_log_head->type == EVENT_TYPE_INTERRUPT) {
+        // if (cpu->cpu)
+        *interrupt = rr_event_log_head->event.interrupt.lapic.vector;
+        return;
+    }
+
+    *interrupt = -1;
+    return;
 }

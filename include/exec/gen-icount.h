@@ -91,4 +91,18 @@ static inline void gen_tb_end(const TranslationBlock *tb, int num_insns)
     }
 }
 
+// Record and replay
+static inline void gen_op_update_rr_icount(void)
+{
+    TCGv_i64 count;
+
+    count = tcg_temp_new_i64();
+
+    tcg_gen_ld_i64(count, cpu_env, offsetof(ArchCPU, parent_obj.rr_guest_instr_count) - offsetof(ArchCPU, env));
+    tcg_gen_addi_i64(count, count, 1);
+    tcg_gen_st_i64(count, cpu_env, offsetof(ArchCPU, parent_obj.rr_guest_instr_count) - offsetof(ArchCPU, env));
+
+    tcg_temp_free_i64(count);
+}
+
 #endif

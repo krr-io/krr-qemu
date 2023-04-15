@@ -69,11 +69,16 @@ struct rr_event_info {
     int event_number;
 };
 
+
+// RR functions
+
 void append_event(rr_event_log event);
 rr_event_log *rr_event_log_new(void);
 void rr_print_events_stat(void);
 
 void rr_post_record(void);
 void rr_pre_replay(void);
+
+long rr_get_next_event_inst(void);
 
 #endif

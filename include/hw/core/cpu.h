@@ -412,6 +412,8 @@ struct CPUState {
     uint32_t can_do_io;
     int32_t exception_index;
 
+    uint64_t rr_guest_instr_count;
+
     /* shared by kvm, hax and hvf */
     bool vcpu_dirty;
 

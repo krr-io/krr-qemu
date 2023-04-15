@@ -47,6 +47,8 @@
 #include "tb-context.h"
 #include "internal.h"
 
+#include "sysemu/kernel-rr.h"
+
 /* -icount align implementation. */
 
 typedef struct SyncClocks {
@@ -722,6 +724,8 @@ static inline bool need_replay_interrupt(int interrupt_request)
 static inline bool cpu_handle_interrupt(CPUState *cpu,
                                         TranslationBlock **last_tb)
 {
+
+    int interrupt_request;
     /*
      * If we have requested custom cflags with CF_NOIRQ we should
      * skip checking here. Any pending interrupts will get picked up
@@ -731,6 +735,12 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
         return false;
     }
 
+    // if (rr_in_replay()) {
+    //     rr_replay_interrupt(cpu, &interrupt_request);
+    //     if (interrupt_request != -1)
+    //         cpu->interrupt_request = interrupt_request;
+    // }
+
     /* Clear the interrupt flag now since we're processing
      * cpu->interrupt_request and cpu->exit_request.
      * Ensure zeroing happens before reading cpu->exit_request or
@@ -739,7 +749,6 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
     qatomic_mb_set(&cpu_neg(cpu)->icount_decr.u16.high, 0);
 
     if (unlikely(qatomic_read(&cpu->interrupt_request))) {
-        int interrupt_request;
         qemu_mutex_lock_iothread();
         interrupt_request = cpu->interrupt_request;
         if (unlikely(cpu->singlestep_enabled & SSTEP_NOIRQ)) {

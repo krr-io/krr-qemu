@@ -3062,13 +3062,6 @@ migration = declare_dependency(link_with: libmigration,
                                dependencies: [zlib, qom, io])
 softmmu_ss.add(migration)
 
-libkernelrr = static_library('kernel_rr', sources: kernel_rr_files + genh,
-                              name_suffix: 'fa',
-                              build_by_default: false)
-kernel_rr = declare_dependency(link_with: libkernelrr,
-                               dependencies: [zlib, qom, io])
-softmmu_ss.add(kernel_rr)
-
 block_ss = block_ss.apply(config_host, strict: false)
 libblock = static_library('block', block_ss.sources() + genh,
                           dependencies: block_ss.dependencies(),

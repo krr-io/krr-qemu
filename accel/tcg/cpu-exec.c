@@ -735,11 +735,11 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
         return false;
     }
 
-    // if (rr_in_replay()) {
-    //     rr_replay_interrupt(cpu, &interrupt_request);
-    //     if (interrupt_request != -1)
-    //         cpu->interrupt_request = interrupt_request;
-    // }
+    if (rr_in_replay()) {
+        rr_replay_interrupt(cpu, &interrupt_request);
+        if (interrupt_request != -1)
+            cpu->interrupt_request = interrupt_request;
+    }
 
     /* Clear the interrupt flag now since we're processing
      * cpu->interrupt_request and cpu->exit_request.

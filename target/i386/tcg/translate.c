@@ -31,6 +31,7 @@
 #include "helper-tcg.h"
 
 #include "exec/log.h"
+#include "sysemu/kernel-rr.h"
 
 #define PREFIX_REPZ   0x01
 #define PREFIX_REPNZ  0x02
@@ -8585,11 +8586,13 @@ static void i386_tr_init_disas_context(DisasContextBase *dcbase, CPUState *cpu)
     g_assert(SVME(dc) == ((flags & HF_SVME_MASK) != 0));
     g_assert(GUEST(dc) == ((flags & HF_GUEST_MASK) != 0));
 
-    if (cpl == 3) {
-        dcbase->in_user_mode = true;
-        return;
-    } else {
-        dcbase->in_user_mode = false;
+    if (rr_in_replay()) {
+        if (cpl == 3) {
+            dcbase->in_user_mode = true;
+            return;
+        } else {
+            dcbase->in_user_mode = false;
+        }
     }
 
     dc->cc_op = CC_OP_DYNAMIC;

@@ -1,6 +1,6 @@
 #ifndef __KERNEL_RR_H__
 #define __KERNEL_RR_H__
-
+#include <stdint.h>
 #include <linux/kvm.h>
 
 #define EVENT_TYPE_INTERRUPT 0
@@ -57,7 +57,7 @@ typedef struct rr_event_log_t{
         rr_syscall  syscall;
     } event;
     struct rr_event_log_t *next;
-    int inst_from_last;
+    uint64_t inst_cnt;
 } rr_event_log;
 
 typedef struct rr_event_list_t {
@@ -79,6 +79,6 @@ void rr_print_events_stat(void);
 void rr_post_record(void);
 void rr_pre_replay(void);
 
-long rr_get_next_event_inst(void);
+uint64_t rr_get_next_event_inst(void);
 
 #endif

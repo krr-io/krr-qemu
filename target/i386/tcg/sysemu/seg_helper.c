@@ -26,6 +26,8 @@
 #include "tcg/helper-tcg.h"
 #include "../seg_helper.h"
 
+#include "sysemu/kernel-rr.h"
+
 #ifdef TARGET_X86_64
 void helper_syscall(CPUX86State *env, int next_eip_addend)
 {
@@ -168,6 +170,8 @@ bool x86_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
         cs->interrupt_request &= ~(CPU_INTERRUPT_HARD |
                                    CPU_INTERRUPT_VIRQ);
         intno = cpu_get_pic_interrupt(env);
+        if (rr_in_replay())
+            rr_do_replay_intno(cs, &intno);
         qemu_log_mask(CPU_LOG_INT,
                       "Servicing hardware INT=0x%02x\n", intno);
         do_interrupt_x86_hardirq(env, intno, 1);

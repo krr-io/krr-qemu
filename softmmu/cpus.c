@@ -47,6 +47,8 @@
 #include "hw/hw.h"
 #include "trace.h"
 
+#include "sysemu/kernel-rr.h"
+
 #ifdef CONFIG_LINUX
 
 #include <sys/prctl.h>
@@ -417,6 +419,8 @@ void qemu_wait_io_event(CPUState *cpu)
     bool slept = false;
 
     while (cpu_thread_is_idle(cpu)) {
+        if (rr_in_replay() && rr_num_instr_before_next_interrupt() == 0) break;
+
         if (!slept) {
             slept = true;
             qemu_plugin_vcpu_idle_cb(cpu);

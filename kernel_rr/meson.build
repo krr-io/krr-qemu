@@ -1,4 +1,1 @@
-kernel_rr_files = files(
-  'kernel_rr.c',
-)
-softmmu_ss.add(kernel_rr_files)
+specific_ss.add(when: 'CONFIG_SOFTMMU', if_true: files('kernel_rr.c'))

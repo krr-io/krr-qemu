@@ -1103,7 +1103,9 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
 
-    rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
+    save_snapshot(qdict_get_try_str(qdict, "name"), true, NULL, false, NULL, &err);
+
+    // rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
     kvm_start_record();
     rr_insert_breakpoints();
 
@@ -1119,7 +1121,9 @@ void hmp_rr_replay(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
 
-    rr_load_snapshot(qdict_get_try_str(qdict, "name"), &err);
+    if (load_snapshot(qdict_get_try_str(qdict, "name"), NULL, false, NULL, &err)) {
+        vm_start();
+    }
 
     hmp_handle_error(mon, err);
 }

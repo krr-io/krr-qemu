@@ -2759,7 +2759,10 @@ void qmp_x_exit_preconfig(Error **errp)
     }
 
     if (kernel_replay_name) {
-        rr_load_snapshot(kernel_replay_name, NULL);
+        if (load_snapshot(kernel_replay_name, NULL, false, NULL, &error_fatal)) {
+            vm_start();
+        }
+
         rr_pre_replay();
         rr_set_replay(1, ram_size);
     }

@@ -2808,12 +2808,21 @@ void rr_save_snapshot(const char *name, Error **errp)
     QEMUFile* snp = qemu_fopen_channel_output(QIO_CHANNEL(ioc));
 
     snapshot_ret = qemu_savevm_state(snp, &err);
-    qemu_fclose(snp);
 
     if (snapshot_ret < 0 || err != NULL) {
         printf ("snapshot save failed?\n");
         abort();
     }
+
+    snapshot_ret = qemu_save_device_state(snp);
+    // qemu_fclose(snp);
+
+    if (snapshot_ret < 0 || err != NULL) {
+        printf ("snapshot save failed?\n");
+        abort();
+    }
+
+    printf("Snapshotted for %s\n", name);
 
     return;
 }
@@ -2823,8 +2832,7 @@ void rr_load_snapshot(const char *name, Error **errp)
     int snapshot_ret;
     QIOChannelFile* ioc = NULL;
     QEMUFile* snp = NULL;
-    MigrationIncomingState* mis = migration_incoming_get_current();
-
+    // MigrationIncomingState* mis = migration_incoming_get_current();
 
     vm_stop(RUN_STATE_RESTORE_VM);
 
@@ -2837,17 +2845,18 @@ void rr_load_snapshot(const char *name, Error **errp)
     
     snp = qemu_fopen_channel_input(QIO_CHANNEL(ioc));
 
-    mis->from_src_file = snp;
+    // mis->from_src_file = snp;
 
-    qemu_system_reset(SHUTDOWN_CAUSE_NONE);
+    // snapshot_ret = qemu_load_device_state(snp);
+
     snapshot_ret = qemu_loadvm_state(snp);
-    // qemu_fclose(snp);
+    qemu_fclose(snp);
 
     if (snapshot_ret < 0) {
         error_setg(errp, QERR_IO_ERROR);
-        return;
     }
-    migration_incoming_state_destroy();
+
+    // migration_incoming_state_destroy();
 
     printf("... done.\n");
 }

@@ -419,7 +419,7 @@ void qemu_wait_io_event(CPUState *cpu)
     bool slept = false;
 
     while (cpu_thread_is_idle(cpu)) {
-        if (rr_in_replay() && rr_num_instr_before_next_interrupt() == 0) break;
+        if (rr_in_replay() && replay_should_skip_wait()) break;
 
         if (!slept) {
             slept = true;

@@ -30,6 +30,8 @@
 #include "qapi/error.h"
 #include "qom/object.h"
 
+#include "sysemu/kernel-rr.h"
+
 #define MAX_APICS 255
 #define MAX_APIC_WORDS 8
 
@@ -629,6 +631,10 @@ static void apic_timer_update(APICCommonState *s, int64_t current_time)
 static void apic_timer(void *opaque)
 {
     APICCommonState *s = opaque;
+
+    if (rr_in_replay()) {
+        return;
+    }
 
     apic_local_deliver(s, APIC_LVT_TIMER);
     apic_timer_update(s, s->next_time);

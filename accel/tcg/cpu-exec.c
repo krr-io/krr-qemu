@@ -616,6 +616,10 @@ static inline bool cpu_handle_halt(CPUState *cpu)
             qemu_mutex_unlock_iothread();
         }
 #endif /* TARGET_I386 */
+        if (rr_in_replay()) {
+            return false;
+        }
+
         if (!cpu_has_work(cpu)) {
             return true;
         }
@@ -737,8 +741,10 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
 
     if (rr_in_replay()) {
         rr_replay_interrupt(cpu, &interrupt_request);
-        if (interrupt_request != -1)
+        if (interrupt_request != -1) {
             cpu->interrupt_request = interrupt_request;
+        }
+        // printf("replayed request %d\n", interrupt_request);
     }
 
     /* Clear the interrupt flag now since we're processing
@@ -837,6 +843,7 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
         || (icount_enabled()
             && (cpu->cflags_next_tb == -1 || cpu->cflags_next_tb & CF_USE_ICOUNT)
             && cpu_neg(cpu)->icount_decr.u16.low + cpu->icount_extra == 0)) {
+        // qemu_log("need exit\n");
         qatomic_set(&cpu->exit_request, 0);
         if (cpu->exception_index == -1) {
             cpu->exception_index = EXCP_INTERRUPT;
@@ -963,6 +970,7 @@ int cpu_exec(CPUState *cpu)
             TranslationBlock *tb;
             target_ulong cs_base, pc;
             uint32_t flags, cflags;
+            // qemu_log("execute tb\n");
 
             cpu_get_tb_cpu_state(cpu->env_ptr, &pc, &cs_base, &flags);
 
@@ -1018,8 +1026,11 @@ int cpu_exec(CPUState *cpu)
                if the guest is in advance */
             align_clocks(&sc, cpu);
         }
+
+        // qemu_log("exit loop\n");
     }
 
+    // qemu_log("exit exception\n");
     cpu_exec_exit(cpu);
     rcu_read_unlock();
 

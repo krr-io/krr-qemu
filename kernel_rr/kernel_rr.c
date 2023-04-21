@@ -20,6 +20,8 @@ static int event_syscall_num = 0;
 static int event_exception_num = 0;
 static int event_interrupt_num = 0;
 
+static int started_replay = 0;
+
 static bool log_loaded = false;
 
 uint64_t rr_get_next_event_inst(void)
@@ -29,6 +31,7 @@ uint64_t rr_get_next_event_inst(void)
 
 int rr_in_replay(void)
 {
+    // return false;
     return g_rr_in_replay;
 }
 
@@ -205,6 +208,10 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
         rr_pop_event_head();
         rr_clear_redundant_events(cpu);
 
+        if (!started_replay) {
+            started_replay = 1;
+        }
+
         printf("replayed %d\n", *intno);
         return;
     }
@@ -212,7 +219,12 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
 
 uint64_t rr_num_instr_before_next_interrupt(void)
 {
-    if (rr_event_log_head == NULL) rr_load_events();
+    // if (rr_event_log_head == NULL) rr_load_events();
 
     return rr_event_log_head->inst_cnt;
+}
+
+int replay_should_skip_wait(void)
+{
+    return started_replay;
 }

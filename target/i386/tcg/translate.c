@@ -8469,6 +8469,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     }
     return s->pc;
  illegal_op:
+    qemu_log("Error: Invalid ops!\n");
     gen_illegal_opcode(s);
     return s->pc;
  unknown_op:
@@ -8731,4 +8732,10 @@ void restore_state_to_opc(CPUX86State *env, TranslationBlock *tb,
     if (cc_op != CC_OP_DYNAMIC) {
         env->cc_op = cc_op;
     }
+}
+
+void log_tb(CPUState *cpu, TranslationBlock *tb)
+{
+    qemu_log("IN: log tb:");
+    log_target_disas(cpu, tb->pc, tb->size);
 }

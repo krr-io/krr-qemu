@@ -134,9 +134,11 @@ bool x86_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
     CPUX86State *env = &cpu->env;
     int intno;
 
-    interrupt_request = x86_cpu_pending_interrupt(cs, interrupt_request);
-    if (!interrupt_request) {
-        return false;
+    if (!rr_in_replay()) {
+        interrupt_request = x86_cpu_pending_interrupt(cs, interrupt_request);
+        if (!interrupt_request) {
+            return false;
+        }
     }
 
     /* Don't process multiple interrupt requests in a single call.

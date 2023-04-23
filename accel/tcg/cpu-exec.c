@@ -743,6 +743,7 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
         rr_replay_interrupt(cpu, &interrupt_request);
         if (interrupt_request != -1) {
             cpu->interrupt_request = interrupt_request;
+            qatomic_mb_set(&cpu->exit_request, 0);
         }
         // printf("replayed request %d\n", interrupt_request);
     }
@@ -843,7 +844,7 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
         || (icount_enabled()
             && (cpu->cflags_next_tb == -1 || cpu->cflags_next_tb & CF_USE_ICOUNT)
             && cpu_neg(cpu)->icount_decr.u16.low + cpu->icount_extra == 0)) {
-        // qemu_log("need exit\n");
+        qemu_log("need exit\n");
         qatomic_set(&cpu->exit_request, 0);
         if (cpu->exception_index == -1) {
             cpu->exception_index = EXCP_INTERRUPT;
@@ -970,7 +971,7 @@ int cpu_exec(CPUState *cpu)
             TranslationBlock *tb;
             target_ulong cs_base, pc;
             uint32_t flags, cflags;
-            // qemu_log("execute tb\n");
+            qemu_log("execute tb\n");
 
             cpu_get_tb_cpu_state(cpu->env_ptr, &pc, &cs_base, &flags);
 
@@ -1002,6 +1003,8 @@ int cpu_exec(CPUState *cpu)
                  * for the fast lookup
                  */
                 qatomic_set(&cpu->tb_jmp_cache[tb_jmp_cache_hash_func(pc)], tb);
+            } else {
+                log_tb(cpu, tb);
             }
 
 #ifndef CONFIG_USER_ONLY
@@ -1027,10 +1030,10 @@ int cpu_exec(CPUState *cpu)
             align_clocks(&sc, cpu);
         }
 
-        // qemu_log("exit loop\n");
+        qemu_log("exit loop\n");
     }
 
-    // qemu_log("exit exception\n");
+    qemu_log("exit exception, ret=%d\n", ret);
     cpu_exec_exit(cpu);
     rcu_read_unlock();
 

@@ -220,6 +220,9 @@ static void apic_bus_deliver(const uint32_t *deliver_bitmask,
 {
     APICCommonState *apic_iter;
 
+    if (rr_in_replay())
+        return;
+
     switch (delivery_mode) {
         case APIC_DM_LOWPRI:
             /* XXX: search for focus processor, arbitration */

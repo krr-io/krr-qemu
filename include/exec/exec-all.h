@@ -732,6 +732,8 @@ address_space_translate_for_iotlb(CPUState *cpu, int asidx, hwaddr addr,
                                   MemTxAttrs attrs, int *prot);
 hwaddr memory_region_section_get_iotlb(CPUState *cpu,
                                        MemoryRegionSection *section);
+
+void log_tb(CPUState *cpu, TranslationBlock *tb);
 #endif
 
 #endif

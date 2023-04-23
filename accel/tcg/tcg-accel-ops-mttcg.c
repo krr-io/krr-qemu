@@ -36,6 +36,7 @@
 
 #include "tcg-accel-ops.h"
 #include "tcg-accel-ops-mttcg.h"
+#include "sysemu/kernel-rr.h"
 
 typedef struct MttcgForceRcuNotifier {
     Notifier notifier;
@@ -87,7 +88,13 @@ static void *mttcg_cpu_thread_fn(void *arg)
     qemu_guest_random_seed_thread_part2(cpu->random_seed);
 
     /* process any pending work */
-    cpu->exit_request = 1;
+    if (!rr_in_replay())
+        cpu->exit_request = 1;
+    else
+        cpu->exit_request = 0;
+
+    // sleep(1);
+    cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
 
     do {
         if (cpu_can_run(cpu)) {
@@ -108,7 +115,8 @@ static void *mttcg_cpu_thread_fn(void *arg)
                  *
                  * cpu->halted should ensure we sleep in wait_io_event
                  */
-                g_assert(cpu->halted);
+                // g_assert(cpu->halted);
+                cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
                 break;
             case EXCP_ATOMIC:
                 qemu_mutex_unlock_iothread();

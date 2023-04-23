@@ -156,12 +156,15 @@ static void rr_load_events(void) {
 	
     rr_print_events_stat();
     log_loaded = true;
+
+    rr_pop_event_head();
+    rr_pop_event_head();
 }
 
 static void rr_clear_redundant_events(CPUState *cpu)
 {
     while (rr_event_log_head != NULL && 
-           rr_event_log_head->inst_cnt >= cpu->rr_guest_instr_count) {
+           rr_event_log_head->inst_cnt <= cpu->rr_guest_instr_count) {
         rr_event_log_head = rr_event_log_head->next;
     }
 }
@@ -183,11 +186,13 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
         return;
     }
 
+    // printf("replay interrupt\n");
     if (rr_event_log_head->type == EVENT_TYPE_INTERRUPT) {
-
         if (rr_event_log_head->inst_cnt == cpu->rr_guest_instr_count) {
             *interrupt = CPU_INTERRUPT_HARD;
             printf("replay int request\n");
+        } else {
+            // printf("inst not match %lu vs %lu\n", cpu->rr_guest_instr_count, rr_event_log_head->inst_cnt);
         }
         return;
     }
@@ -219,9 +224,11 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
 
 uint64_t rr_num_instr_before_next_interrupt(void)
 {
-    // if (rr_event_log_head == NULL) rr_load_events();
+    if (rr_event_log_head == NULL)
+        rr_load_events();
 
-    return rr_event_log_head->inst_cnt;
+    // return rr_event_log_head->inst_cnt;
+    return 1890;
 }
 
 int replay_should_skip_wait(void)

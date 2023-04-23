@@ -96,6 +96,9 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
             plugin_gen_insn_start(cpu, db);
         }
 
+        if(rr_in_replay())
+            gen_op_update_rr_icount();
+
         /* Disassemble one instruction.  The translate_insn hook should
            update db->pc_next and db->is_jmp to indicate what should be
            done next -- either exiting this loop or locate the start of
@@ -109,9 +112,6 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
             tcg_debug_assert(!(cflags & CF_MEMI_ONLY));
             ops->translate_insn(db, cpu);
         }
-
-        if(rr_in_replay())
-            gen_op_update_rr_icount();
 
         /* Stop translation if translate_insn so indicated.  */
         if (db->is_jmp != DISAS_NEXT) {
@@ -150,6 +150,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
     if (qemu_loglevel_mask(CPU_LOG_TB_IN_ASM)
         && qemu_log_in_addr_range(db->pc_first)) {
         FILE *logfile = qemu_log_lock();
+        qemu_log("Executed Inst: %lu\n", cpu->rr_guest_instr_count);
         qemu_log("----------------\n");
         ops->disas_log(db, cpu);
         qemu_log("\n");

@@ -459,6 +459,8 @@ struct tb_tc {
     size_t size;
 };
 
+#define TB_SYSCALL_FLAG 1 << 16
+
 struct TranslationBlock {
     target_ulong pc;   /* simulated PC corresponding to this block (EIP + CS base) */
     target_ulong cs_base; /* CS base for this block */
@@ -734,6 +736,7 @@ hwaddr memory_region_section_get_iotlb(CPUState *cpu,
                                        MemoryRegionSection *section);
 
 void log_tb(CPUState *cpu, TranslationBlock *tb);
+void log_regs(CPUState *cpu);
 #endif
 
 #endif

@@ -1,5 +1,6 @@
 #include "qemu/osdep.h"
 #include "qemu-common.h"
+#include "exec/log.h"
 
 #include "cpu.h"
 
@@ -21,6 +22,7 @@ static int event_exception_num = 0;
 static int event_interrupt_num = 0;
 
 static int started_replay = 0;
+static int initialized_replay = 0;
 
 static bool log_loaded = false;
 
@@ -56,6 +58,7 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
 
     event_record->type = event.type;
     event_record->inst_cnt = event.inst_cnt;
+    event_record->rip = event.rip;
 
     switch (event.type)
     {
@@ -63,27 +66,27 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
         memcpy(&event_record->event.interrupt, &event.event.interrupt, sizeof(rr_interrupt));
         // printf("Interrupt: %d\n", event.event.interrupt.lapic.vector);
 
-        printf("Interrupt: %d, inst_cnt: %lu\n", event_record->event.interrupt.lapic.vector, event.inst_cnt);
+        printf("Interrupt: %d, inst_cnt: %lu, rip=%lx\n", event_record->event.interrupt.lapic.vector, event.inst_cnt, event_record->rip);
         event_interrupt_num++;
         break;
 
     case EVENT_TYPE_EXCEPTION:
         memcpy(&event_record->event.exception, &event.event.exception, sizeof(rr_exception));
-        printf("Exception: %d, error code=%d, addr=%lu, inst_cnt: %lu\n",
-               event_record->event.exception.exception_index, 
-               event_record->event.exception.error_code, event_record->event.exception.cr2,
-               event.inst_cnt);
+        // printf("Exception: %d, error code=%d, addr=%lu, inst_cnt: %lu\n",
+        //        event_record->event.exception.exception_index, 
+        //        event_record->event.exception.error_code, event_record->event.exception.cr2,
+        //        event.inst_cnt);
         event_exception_num++;
         break;
 
     case EVENT_TYPE_SYSCALL:
         memcpy(&event_record->event.syscall, &event.event.syscall, sizeof(rr_syscall));
         event_syscall_num++;
-        printf("Syscall: %llu, arg1=%llu, arg2=%llu, inst_cnt: %lu\n",
-               event_record->event.syscall.regs.rax,
-               event_record->event.syscall.regs.rbx,
-               event_record->event.syscall.regs.rcx,
-               event.inst_cnt);
+        // printf("Syscall: %llu, arg1=%llu, arg2=%llu, inst_cnt: %lu\n",
+        //        event_record->event.syscall.regs.rax,
+        //        event_record->event.syscall.regs.rbx,
+        //        event_record->event.syscall.regs.rcx,
+        //        event.inst_cnt);
         break;
 
     default:
@@ -91,6 +94,20 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
     }
 
     return event_record;
+}
+
+int rr_is_syscall_ready(CPUState *cpu)
+{
+    if (rr_event_log_head == NULL) {
+        printf("Replay is over");
+        exit(0);
+    }
+
+    if (rr_event_log_head->type == EVENT_TYPE_SYSCALL && cpu->rr_guest_instr_count == rr_event_log_head->inst_cnt) {
+        return 1;
+    }
+
+    return 0;
 }
 
 void append_event(rr_event_log event)
@@ -157,14 +174,14 @@ static void rr_load_events(void) {
     rr_print_events_stat();
     log_loaded = true;
 
-    rr_pop_event_head();
-    rr_pop_event_head();
+    // rr_pop_event_head();
+    // rr_pop_event_head();
 }
 
 static void rr_clear_redundant_events(CPUState *cpu)
 {
     while (rr_event_log_head != NULL && 
-           rr_event_log_head->inst_cnt <= cpu->rr_guest_instr_count) {
+           rr_event_log_head->inst_cnt <= cpu->rr_executed_inst) {
         rr_event_log_head = rr_event_log_head->next;
     }
 }
@@ -188,13 +205,11 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
 
     // printf("replay interrupt\n");
     if (rr_event_log_head->type == EVENT_TYPE_INTERRUPT) {
-        if (rr_event_log_head->inst_cnt == cpu->rr_guest_instr_count) {
+        if (rr_event_log_head->inst_cnt == cpu->rr_executed_inst) {
             *interrupt = CPU_INTERRUPT_HARD;
-            printf("replay int request\n");
-        } else {
-            // printf("inst not match %lu vs %lu\n", cpu->rr_guest_instr_count, rr_event_log_head->inst_cnt);
+            qemu_log("replay int request\n");
+            return;
         }
-        return;
     }
 
     *interrupt = -1;
@@ -204,7 +219,7 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
 void rr_do_replay_intno(CPUState *cpu, int *intno)
 {
     if (rr_event_log_head == NULL) {
-        printf("No events anymore\n");
+        qemu_log("No events anymore\n");
         abort();
     }
 
@@ -217,18 +232,24 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
             started_replay = 1;
         }
 
-        printf("replayed %d\n", *intno);
+        qemu_log("replayed %d\n", *intno);
         return;
     }
 }
 
 uint64_t rr_num_instr_before_next_interrupt(void)
 {
-    if (rr_event_log_head == NULL)
-        rr_load_events();
+    if (rr_event_log_head == NULL) {
+        if (!initialized_replay) {
+            rr_load_events();
+            initialized_replay = 1;
+        } else {
+            printf("Replay finished\n");
+            exit(0);
+        }
+    }
 
-    // return rr_event_log_head->inst_cnt;
-    return 1890;
+    return rr_event_log_head->inst_cnt;
 }
 
 int replay_should_skip_wait(void)

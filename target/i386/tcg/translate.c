@@ -8588,6 +8588,7 @@ static void i386_tr_init_disas_context(DisasContextBase *dcbase, CPUState *cpu)
     g_assert(GUEST(dc) == ((flags & HF_GUEST_MASK) != 0));
 
     if (rr_in_replay()) {
+        qemu_log("CPL=%d\n", cpl);
         if (cpl == 3) {
             dcbase->in_user_mode = true;
             return;
@@ -8736,6 +8737,16 @@ void restore_state_to_opc(CPUX86State *env, TranslationBlock *tb,
 
 void log_tb(CPUState *cpu, TranslationBlock *tb)
 {
-    qemu_log("IN: log tb:");
+    qemu_log("IN: log tb, size=%u, icount=%u\n", tb->size, tb->icount);
     log_target_disas(cpu, tb->pc, tb->size);
+}
+
+void log_regs(CPUState *cpu)
+{
+    X86CPU *x86_cpu = X86_CPU(cpu);
+    CPUX86State *env = &x86_cpu->env;
+
+    qemu_log("Regs: rax=%lx,rbx=%lx,rcx=%lx,rdx=%lx,rsi=%lx,rdi=%lx,rbp=%lx,rsp=%lx\n",\
+             env->regs[R_EAX], env->regs[R_EBX], env->regs[R_ECX],  env->regs[R_EDX], env->regs[R_ESI], env->regs[R_EDI],\
+             env->regs[R_ESP], env->regs[R_EBP]);
 }

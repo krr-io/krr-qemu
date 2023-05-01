@@ -58,6 +58,7 @@ typedef struct rr_event_log_t{
     } event;
     struct rr_event_log_t *next;
     uint64_t inst_cnt;
+    unsigned long rip;
 } rr_event_log;
 
 typedef struct rr_event_list_t {

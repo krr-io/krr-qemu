@@ -20,5 +20,6 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt);
 void rr_do_replay_intno(CPUState *cpu, int *intno);
 
 uint64_t rr_num_instr_before_next_interrupt(void);
+int rr_is_syscall_ready(CPUState *cpu);
 
 #endif /* KERNEL_RR_H */

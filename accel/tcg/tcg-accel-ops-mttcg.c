@@ -38,6 +38,8 @@
 #include "tcg-accel-ops-mttcg.h"
 #include "sysemu/kernel-rr.h"
 
+#include "exec/log.h"
+
 typedef struct MttcgForceRcuNotifier {
     Notifier notifier;
     CPUState *cpu;
@@ -106,6 +108,10 @@ static void *mttcg_cpu_thread_fn(void *arg)
             case EXCP_DEBUG:
                 cpu_handle_guest_debug(cpu);
                 break;
+            case EXCP_HLT:
+                qemu_log("enter halt\n");
+                cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
+                break;
             case EXCP_HALTED:
                 /*
                  * during start-up the vCPU is reset and the thread is
@@ -116,6 +122,7 @@ static void *mttcg_cpu_thread_fn(void *arg)
                  * cpu->halted should ensure we sleep in wait_io_event
                  */
                 // g_assert(cpu->halted);
+                qemu_log("enter halt, jump to next\n");
                 cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
                 break;
             case EXCP_ATOMIC:

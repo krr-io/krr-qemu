@@ -435,6 +435,9 @@ struct CPUState {
     GArray *iommu_notifiers;
 
     rr_event_list *rr_events;
+    uint64_t rr_executed_inst;
+
+    uint64_t last_pc;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

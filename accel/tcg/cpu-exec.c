@@ -326,7 +326,9 @@ const void *HELPER(lookup_tb_ptr)(CPUArchState *env)
     }
 
     tb = tb_lookup(cpu, pc, cs_base, flags, cflags);
-    if (tb == NULL) {
+
+    // In kernel replay, we don't do the quick lookup so far.
+    if (tb == NULL || rr_in_replay()) {
         return tcg_code_gen_epilogue;
     }
 
@@ -744,6 +746,8 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
         if (interrupt_request != -1) {
             cpu->interrupt_request = interrupt_request;
             qatomic_mb_set(&cpu->exit_request, 0);
+        } else {
+            interrupt_request = 0;
         }
         // printf("replayed request %d\n", interrupt_request);
     }
@@ -788,6 +792,7 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
             do_cpu_init(x86_cpu);
             cpu->exception_index = EXCP_HALTED;
             qemu_mutex_unlock_iothread();
+            qemu_log("Int init\n");
             return true;
         }
 #else
@@ -859,6 +864,11 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
                                     TranslationBlock **last_tb, int *tb_exit)
 {
     int32_t insns_left;
+
+    qemu_log("\nExecute TB:\n");
+    qemu_log("Real inst cnt: %lu, deduplicated cnt %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+    log_regs(cpu);
+    log_tb(cpu, tb);
 
     trace_exec_tb(tb, tb->pc);
     tb = cpu_tb_exec(cpu, tb, tb_exit);
@@ -969,9 +979,12 @@ int cpu_exec(CPUState *cpu)
 
         while (!cpu_handle_interrupt(cpu, &last_tb)) {
             TranslationBlock *tb;
-            target_ulong cs_base, pc;
+            target_ulong cs_base, pc, last_pc;
             uint32_t flags, cflags;
-            qemu_log("execute tb\n");
+
+            // if (rr_is_syscall_ready(cpu)) {
+            //     flags |= TB_SYSCALL_FLAG;
+            // }
 
             cpu_get_tb_cpu_state(cpu->env_ptr, &pc, &cs_base, &flags);
 
@@ -1003,8 +1016,6 @@ int cpu_exec(CPUState *cpu)
                  * for the fast lookup
                  */
                 qatomic_set(&cpu->tb_jmp_cache[tb_jmp_cache_hash_func(pc)], tb);
-            } else {
-                log_tb(cpu, tb);
             }
 
 #ifndef CONFIG_USER_ONLY
@@ -1023,14 +1034,23 @@ int cpu_exec(CPUState *cpu)
                 tb_add_jump(last_tb, tb_exit, tb);
             }
 
+            last_pc = cpu->last_pc;
+
+            cpu->last_pc = tb->pc;
+
             cpu_loop_exec_tb(cpu, tb, &last_tb, &tb_exit);
+
+            if (rr_in_replay()) {
+                if (pc != last_pc) {
+                    cpu->rr_executed_inst++;
+                }
+                qemu_log("end execute tb, executed inst %lu dedup inst %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+            }
 
             /* Try to align the host and virtual clocks
                if the guest is in advance */
             align_clocks(&sc, cpu);
         }
-
-        qemu_log("exit loop\n");
     }
 
     qemu_log("exit exception, ret=%d\n", ret);

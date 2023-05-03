@@ -109,8 +109,6 @@ static void *mttcg_cpu_thread_fn(void *arg)
                 cpu_handle_guest_debug(cpu);
                 break;
             case EXCP_HLT:
-                qemu_log("enter halt\n");
-                cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
                 break;
             case EXCP_HALTED:
                 /*

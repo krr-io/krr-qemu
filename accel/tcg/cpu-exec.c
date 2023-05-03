@@ -865,13 +865,14 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 {
     int32_t insns_left;
 
-    qemu_log("\nExecute TB:\n");
-    qemu_log("Real inst cnt: %lu, deduplicated cnt %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
     log_regs(cpu);
     log_tb(cpu, tb);
 
     trace_exec_tb(tb, tb->pc);
     tb = cpu_tb_exec(cpu, tb, tb_exit);
+
+    qemu_log("Finished TB execution\n");
+
     if (*tb_exit != TB_EXIT_REQUESTED) {
         *last_tb = tb;
         return;
@@ -979,7 +980,7 @@ int cpu_exec(CPUState *cpu)
 
         while (!cpu_handle_interrupt(cpu, &last_tb)) {
             TranslationBlock *tb;
-            target_ulong cs_base, pc, last_pc;
+            target_ulong cs_base, pc;
             uint32_t flags, cflags;
 
             // if (rr_is_syscall_ready(cpu)) {
@@ -1034,17 +1035,20 @@ int cpu_exec(CPUState *cpu)
                 tb_add_jump(last_tb, tb_exit, tb);
             }
 
-            last_pc = cpu->last_pc;
+            qemu_log("\nExecute TB:\n");
+            qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+
+            if (tb->pc != cpu->last_pc) {
+                cpu->rr_executed_inst++;
+            }
 
             cpu->last_pc = tb->pc;
 
             cpu_loop_exec_tb(cpu, tb, &last_tb, &tb_exit);
 
             if (rr_in_replay()) {
-                if (pc != last_pc) {
-                    cpu->rr_executed_inst++;
-                }
-                qemu_log("end execute tb, executed inst %lu dedup inst %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+                qemu_log("end execute tb, executed inst %lu, real inst %lu\n\n",
+                         cpu->rr_executed_inst, cpu->rr_guest_instr_count);
             }
 
             /* Try to align the host and virtual clocks

@@ -24,6 +24,8 @@ static int event_interrupt_num = 0;
 static int started_replay = 0;
 static int initialized_replay = 0;
 
+static int replayed_interrupt_num = 0;
+
 static bool log_loaded = false;
 
 uint64_t rr_get_next_event_inst(void)
@@ -178,7 +180,7 @@ static void rr_load_events(void) {
     // rr_pop_event_head();
 }
 
-static void rr_clear_redundant_events(CPUState *cpu)
+__attribute_maybe_unused__ static void rr_clear_redundant_events(CPUState *cpu)
 {
     while (rr_event_log_head != NULL && 
            rr_event_log_head->inst_cnt <= cpu->rr_executed_inst) {
@@ -197,17 +199,31 @@ void rr_pre_replay(void)
 }
 
 void rr_replay_interrupt(CPUState *cpu, int *interrupt)
-{
+{    
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
     if (rr_event_log_head == NULL) {
+        if (started_replay) {
+            printf("Replay finished\n");
+            exit(0);
+        }
+
         *interrupt = -1;
         return;
     }
 
-    // printf("replay interrupt\n");
     if (rr_event_log_head->type == EVENT_TYPE_INTERRUPT) {
         if (rr_event_log_head->inst_cnt == cpu->rr_executed_inst) {
-            *interrupt = CPU_INTERRUPT_HARD;
-            qemu_log("replay int request\n");
+
+            x86_cpu = X86_CPU(cpu);
+            env = &x86_cpu->env;
+        
+            if (env->eip == rr_event_log_head->rip) {
+                *interrupt = CPU_INTERRUPT_HARD;
+                qemu_log("Ready to replay int request\n");
+                cpu->rr_executed_inst++;
+            }
             return;
         }
     }
@@ -218,21 +234,31 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
 
 void rr_do_replay_intno(CPUState *cpu, int *intno)
 {
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
     if (rr_event_log_head == NULL) {
         qemu_log("No events anymore\n");
         abort();
     }
 
     if (rr_event_log_head->type == EVENT_TYPE_INTERRUPT) {
+        x86_cpu = X86_CPU(cpu);
+        env = &x86_cpu->env;
+    
         *intno = rr_event_log_head->event.interrupt.lapic.vector;
         rr_pop_event_head();
-        rr_clear_redundant_events(cpu);
 
         if (!started_replay) {
             started_replay = 1;
         }
 
-        qemu_log("replayed %d\n", *intno);
+        replayed_interrupt_num++;
+
+        qemu_log("Replayed interrupt vector=%d, RIP on replay=0x%lx, replayed int number=%d\n",
+                 *intno, env->eip, replayed_interrupt_num);
+        printf("Replayed interrupt vecotr=%d, RIP on replay=0x%lx, replayed int number=%d\n",
+               *intno, env->eip, replayed_interrupt_num);
         return;
     }
 }

@@ -3391,7 +3391,7 @@ int kvm_end_record(void) {
 int kvm_start_replay(void) {
     CPUState *cpu;
 
-    rr_pre_replay();
+    // rr_pre_replay();
 
     CPU_FOREACH(cpu) {
         run_on_cpu(cpu, do_kvm_cpu_start_replay, RUN_ON_CPU_NULL);

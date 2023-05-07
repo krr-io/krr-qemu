@@ -20,6 +20,7 @@ rr_event_log *rr_event_cur = NULL;
 static int event_syscall_num = 0;
 static int event_exception_num = 0;
 static int event_interrupt_num = 0;
+static int event_io_input_num = 0;
 
 static int started_replay = 0;
 static int initialized_replay = 0;
@@ -74,6 +75,8 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
 
     case EVENT_TYPE_EXCEPTION:
         memcpy(&event_record->event.exception, &event.event.exception, sizeof(rr_exception));
+
+        // printf("Syscall: %lu, inst_cnt: %lu\n", event_record->event.syscall.regs.rip, event.inst_cnt);
         // printf("Exception: %d, error code=%d, addr=%lu, inst_cnt: %lu\n",
         //        event_record->event.exception.exception_index, 
         //        event_record->event.exception.error_code, event_record->event.exception.cr2,
@@ -83,6 +86,7 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
 
     case EVENT_TYPE_SYSCALL:
         memcpy(&event_record->event.syscall, &event.event.syscall, sizeof(rr_syscall));
+        printf("Syscall: %llu, inst_cnt: %lu\n", event_record->event.syscall.regs.rax, event.inst_cnt);
         event_syscall_num++;
         // printf("Syscall: %llu, arg1=%llu, arg2=%llu, inst_cnt: %lu\n",
         //        event_record->event.syscall.regs.rax,
@@ -91,6 +95,11 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
         //        event.inst_cnt);
         break;
 
+     case EVENT_TYPE_IO_IN:
+        memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
+        printf("IO Input: %lx\n", event_record->event.io_input.value);
+        event_io_input_num++;
+        break;
     default:
         break;
     }
@@ -193,10 +202,10 @@ void rr_post_record(void)
     rr_save_events();
 }
 
-void rr_pre_replay(void)
-{
-    rr_load_events();
-}
+// void rr_pre_replay(void)
+// {
+//     rr_load_events();
+// }
 
 void rr_replay_interrupt(CPUState *cpu, int *interrupt)
 {    
@@ -223,6 +232,11 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
                 *interrupt = CPU_INTERRUPT_HARD;
                 qemu_log("Ready to replay int request\n");
                 cpu->rr_executed_inst++;
+            } else {
+                printf("Mismatched, interrupt=%d inst number=%lu and rip=0x%lx\n", 
+                       rr_event_log_head->event.interrupt.lapic.vector, rr_event_log_head->inst_cnt,
+                       rr_event_log_head->rip);
+                abort();
             }
             return;
         }
@@ -230,6 +244,17 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
 
     *interrupt = -1;
     return;
+}
+
+void rr_do_replay_io_input(unsigned long *input)
+{
+    if (rr_event_log_head->type != EVENT_TYPE_IO_IN) {
+        printf("Expected %d event, found %d", EVENT_TYPE_IO_IN, rr_event_log_head->type);
+        abort();
+    }
+
+    *input = rr_event_log_head->event.io_input.value;
+    rr_pop_event_head();
 }
 
 void rr_do_replay_intno(CPUState *cpu, int *intno)
@@ -281,4 +306,8 @@ uint64_t rr_num_instr_before_next_interrupt(void)
 int replay_should_skip_wait(void)
 {
     return started_replay;
+}
+
+void rr_trap(void) {
+    return;
 }

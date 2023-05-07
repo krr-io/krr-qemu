@@ -26,8 +26,8 @@
 #include "kvm-cpus.h"
 #include "sysemu/kernel-rr.h"
 
-target_ulong syscall_addr = 0xffffffff8111d0ef;
-target_ulong pf_excep_addr = 0xffffffff8111e449;
+target_ulong syscall_addr = 0xffffffff8111d00f;
+target_ulong pf_excep_addr = 0xffffffff81200aa0;
 
 target_ulong last_removed_addr = 0;
 
@@ -75,8 +75,9 @@ __attribute_maybe_unused__ static void rr_insert_userspace_int(CPUState *cs)
     return;
 }
 
-__attribute_maybe_unused__ static void handle_on_bp(CPUState *cpu)
+__attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
 {
+    return false;
     if (cpu->singlestep_enabled != 0) {
         // if (last_removed_addr == syscall_addr) {
         if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_HW) > 0) {
@@ -93,29 +94,23 @@ __attribute_maybe_unused__ static void handle_on_bp(CPUState *cpu)
 
         cpu_single_step(cpu, 0);
     } else {
-        target_ulong remove_addr;
+        target_ulong bp_addr;
 
-        // if (cpu->kvm_run->debug.arch.pc == syscall_addr) {
-        remove_addr = cpu->kvm_run->debug.arch.pc;
+        bp_addr = cpu->kvm_run->debug.arch.pc;
+
+        if (bp_addr != syscall_addr && bp_addr != pf_excep_addr)
+            return false;
 
         cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
-        if (kvm_remove_breakpoint(cpu, remove_addr, 1, GDB_BREAKPOINT_HW) > 0) {
+        if (kvm_remove_breakpoint(cpu, bp_addr, 1, GDB_BREAKPOINT_HW) > 0) {
             printf("failed to remove bp\n");
             abort();
         }
-        // } 
-        // else {
-        //     remove_addr = pf_excep_addr;
 
-        //     cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
-        //     if (kvm_remove_breakpoint(cpu, remove_addr, 1, GDB_BREAKPOINT_SW) > 0) {
-        //         printf("failed to remove bp\n");
-        //         abort();
-        //     }
-        // }
-
-        last_removed_addr = remove_addr;
+        last_removed_addr = bp_addr;
     }
+
+    return true;
 }
 
 static void *kvm_vcpu_thread_fn(void *arg)
@@ -138,15 +133,15 @@ static void *kvm_vcpu_thread_fn(void *arg)
     cpu_thread_signal_created(cpu);
     qemu_guest_random_seed_thread_part2(cpu->random_seed);
 
+    // rr_insert_breakpoints();
+
     do {
         if (cpu_can_run(cpu)) {
             r = kvm_cpu_exec(cpu);
             if (r == EXCP_DEBUG) {
-                // if () {
-                // handle_on_bp(cpu);
-
-                // }
-                cpu_handle_guest_debug(cpu);
+                if (!handle_on_bp(cpu)) {
+                    cpu_handle_guest_debug(cpu);
+                }
             }
         }
         qemu_wait_io_event(cpu);

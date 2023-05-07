@@ -2763,7 +2763,7 @@ void qmp_x_exit_preconfig(Error **errp)
             vm_start();
         }
 
-        rr_pre_replay();
+        // rr_pre_replay();
         rr_set_replay(1, ram_size);
     }
 

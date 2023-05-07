@@ -21,5 +21,7 @@ void rr_do_replay_intno(CPUState *cpu, int *intno);
 
 uint64_t rr_num_instr_before_next_interrupt(void);
 int rr_is_syscall_ready(CPUState *cpu);
+void rr_do_replay_io_input(unsigned long *input);
 
+void rr_trap(void);
 #endif /* KERNEL_RR_H */

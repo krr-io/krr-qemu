@@ -6,6 +6,7 @@
 #define EVENT_TYPE_INTERRUPT 0
 #define EVENT_TYPE_EXCEPTION 1
 #define EVENT_TYPE_SYSCALL   2
+#define EVENT_TYPE_IO_IN     3
 
 enum REGS {
     ZERO,
@@ -36,6 +37,10 @@ typedef struct {
 } lapic_log;
 
 typedef struct {
+    unsigned long value;
+} rr_io_input;
+
+typedef struct {
     lapic_log lapic;
 } rr_interrupt;
 
@@ -55,6 +60,7 @@ typedef struct rr_event_log_t{
         rr_interrupt interrupt;
         rr_exception exception;
         rr_syscall  syscall;
+        rr_io_input io_input;
     } event;
     struct rr_event_log_t *next;
     uint64_t inst_cnt;

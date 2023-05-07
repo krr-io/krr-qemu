@@ -26,6 +26,8 @@
 #include "exec/exec-all.h"
 #include "tcg/helper-tcg.h"
 
+#include "sysemu/kernel-rr.h"
+
 void helper_outb(CPUX86State *env, uint32_t port, uint32_t data)
 {
     address_space_stb(&address_space_io, port, data,
@@ -34,6 +36,13 @@ void helper_outb(CPUX86State *env, uint32_t port, uint32_t data)
 
 target_ulong helper_inb(CPUX86State *env, uint32_t port)
 {
+    unsigned long input;
+
+    if (rr_in_replay()) {
+        rr_do_replay_io_input(&input);
+        return input;
+    }
+
     return address_space_ldub(&address_space_io, port,
                               cpu_get_mem_attrs(env), NULL);
 }

@@ -21,6 +21,8 @@
 #include "exec/plugin-gen.h"
 #include "sysemu/replay.h"
 
+#include "sysemu/kernel-rr.h"
+
 /* Pairs with tcg_clear_temp_count.
    To be called by #TranslatorOps.{translate_insn,tb_stop} if
    (1) the target is sufficiently clean to support reporting,
@@ -69,12 +71,27 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
     db->max_insns = max_insns;
     db->singlestep_enabled = cflags & CF_SINGLE_STEP;
     translator_page_protect(db, db->pc_next);
+    db->do_syscall = false;
 
     ops->init_disas_context(db, cpu);
     tcg_debug_assert(db->is_jmp == DISAS_NEXT);  /* no early exit */
 
     if (rr_in_replay() && db->in_user_mode) {
-        printf("User mode\n");
+        qemu_log("User mode, fetch next event\n");
+
+        int next_event = rr_get_next_event_type();
+
+        switch(next_event) {
+            case EVENT_TYPE_SYSCALL:
+                db->do_syscall = true;
+                qemu_log("Next event syscall\n");
+                break;
+            case EVENT_TYPE_INTERRUPT:
+                break;
+            default:
+                printf("Unexpected next event %d\n", next_event);
+                abort();
+        }
     }
 
     /* Reset the temp count so that we can identify leaks */
@@ -145,6 +162,11 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
     /* The disas_log hook may use these values rather than recompute.  */
     tb->size = db->pc_next - db->pc_first;
     tb->icount = db->num_insns;
+    tb->jump_next_event = -1;
+
+    if (db->do_syscall) {
+        tb->jump_next_event = EVENT_TYPE_SYSCALL;
+    }
 
 #ifdef DEBUG_DISAS
     if (qemu_loglevel_mask(CPU_LOG_TB_IN_ASM)

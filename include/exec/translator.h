@@ -88,6 +88,7 @@ typedef struct DisasContextBase {
 #endif
 
     bool in_user_mode;
+    bool do_syscall;
 } DisasContextBase;
 
 /**

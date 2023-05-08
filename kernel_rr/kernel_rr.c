@@ -27,11 +27,18 @@ static int initialized_replay = 0;
 
 static int replayed_interrupt_num = 0;
 
+static int replayed_event_num = 0;
+
 static bool log_loaded = false;
 
 uint64_t rr_get_next_event_inst(void)
 {
     return rr_event_log_head->inst_cnt;
+}
+
+int rr_get_next_event_type(void)
+{
+    return rr_event_log_head->type;
 }
 
 int rr_in_replay(void)
@@ -63,41 +70,38 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
     event_record->inst_cnt = event.inst_cnt;
     event_record->rip = event.rip;
 
+    int event_num = event_syscall_num + event_exception_num + event_interrupt_num + event_io_input_num + 1;
+
     switch (event.type)
     {
     case EVENT_TYPE_INTERRUPT:
         memcpy(&event_record->event.interrupt, &event.event.interrupt, sizeof(rr_interrupt));
-        // printf("Interrupt: %d\n", event.event.interrupt.lapic.vector);
 
-        printf("Interrupt: %d, inst_cnt: %lu, rip=%lx\n", event_record->event.interrupt.lapic.vector, event.inst_cnt, event_record->rip);
+        qemu_log("Interrupt: %d, inst_cnt: %lu, rip=%lx, number=%d\n",
+                 event_record->event.interrupt.lapic.vector,
+                 event.inst_cnt, event_record->rip, event_num);
         event_interrupt_num++;
         break;
 
     case EVENT_TYPE_EXCEPTION:
         memcpy(&event_record->event.exception, &event.event.exception, sizeof(rr_exception));
 
-        // printf("Syscall: %lu, inst_cnt: %lu\n", event_record->event.syscall.regs.rip, event.inst_cnt);
-        // printf("Exception: %d, error code=%d, addr=%lu, inst_cnt: %lu\n",
-        //        event_record->event.exception.exception_index, 
-        //        event_record->event.exception.error_code, event_record->event.exception.cr2,
-        //        event.inst_cnt);
+        qemu_log("PF exception: %d, inst_cnt: %lu, number=%d\n",
+               event_record->event.exception.exception_index, event.inst_cnt, event_num);
         event_exception_num++;
         break;
 
     case EVENT_TYPE_SYSCALL:
         memcpy(&event_record->event.syscall, &event.event.syscall, sizeof(rr_syscall));
-        printf("Syscall: %llu, inst_cnt: %lu\n", event_record->event.syscall.regs.rax, event.inst_cnt);
+        qemu_log("Syscall: %llu, inst_cnt: %lu, number=%d\n",
+                 event_record->event.syscall.regs.rax, event.inst_cnt, event_num);
         event_syscall_num++;
-        // printf("Syscall: %llu, arg1=%llu, arg2=%llu, inst_cnt: %lu\n",
-        //        event_record->event.syscall.regs.rax,
-        //        event_record->event.syscall.regs.rbx,
-        //        event_record->event.syscall.regs.rcx,
-        //        event.inst_cnt);
         break;
 
      case EVENT_TYPE_IO_IN:
         memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
-        printf("IO Input: %lx\n", event_record->event.io_input.value);
+        qemu_log("IO Input: %lx, rip=%lx, number=%d\n",
+                 event_record->event.io_input.value, event_record->rip, event_num);
         event_io_input_num++;
         break;
     default:
@@ -246,6 +250,42 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
     return;
 }
 
+void rr_do_replay_syscall(CPUState *cpu)
+{
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
+    assert(rr_event_log_head->type == EVENT_TYPE_SYSCALL);
+
+    cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    env->regs[R_EAX] = rr_event_log_head->event.syscall.regs.rax;
+    env->regs[R_EBX] = rr_event_log_head->event.syscall.regs.rbx;
+    env->regs[R_ECX] = rr_event_log_head->event.syscall.regs.rcx;
+    env->regs[R_EDX] = rr_event_log_head->event.syscall.regs.rdx;
+    env->regs[R_EBP] = rr_event_log_head->event.syscall.regs.rbp;
+    env->regs[R_ESP] = rr_event_log_head->event.syscall.regs.rsp;
+    env->regs[R_EDI] = rr_event_log_head->event.syscall.regs.rdi;
+    env->regs[R_ESI] = rr_event_log_head->event.syscall.regs.rsi;
+    env->regs[R_R8] = rr_event_log_head->event.syscall.regs.r8;
+    env->regs[R_R9] = rr_event_log_head->event.syscall.regs.r9;
+    env->regs[R_R10] = rr_event_log_head->event.syscall.regs.r10;
+    env->regs[R_R11] = rr_event_log_head->event.syscall.regs.r11;
+    env->regs[R_R12] = rr_event_log_head->event.syscall.regs.r12;
+    env->regs[R_R13] = rr_event_log_head->event.syscall.regs.r13;
+    env->regs[R_R14] = rr_event_log_head->event.syscall.regs.r14;
+    env->regs[R_R15] = rr_event_log_head->event.syscall.regs.r15;
+
+    replayed_event_num++;
+    rr_pop_event_head();
+
+    qemu_log("Replayed syscall=%lu, replayed event number=%d\n", env->regs[R_EAX], replayed_event_num);
+    printf("Replayed syscall=%lu, replayed event number=%d\n", env->regs[R_EAX], replayed_event_num);
+}
+
 void rr_do_replay_io_input(unsigned long *input)
 {
     if (rr_event_log_head->type != EVENT_TYPE_IO_IN) {
@@ -253,8 +293,13 @@ void rr_do_replay_io_input(unsigned long *input)
         abort();
     }
 
+    replayed_event_num++;
+
     *input = rr_event_log_head->event.io_input.value;
     rr_pop_event_head();
+
+    qemu_log("Replayed io input=%lx, replayed event number=%d\n", *input, replayed_event_num);
+    printf("Replayed io input=%lx, replayed event number=%d\n", *input, replayed_event_num);
 }
 
 void rr_do_replay_intno(CPUState *cpu, int *intno)
@@ -279,11 +324,12 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
         }
 
         replayed_interrupt_num++;
+        replayed_event_num++;
 
-        qemu_log("Replayed interrupt vector=%d, RIP on replay=0x%lx, replayed int number=%d\n",
-                 *intno, env->eip, replayed_interrupt_num);
-        printf("Replayed interrupt vecotr=%d, RIP on replay=0x%lx, replayed int number=%d\n",
-               *intno, env->eip, replayed_interrupt_num);
+        qemu_log("Replayed interrupt vector=%d, RIP on replay=0x%lx, replayed event number=%d\n",
+                 *intno, env->eip, replayed_event_num);
+        printf("Replayed interrupt vecotr=%d, RIP on replay=0x%lx, replayed event number=%d\n",
+               *intno, env->eip, replayed_event_num);
         return;
     }
 }

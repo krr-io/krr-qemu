@@ -1035,6 +1035,10 @@ int cpu_exec(CPUState *cpu)
                 tb_add_jump(last_tb, tb_exit, tb);
             }
 
+            if (tb->jump_next_event == EVENT_TYPE_SYSCALL) {
+                rr_do_replay_syscall(cpu);
+            }
+
             qemu_log("\nExecute TB:\n");
             qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
 

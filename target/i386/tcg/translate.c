@@ -131,6 +131,8 @@ typedef struct DisasContext {
     TCGv_i64 tmp1_i64;
 
     sigjmp_buf jmpbuf;
+
+    bool syscall_only;
 } DisasContext;
 
 /* The environment in which user-only runs is constrained. */
@@ -4709,6 +4711,10 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     s->aflag = aflag;
     s->dflag = dflag;
 
+    if (s->syscall_only) {
+        b = 0x105;
+    }
+
     /* now check op code */
  reswitch:
     switch(b) {
@@ -7334,6 +7340,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         break;
 #ifdef TARGET_X86_64
     case 0x105: /* syscall */
+        printf("gen helper for syscall\n");
         /* XXX: is it usable in real mode ? */
         gen_update_cc_op(s);
         gen_jmp_im(s, pc_start - s->cs_base);
@@ -8660,6 +8667,12 @@ static void i386_tr_translate_insn(DisasContextBase *dcbase, CPUState *cpu)
         return;
     }
 #endif
+
+    if (dcbase->do_syscall) {
+        dc->syscall_only = true;
+    } else {
+        dc->syscall_only = false;
+    }
 
     pc_next = disas_insn(dc, cpu);
 

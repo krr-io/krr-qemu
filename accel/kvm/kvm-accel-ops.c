@@ -77,7 +77,6 @@ __attribute_maybe_unused__ static void rr_insert_userspace_int(CPUState *cs)
 
 __attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
 {
-    return false;
     if (cpu->singlestep_enabled != 0) {
         // if (last_removed_addr == syscall_addr) {
         if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_HW) > 0) {

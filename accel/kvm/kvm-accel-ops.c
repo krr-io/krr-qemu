@@ -26,8 +26,10 @@
 #include "kvm-cpus.h"
 #include "sysemu/kernel-rr.h"
 
-target_ulong syscall_addr = 0xffffffff8111d00f;
+target_ulong syscall_addr = 0xffffffff81200000;
 target_ulong pf_excep_addr = 0xffffffff81200aa0;
+target_ulong cfu_addr1 = 0xffffffff810b4f7d;
+target_ulong cfu_addr2 = 0xffffffff810afc0d;
 
 target_ulong last_removed_addr = 0;
 
@@ -48,6 +50,15 @@ void rr_insert_breakpoints(void)
         // bp_ret = kvm_insert_hypercall(cpu, pf_excep_addr);
         if (bp_ret > 0) {
             printf("failed to insert bp: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints\n");
+        }
+
+        bp_ret = kvm_insert_breakpoint(cpu, cfu_addr1, 1, GDB_BREAKPOINT_HW);
+        bp_ret = kvm_insert_breakpoint(cpu, cfu_addr2, 1, GDB_BREAKPOINT_HW);
+
+        if (bp_ret > 0) {
+            printf("failed to insert bp for CFU: %d\n", bp_ret);
         } else {
             printf("Inserted breakpoints\n");
         }
@@ -77,27 +88,22 @@ __attribute_maybe_unused__ static void rr_insert_userspace_int(CPUState *cs)
 
 __attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
 {
+    if (!rr_in_record())
+        return false;
+
     if (cpu->singlestep_enabled != 0) {
-        // if (last_removed_addr == syscall_addr) {
         if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_HW) > 0) {
             printf("failed to insert bp\n");
             abort();
         }
-        // } 
-        // else if (last_removed_addr == pf_excep_addr) {
-        //     if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, GDB_BREAKPOINT_SW) > 0) {
-        //         printf("failed to insert hypercall\n");
-        //         abort();
-        //     }
-        // }
-
         cpu_single_step(cpu, 0);
     } else {
         target_ulong bp_addr;
 
         bp_addr = cpu->kvm_run->debug.arch.pc;
 
-        if (bp_addr != syscall_addr && bp_addr != pf_excep_addr)
+        if (bp_addr != syscall_addr && bp_addr != pf_excep_addr && \
+            bp_addr != cfu_addr1 && bp_addr != cfu_addr2)
             return false;
 
         cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);

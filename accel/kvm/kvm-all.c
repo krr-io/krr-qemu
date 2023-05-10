@@ -48,6 +48,8 @@
 
 #include "hw/boards.h"
 
+#include "sysemu/kernel-rr.h"
+
 /* This check must be after config-host.h is included */
 #ifdef CONFIG_EVENTFD
 #include <sys/eventfd.h>
@@ -3370,6 +3372,8 @@ int kvm_start_record(void)
     CPU_FOREACH(cpu) {
         run_on_cpu(cpu, do_kvm_cpu_start_record, RUN_ON_CPU_NULL);
     }
+
+    rr_set_record(1);
 
     return 0;
 }

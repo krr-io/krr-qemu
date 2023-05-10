@@ -49,6 +49,9 @@
 
 #include "sysemu/kernel-rr.h"
 
+target_ulong cfu_addr1_exec = 0xffffffff810b4f7d;
+target_ulong cfu_addr2_exec = 0xffffffff810afc0d;
+
 /* -icount align implementation. */
 
 typedef struct SyncClocks {
@@ -1037,6 +1040,11 @@ int cpu_exec(CPUState *cpu)
 
             if (tb->jump_next_event == EVENT_TYPE_SYSCALL) {
                 rr_do_replay_syscall(cpu);
+            }
+
+            if (rr_in_replay() && (tb->pc == cfu_addr1_exec || tb->pc == cfu_addr2_exec)) {
+                printf("Next replay cfu\n");
+                rr_do_replay_cfu(cpu);
             }
 
             qemu_log("\nExecute TB:\n");

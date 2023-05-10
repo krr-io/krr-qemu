@@ -8,9 +8,12 @@
 
 #include "sysemu/kernel-rr.h"
 
+#include "exec/cpu-common.h"
+
 const char *kernel_rr_log = "kernel_rr.log";
 
 __attribute_maybe_unused__ static int g_rr_in_replay = 0;
+__attribute_maybe_unused__ static int g_rr_in_record = 0;
 
 unsigned long g_ram_size = 0;
 
@@ -21,6 +24,7 @@ static int event_syscall_num = 0;
 static int event_exception_num = 0;
 static int event_interrupt_num = 0;
 static int event_io_input_num = 0;
+static int event_cfu_num = 0;
 
 static int started_replay = 0;
 static int initialized_replay = 0;
@@ -30,6 +34,8 @@ static int replayed_interrupt_num = 0;
 static int replayed_event_num = 0;
 
 static bool log_loaded = false;
+
+static void rr_pop_event_head(void);
 
 uint64_t rr_get_next_event_inst(void)
 {
@@ -41,10 +47,20 @@ int rr_get_next_event_type(void)
     return rr_event_log_head->type;
 }
 
+int rr_in_record(void)
+{
+    return g_rr_in_record;
+}
+
 int rr_in_replay(void)
 {
     // return false;
     return g_rr_in_replay;
+}
+
+void rr_set_record(int record)
+{
+    g_rr_in_record = 1;
 }
 
 void rr_set_replay(int replay, unsigned long ram_size)
@@ -58,6 +74,26 @@ void rr_set_replay(int replay, unsigned long ram_size)
 void accel_start_kernel_replay(void)
 {
     // kvm_start_record();
+}
+
+void rr_do_replay_cfu(CPUState *cpu)
+{
+    if (rr_event_log_head->type != EVENT_TYPE_CFU) {
+        printf("Expected log copy from user, but got %d\n", rr_event_log_head->type);
+        abort();
+    }
+
+    printf("Replaying CFU\n");
+    int ret = cpu_memory_rw_debug(cpu, rr_event_log_head->event.cfu.src_addr,
+                rr_event_log_head->event.cfu.data, rr_event_log_head->event.cfu.len, true);
+    
+    if (ret < 0) {
+        printf("Failed to write to address %lx: %d\n", rr_event_log_head->event.cfu.src_addr, ret);
+    }
+
+    rr_pop_event_head();
+
+    return;
 }
 
 static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
@@ -103,6 +139,12 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
         qemu_log("IO Input: %lx, rip=%lx, number=%d\n",
                  event_record->event.io_input.value, event_record->rip, event_num);
         event_io_input_num++;
+        break;
+    case EVENT_TYPE_CFU:
+        memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
+        qemu_log("CFU: %lx, rip=%lx, number=%d\n",
+                 event_record->event.cfu.src_addr, event_record->rip, event_num);
+        event_cfu_num++;
         break;
     default:
         break;

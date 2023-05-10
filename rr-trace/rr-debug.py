@@ -6,7 +6,9 @@ DEBUG_POINT1 = "sysvec_apic_timer_interrupt"
 
 step = False
 
-record_regs = ["rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp"]
+record_regs = ["rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"]
+
+long_type = gdb.lookup_type("unsigned long")
 
 def unsigned(val):
     return val + (1 << 32)
@@ -24,8 +26,11 @@ def inspect():
             regs = []
 
             for r in record_regs:
+                reg_val_raw = gdb.parse_and_eval("${}".format(r)).cast(long_type)
+                # reg_val = int(reg_val_raw) & 0xffffffffffffffff
+                reg_val = hex(reg_val_raw)
                 regs.append(
-                    r + "=" + str(unsigned(int(gdb.parse_and_eval("${}".format(r)))))
+                    r + "=" + str(reg_val)
                 )
                 # gdb.execute("p/x ${}".format(r))
 

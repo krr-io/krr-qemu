@@ -8598,7 +8598,6 @@ static void i386_tr_init_disas_context(DisasContextBase *dcbase, CPUState *cpu)
         if (cpl == 3) {
             printf("Entered User Mode\n");
             dcbase->in_user_mode = true;
-            return;
         } else {
             dcbase->in_user_mode = false;
         }
@@ -8759,7 +8758,7 @@ void log_regs(CPUState *cpu)
     X86CPU *x86_cpu = X86_CPU(cpu);
     CPUX86State *env = &x86_cpu->env;
 
-    qemu_log("Regs: rax=%lx,rbx=%lx,rcx=%lx,rdx=%lx,rsi=%lx,rdi=%lx,rbp=%lx,rsp=%lx\n",\
+    qemu_log("Regs: rax=0x%lx,rbx=0x%lx,rcx=0x%lx,rdx=0x%lx,rsi=0x%lx,rdi=0x%lx,rbp=0x%lx,rsp=0x%lx\n",\
              env->regs[R_EAX], env->regs[R_EBX], env->regs[R_ECX],  env->regs[R_EDX], env->regs[R_ESI], env->regs[R_EDI],\
              env->regs[R_ESP], env->regs[R_EBP]);
 }

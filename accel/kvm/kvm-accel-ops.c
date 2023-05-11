@@ -28,8 +28,8 @@
 
 target_ulong syscall_addr = 0xffffffff81200000;
 target_ulong pf_excep_addr = 0xffffffff81200aa0;
-target_ulong cfu_addr1 = 0xffffffff810b4f7d;
-target_ulong cfu_addr2 = 0xffffffff810afc0d;
+target_ulong cfu_addr1 = 0xffffffff810b4f9c; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
+target_ulong cfu_addr2 = 0xffffffff810afc0d; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
 
 target_ulong last_removed_addr = 0;
 

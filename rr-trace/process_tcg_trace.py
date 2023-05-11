@@ -32,4 +32,4 @@ def parse_tcg_trace(dedup=False):
 
     return
 
-parse_tcg_trace(dedup=True)
+parse_tcg_trace(dedup=False)

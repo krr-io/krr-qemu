@@ -4578,6 +4578,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
 
  next_byte:
     b = x86_ldub_code(env, s);
+    qemu_log("prefix: %d\n", b);
     /* Collect prefixes.  */
     switch (b) {
     case 0xf3:
@@ -4717,6 +4718,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
 
     /* now check op code */
  reswitch:
+    qemu_log("op byte: %x\n", b);
+
     switch(b) {
     case 0x0f:
         /**************************/
@@ -5401,6 +5404,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     case 0x1c7: /* cmpxchg8b */
         modrm = x86_ldub_code(env, s);
         mod = (modrm >> 6) & 3;
+        qemu_log("mod: %d\n", (modrm >> 3) & 7);
         switch ((modrm >> 3) & 7) {
         case 1: /* CMPXCHG8, CMPXCHG16 */
             if (mod == 3) {
@@ -8273,6 +8277,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             if ((s->cpuid_ext_features & CPUID_EXT_XSAVE) == 0
                 || (prefixes & (PREFIX_LOCK | PREFIX_DATA
                                 | PREFIX_REPZ | PREFIX_REPNZ))) {
+                qemu_log("xave illegal\n");
                 goto illegal_op;
             }
             gen_lea_modrm(env, s, modrm);
@@ -8758,7 +8763,7 @@ void log_regs(CPUState *cpu)
     X86CPU *x86_cpu = X86_CPU(cpu);
     CPUX86State *env = &x86_cpu->env;
 
-    qemu_log("Regs: rax=0x%lx,rbx=0x%lx,rcx=0x%lx,rdx=0x%lx,rsi=0x%lx,rdi=0x%lx,rbp=0x%lx,rsp=0x%lx\n",\
+    qemu_log("Regs: rax=0x%lx,rbx=0x%lx,rcx=0x%lx,rdx=0x%lx,rsi=0x%lx,rdi=0x%lx,rbp=0x%lx,rsp=0x%lx,r8=0x%lx,r9=0x%lx,r10=0x%lx,r11=0x%lx,r12=0x%lx,r13=0x%lx,r14=0x%lx,r15=0x%lx\n",\
              env->regs[R_EAX], env->regs[R_EBX], env->regs[R_ECX],  env->regs[R_EDX], env->regs[R_ESI], env->regs[R_EDI],\
-             env->regs[R_ESP], env->regs[R_EBP]);
+             env->regs[R_ESP], env->regs[R_EBP], env->regs[R_R8], env->regs[R_R9], env->regs[R_R10], env->regs[R_R11], env->regs[R_R12], env->regs[R_R13], env->regs[R_R14], env->regs[R_R15]);
 }

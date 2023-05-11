@@ -61,6 +61,11 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
 {
     uint32_t cflags = tb_cflags(tb);
     bool plugin_enabled;
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
 
     /* Initialize DisasContext */
     db->tb = tb;
@@ -80,6 +85,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
         qemu_log("User mode, fetch next event\n");
 
         int next_event = rr_get_next_event_type();
+        uint64_t inst_cnt = rr_get_next_event_inst();
 
         switch(next_event) {
             case EVENT_TYPE_SYSCALL:
@@ -87,11 +93,18 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
                 qemu_log("Next event syscall\n");
                 break;
             case EVENT_TYPE_INTERRUPT:
+                tb->jump_next_event = EVENT_TYPE_INTERRUPT;
+                cpu->rr_executed_inst = inst_cnt;
+                env->eip = rr_get_next_event_rip();
                 break;
             default:
                 printf("Unexpected next event %d\n", next_event);
                 abort();
         }
+    }
+
+    if (tb->jump_next_event == EVENT_TYPE_INTERRUPT) {
+        return;
     }
 
     /* Reset the temp count so that we can identify leaks */

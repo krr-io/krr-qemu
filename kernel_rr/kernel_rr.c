@@ -37,6 +37,11 @@ static bool log_loaded = false;
 
 static void rr_pop_event_head(void);
 
+unsigned long rr_get_next_event_rip(void)
+{
+    return rr_event_log_head->rip;
+}
+
 uint64_t rr_get_next_event_inst(void)
 {
     return rr_event_log_head->inst_cnt;
@@ -84,6 +89,8 @@ void rr_do_replay_cfu(CPUState *cpu)
     }
 
     printf("Replaying CFU\n");
+    rr_event_log_head->event.cfu.data[rr_event_log_head->event.cfu.len] = 0;
+
     int ret = cpu_memory_rw_debug(cpu, rr_event_log_head->event.cfu.src_addr,
                 rr_event_log_head->event.cfu.data, rr_event_log_head->event.cfu.len, true);
     
@@ -113,9 +120,9 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
     case EVENT_TYPE_INTERRUPT:
         memcpy(&event_record->event.interrupt, &event.event.interrupt, sizeof(rr_interrupt));
 
-        qemu_log("Interrupt: %d, inst_cnt: %lu, rip=%lx, number=%d\n",
-                 event_record->event.interrupt.lapic.vector,
-                 event.inst_cnt, event_record->rip, event_num);
+        // qemu_log("Interrupt: %d, inst_cnt: %lu, rip=%lx, number=%d\n",
+        //          event_record->event.interrupt.lapic.vector,
+        //          event.inst_cnt, event_record->rip, event_num);
         event_interrupt_num++;
         break;
 
@@ -136,8 +143,8 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
 
      case EVENT_TYPE_IO_IN:
         memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
-        qemu_log("IO Input: %lx, rip=%lx, number=%d\n",
-                 event_record->event.io_input.value, event_record->rip, event_num);
+        // qemu_log("IO Input: %lx, rip=%lx, number=%d\n",
+        //          event_record->event.io_input.value, event_record->rip, event_num);
         event_io_input_num++;
         break;
     case EVENT_TYPE_CFU:
@@ -279,9 +286,9 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
                 qemu_log("Ready to replay int request\n");
                 cpu->rr_executed_inst++;
             } else {
-                printf("Mismatched, interrupt=%d inst number=%lu and rip=0x%lx\n", 
+                printf("Mismatched, interrupt=%d inst number=%lu and rip=0x%lx, actual rip=%lx\n", 
                        rr_event_log_head->event.interrupt.lapic.vector, rr_event_log_head->inst_cnt,
-                       rr_event_log_head->rip);
+                       rr_event_log_head->rip, env->eip);
                 abort();
             }
             return;

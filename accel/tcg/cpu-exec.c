@@ -49,7 +49,7 @@
 
 #include "sysemu/kernel-rr.h"
 
-target_ulong cfu_addr1_exec = 0xffffffff810b4f7d;
+target_ulong cfu_addr1_exec = 0xffffffff810b4f9c;
 target_ulong cfu_addr2_exec = 0xffffffff810afc0d;
 
 /* -icount align implementation. */
@@ -1022,6 +1022,9 @@ int cpu_exec(CPUState *cpu)
                 qatomic_set(&cpu->tb_jmp_cache[tb_jmp_cache_hash_func(pc)], tb);
             }
 
+            if (tb->jump_next_event == EVENT_TYPE_INTERRUPT) {
+                continue;
+            }
 #ifndef CONFIG_USER_ONLY
             /*
              * We don't take care of direct jumps when address mapping

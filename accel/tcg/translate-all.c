@@ -1429,6 +1429,7 @@ TranslationBlock *tb_gen_code(CPUState *cpu,
     tb->cflags = cflags;
     tb->trace_vcpu_dstate = *cpu->trace_dstate;
     tcg_ctx->tb_cflags = cflags;
+    tb->jump_next_event = -1;
  tb_overflow:
 
 #ifdef CONFIG_PROFILER
@@ -1446,6 +1447,10 @@ TranslationBlock *tb_gen_code(CPUState *cpu,
 
     tcg_ctx->cpu = env_cpu(env);
     gen_intermediate_code(cpu, tb, max_insns);
+    if (tb->jump_next_event == EVENT_TYPE_INTERRUPT) {
+        return tb;
+    }
+
     assert(tb->size != 0);
     tcg_ctx->cpu = NULL;
     max_insns = tb->icount;

@@ -88,15 +88,23 @@ void rr_do_replay_cfu(CPUState *cpu)
         abort();
     }
 
-    printf("Replaying CFU\n");
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    qemu_log("Replaying CFU, rsi=%lx, rdi=%lx\n", env->regs[R_ESI], env->regs[R_EDI]);
     rr_event_log_head->event.cfu.data[rr_event_log_head->event.cfu.len] = 0;
 
-    int ret = cpu_memory_rw_debug(cpu, rr_event_log_head->event.cfu.src_addr,
+    int ret = cpu_memory_rw_debug(cpu, rr_event_log_head->event.cfu.dest_addr,
                 rr_event_log_head->event.cfu.data, rr_event_log_head->event.cfu.len, true);
     
     if (ret < 0) {
         printf("Failed to write to address %lx: %d\n", rr_event_log_head->event.cfu.src_addr, ret);
     }
+
+    cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
 
     rr_pop_event_head();
 
@@ -150,7 +158,7 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
     case EVENT_TYPE_CFU:
         memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
         qemu_log("CFU: %lx, rip=%lx, number=%d\n",
-                 event_record->event.cfu.src_addr, event_record->rip, event_num);
+                 event_record->event.cfu.dest_addr, event_record->rip, event_num);
         event_cfu_num++;
         break;
     default:

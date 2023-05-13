@@ -83,18 +83,21 @@ void accel_start_kernel_replay(void)
 
 void rr_do_replay_cfu(CPUState *cpu)
 {
-    if (rr_event_log_head->type != EVENT_TYPE_CFU) {
-        printf("Expected log copy from user, but got %d\n", rr_event_log_head->type);
-        abort();
-    }
-
     X86CPU *x86_cpu;
     CPUArchState *env;
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
 
-    qemu_log("Replaying CFU, rsi=%lx, rdi=%lx\n", env->regs[R_ESI], env->regs[R_EDI]);
+    if (rr_event_log_head->type != EVENT_TYPE_CFU) {
+        printf("Expected log copy from user, but got %d, ip=0x%lx\n", rr_event_log_head->type, env->eip);
+        abort();
+    }
+
+    printf("Replayed CFU, rsi=%lx, rdi=%lx, len=%ld\n",
+           env->regs[R_ESI], env->regs[R_EDI], rr_event_log_head->event.cfu.len);
+    qemu_log("Replayed CFU, rsi=%lx, rdi=%lx, len=%ld\n",
+             env->regs[R_ESI], env->regs[R_EDI], rr_event_log_head->event.cfu.len);
     rr_event_log_head->event.cfu.data[rr_event_log_head->event.cfu.len] = 0;
 
     int ret = cpu_memory_rw_debug(cpu, rr_event_log_head->event.cfu.dest_addr,
@@ -246,6 +249,7 @@ static void rr_load_events(void) {
     rr_print_events_stat();
     log_loaded = true;
 
+    printf("Loaded events\n");
     // rr_pop_event_head();
     // rr_pop_event_head();
 }
@@ -314,7 +318,7 @@ void rr_do_replay_syscall(CPUState *cpu)
 
     assert(rr_event_log_head->type == EVENT_TYPE_SYSCALL);
 
-    cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+    cpu->rr_executed_inst = rr_event_log_head->inst_cnt - 1;
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;

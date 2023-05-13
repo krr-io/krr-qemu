@@ -49,8 +49,8 @@
 
 #include "sysemu/kernel-rr.h"
 
-target_ulong cfu_addr1_exec = 0xffffffff81118455;
-// target_ulong cfu_addr2_exec = 0xffffffff810afc0d;
+target_ulong cfu_addr1_exec = 0xffffffff810afc12;
+target_ulong cfu_addr2_exec = 0xffffffff810b4fb8;
 
 /* -icount align implementation. */
 
@@ -1045,8 +1045,8 @@ int cpu_exec(CPUState *cpu)
                 rr_do_replay_syscall(cpu);
             }
 
-            if (rr_in_replay() && (tb->pc == cfu_addr1_exec)) {
-                printf("Next replay cfu\n");
+            if (rr_in_replay() && (tb->pc == cfu_addr1_exec || tb->pc == cfu_addr2_exec)) {
+                qemu_log("Next replay cfu\n");
                 rr_do_replay_cfu(cpu);
             }
 

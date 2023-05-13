@@ -29,7 +29,9 @@
 target_ulong syscall_addr = 0xffffffff81200000;
 target_ulong pf_excep_addr = 0xffffffff81200aa0;
 target_ulong cfu_addr1 = 0xffffffff810afc12; // call   <_copy_from_iter+97>
-target_ulong cfu_addr2 = 0xffffffff810afc0d; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
+target_ulong cfu_addr2 = 0xffffffff810b4fb8; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
+
+target_ulong cfu_addr3 = 0xffffffff811183e3;
 
 target_ulong last_removed_addr = 0;
 
@@ -55,7 +57,7 @@ void rr_insert_breakpoints(void)
         }
 
         bp_ret = kvm_insert_breakpoint(cpu, cfu_addr1, 1, GDB_BREAKPOINT_HW);
-        // bp_ret = kvm_insert_breakpoint(cpu, cfu_addr2, 1, GDB_BREAKPOINT_HW);
+        bp_ret = kvm_insert_breakpoint(cpu, cfu_addr2, 1, GDB_BREAKPOINT_HW);
 
         if (bp_ret > 0) {
             printf("failed to insert bp for CFU: %d\n", bp_ret);

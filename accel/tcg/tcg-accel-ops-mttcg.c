@@ -90,10 +90,10 @@ static void *mttcg_cpu_thread_fn(void *arg)
     qemu_guest_random_seed_thread_part2(cpu->random_seed);
 
     /* process any pending work */
-    // if (!rr_in_replay())
-    cpu->exit_request = 1;
-    // else
-    //     cpu->exit_request = 0;
+    if (!rr_in_replay())
+        cpu->exit_request = 1;
+    else
+        cpu->exit_request = 0;
 
     // sleep(1);
     cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();

@@ -1070,8 +1070,13 @@ int cpu_exec(CPUState *cpu)
                if the guest is in advance */
             align_clocks(&sc, cpu);
         }
+
+        qemu_log("exit interrupt\n");
     }
 
+    if (cpu->rr_executed_inst == 397550) {
+        rr_fake_call();
+    }
     qemu_log("exit exception, ret=%d\n", ret);
     cpu_exec_exit(cpu);
     rcu_read_unlock();

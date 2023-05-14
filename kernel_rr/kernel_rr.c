@@ -37,6 +37,8 @@ static bool log_loaded = false;
 
 static void rr_pop_event_head(void);
 
+void rr_fake_call(void){return;}
+
 unsigned long rr_get_next_event_rip(void)
 {
     return rr_event_log_head->rip;
@@ -94,6 +96,11 @@ void rr_do_replay_cfu(CPUState *cpu)
         abort();
     }
 
+    if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst) {
+        printf("Unmatched CPU, current inst cnt=%lu, expected=%lu",
+               cpu->rr_executed_inst, rr_event_log_head->inst_cnt);
+    }
+
     printf("Replayed CFU, rsi=%lx, rdi=%lx, len=%ld\n",
            env->regs[R_ESI], env->regs[R_EDI], rr_event_log_head->event.cfu.len);
     qemu_log("Replayed CFU, rsi=%lx, rdi=%lx, len=%ld\n",
@@ -131,9 +138,9 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
     case EVENT_TYPE_INTERRUPT:
         memcpy(&event_record->event.interrupt, &event.event.interrupt, sizeof(rr_interrupt));
 
-        // qemu_log("Interrupt: %d, inst_cnt: %lu, rip=%lx, number=%d\n",
-        //          event_record->event.interrupt.lapic.vector,
-        //          event.inst_cnt, event_record->rip, event_num);
+        qemu_log("Interrupt: %d, inst_cnt: %lu, rip=%lx, number=%d\n",
+                 event_record->event.interrupt.lapic.vector,
+                 event.inst_cnt, event_record->rip, event_num);
         event_interrupt_num++;
         break;
 
@@ -154,14 +161,14 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
 
      case EVENT_TYPE_IO_IN:
         memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
-        // qemu_log("IO Input: %lx, rip=%lx, number=%d\n",
-        //          event_record->event.io_input.value, event_record->rip, event_num);
+        qemu_log("IO Input: %lx, rip=%lx, number=%d\n",
+                 event_record->event.io_input.value, event_record->rip, event_num);
         event_io_input_num++;
         break;
     case EVENT_TYPE_CFU:
         memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
-        qemu_log("CFU: %lx, rip=%lx, number=%d\n",
-                 event_record->event.cfu.dest_addr, event_record->rip, event_num);
+        qemu_log("CFU: %lx, rip=%lx, inst_cnt: %lu, number=%d\n",
+                 event_record->event.cfu.dest_addr, event_record->rip, event_record->inst_cnt, event_num);
         event_cfu_num++;
         break;
     default:
@@ -252,6 +259,7 @@ static void rr_load_events(void) {
     printf("Loaded events\n");
     // rr_pop_event_head();
     // rr_pop_event_head();
+    // exit(0);
 }
 
 __attribute_maybe_unused__ static void rr_clear_redundant_events(CPUState *cpu)

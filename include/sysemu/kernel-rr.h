@@ -30,5 +30,7 @@ void rr_do_replay_syscall(CPUState *cpu);
 int rr_get_next_event_type(void);
 unsigned long rr_get_next_event_rip(void);
 
+void rr_fake_call(void);
+
 void rr_trap(void);
 #endif /* KERNEL_RR_H */

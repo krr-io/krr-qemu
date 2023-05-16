@@ -90,6 +90,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
         switch(next_event) {
             case EVENT_TYPE_SYSCALL:
                 db->do_syscall = true;
+                tb->jump_next_event = EVENT_TYPE_SYSCALL;
                 qemu_log("Next event syscall\n");
                 break;
             case EVENT_TYPE_INTERRUPT:
@@ -97,13 +98,19 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
                 cpu->rr_executed_inst = inst_cnt;
                 env->eip = rr_get_next_event_rip();
                 break;
+            case EVENT_TYPE_EXCEPTION:
+                tb->jump_next_event = EVENT_TYPE_EXCEPTION;
+                cpu->rr_executed_inst = inst_cnt;
+                qemu_log("Next event exception\n");
+                break;
             default:
                 printf("Unexpected next event %d\n", next_event);
                 abort();
         }
     }
 
-    if (tb->jump_next_event == EVENT_TYPE_INTERRUPT) {
+    if (tb->jump_next_event == EVENT_TYPE_INTERRUPT || 
+        tb->jump_next_event == EVENT_TYPE_EXCEPTION) {
         return;
     }
 

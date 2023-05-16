@@ -51,6 +51,9 @@
 
 target_ulong cfu_addr1_exec = 0xffffffff810afc12;
 target_ulong cfu_addr2_exec = 0xffffffff810b4fb8;
+target_ulong cfu_addr3_exec = 0xffffffff810cbd51; // strncpy_from_user
+
+target_ulong pf_addr = 0xffffffff8111e369;
 
 /* -icount align implementation. */
 
@@ -196,13 +199,26 @@ static inline TranslationBlock *tb_lookup(CPUState *cpu, target_ulong pc,
                tb->flags == flags &&
                tb->trace_vcpu_dstate == *cpu->trace_dstate &&
                tb_cflags(tb) == cflags)) {
+
+        if (tb->jump_next_event != -1) {
+            return NULL;
+        }
+
         return tb;
     }
     tb = tb_htable_lookup(cpu, pc, cs_base, flags, cflags);
     if (tb == NULL) {
         return NULL;
     }
-    qatomic_set(&cpu->tb_jmp_cache[hash], tb);
+
+    if (tb->jump_next_event != -1) {
+        return NULL;
+    }
+
+    if (tb->jump_next_event == -1) {
+        qemu_log("Caching tb pc=0x%lx\n", tb->pc);
+        qatomic_set(&cpu->tb_jmp_cache[hash], tb);
+    }
     return tb;
 }
 
@@ -1019,11 +1035,21 @@ int cpu_exec(CPUState *cpu)
                  * We add the TB in the virtual pc hash table
                  * for the fast lookup
                  */
-                qatomic_set(&cpu->tb_jmp_cache[tb_jmp_cache_hash_func(pc)], tb);
+                if (tb->jump_next_event == -1) {
+                    qemu_log("Caching tb pc=0x%lx\n", tb->pc);
+                    qatomic_set(&cpu->tb_jmp_cache[tb_jmp_cache_hash_func(pc)], tb);
+                }
+            } else {
+                qemu_log("Found cache pc=0x%lx\n", tb->pc);
             }
 
             if (tb->jump_next_event == EVENT_TYPE_INTERRUPT) {
                 continue;
+            }
+
+            if (tb->jump_next_event == EVENT_TYPE_EXCEPTION) {
+                rr_do_replay_exception(cpu);
+                break;
             }
 #ifndef CONFIG_USER_ONLY
             /*
@@ -1045,10 +1071,14 @@ int cpu_exec(CPUState *cpu)
                 rr_do_replay_syscall(cpu);
             }
 
-            if (rr_in_replay() && (tb->pc == cfu_addr1_exec || tb->pc == cfu_addr2_exec)) {
+            if (rr_in_replay() && (tb->pc == cfu_addr1_exec || tb->pc == cfu_addr2_exec || tb->pc == cfu_addr3_exec)) {
                 qemu_log("Next replay cfu\n");
                 rr_do_replay_cfu(cpu);
             }
+
+            // if (rr_in_replay() && (tb->pc == pf_addr)) {
+            //     rr_do_replay_exception_end(cpu);
+            // }
 
             qemu_log("\nExecute TB:\n");
             qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);

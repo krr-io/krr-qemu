@@ -26,6 +26,8 @@ uint64_t rr_num_instr_before_next_interrupt(void);
 int rr_is_syscall_ready(CPUState *cpu);
 void rr_do_replay_io_input(unsigned long *input);
 void rr_do_replay_syscall(CPUState *cpu);
+void rr_do_replay_exception(CPUState *cpu);
+void rr_do_replay_exception_end(CPUState *cpu);
 
 int rr_get_next_event_type(void);
 unsigned long rr_get_next_event_rip(void);

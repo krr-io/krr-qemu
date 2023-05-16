@@ -56,6 +56,7 @@ typedef struct {
     int exception_index;
     int error_code;
     unsigned long cr2;
+    struct kvm_regs regs;
 } rr_exception;
 
 typedef struct {

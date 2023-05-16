@@ -97,7 +97,7 @@ void rr_do_replay_cfu(CPUState *cpu)
     }
 
     if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst) {
-        printf("Unmatched CPU, current inst cnt=%lu, expected=%lu",
+        printf("Unmatched CPU, current inst cnt=%lu, expected=%lu\n",
                cpu->rr_executed_inst, rr_event_log_head->inst_cnt);
     }
 
@@ -147,8 +147,9 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
     case EVENT_TYPE_EXCEPTION:
         memcpy(&event_record->event.exception, &event.event.exception, sizeof(rr_exception));
 
-        qemu_log("PF exception: %d, inst_cnt: %lu, number=%d\n",
-               event_record->event.exception.exception_index, event.inst_cnt, event_num);
+        qemu_log("PF exception: %d, error_code=%d, inst_cnt: %lu, number=%d\n",
+               event_record->event.exception.exception_index, event_record->event.exception.error_code,
+               event.inst_cnt, event_num);
         event_exception_num++;
         break;
 
@@ -194,6 +195,11 @@ int rr_is_syscall_ready(CPUState *cpu)
 
 void append_event(rr_event_log event)
 {
+    if (rr_event_cur != NULL && event.inst_cnt == rr_event_cur->inst_cnt) {
+        printf("Skip repetitive event\n");
+        return;
+    }
+
     rr_event_log *event_record = rr_event_log_new_from_event(event);
 
     if (rr_event_cur == NULL) {
@@ -319,10 +325,80 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
     return;
 }
 
+void rr_do_replay_exception(CPUState *cpu)
+{
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
+    if (rr_event_log_head->type != EVENT_TYPE_EXCEPTION) {
+        return;
+    }
+
+    printf("Replayed exception %d, cr2=0x%lu, error_code=%d", 
+           rr_event_log_head->event.exception.exception_index,
+           rr_event_log_head->event.exception.cr2,
+           rr_event_log_head->event.exception.error_code);
+
+    qemu_log("Replayed exception %d, cr2=0x%lu, error_code=%d", 
+           rr_event_log_head->event.exception.exception_index,
+           rr_event_log_head->event.exception.cr2,
+           rr_event_log_head->event.exception.error_code);
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+    cpu->exception_index = rr_event_log_head->event.exception.exception_index;
+
+    printf("Exception error code %d\n", rr_event_log_head->event.exception.error_code);
+    env->error_code = rr_event_log_head->event.exception.error_code;
+    env->cr[2] = rr_event_log_head->event.exception.cr2;
+
+    cpu->rr_executed_inst = rr_event_log_head->inst_cnt - 54;
+    replayed_event_num++;
+    rr_pop_event_head();
+}
+
+// void rr_do_replay_exception_end(CPUState *cpu)
+// {
+//     X86CPU *x86_cpu;
+//     CPUArchState *env;
+
+//     printf("Replayed exception end\n");
+//     qemu_log("Replayed exception end\n");
+
+//     x86_cpu = X86_CPU(cpu);
+//     env = &x86_cpu->env;
+
+//     env->regs[R_EAX] = rr_event_log_head->event.exception.regs.rax;
+//     env->regs[R_EBX] = rr_event_log_head->event.exception.regs.rbx;
+//     env->regs[R_ECX] = rr_event_log_head->event.exception.regs.rcx;
+//     env->regs[R_EDX] = rr_event_log_head->event.exception.regs.rdx;
+//     env->regs[R_EBP] = rr_event_log_head->event.exception.regs.rbp;
+//     env->regs[R_ESP] = rr_event_log_head->event.exception.regs.rsp;
+//     env->regs[R_EDI] = rr_event_log_head->event.exception.regs.rdi;
+//     env->regs[R_ESI] = rr_event_log_head->event.exception.regs.rsi;
+//     env->regs[R_R8] = rr_event_log_head->event.exception.regs.r8;
+//     env->regs[R_R9] = rr_event_log_head->event.exception.regs.r9;
+//     env->regs[R_R10] = rr_event_log_head->event.exception.regs.r10;
+//     env->regs[R_R11] = rr_event_log_head->event.exception.regs.r11;
+//     env->regs[R_R12] = rr_event_log_head->event.exception.regs.r12;
+//     env->regs[R_R13] = rr_event_log_head->event.exception.regs.r13;
+//     env->regs[R_R14] = rr_event_log_head->event.exception.regs.r14;
+//     env->regs[R_R15] = rr_event_log_head->event.exception.regs.r15;
+
+//     cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+//     replayed_event_num++;
+//     rr_pop_event_head();
+// }
+
 void rr_do_replay_syscall(CPUState *cpu)
 {
     X86CPU *x86_cpu;
     CPUArchState *env;
+
+    if (rr_event_log_head->type != EVENT_TYPE_SYSCALL) {
+        printf("Expected event type %d, actual type %d\n", EVENT_TYPE_SYSCALL, rr_event_log_head->type);
+        abort();
+    }
 
     assert(rr_event_log_head->type == EVENT_TYPE_SYSCALL);
 
@@ -353,6 +429,12 @@ void rr_do_replay_syscall(CPUState *cpu)
 
     qemu_log("Replayed syscall=%lu, replayed event number=%d\n", env->regs[R_EAX], replayed_event_num);
     printf("Replayed syscall=%lu, replayed event number=%d\n", env->regs[R_EAX], replayed_event_num);
+
+    if (env->regs[R_EAX] == 61) {
+        printf("Replayed syscall 61\n");
+        rr_trap();
+    }
+
 }
 
 void rr_do_replay_io_input(unsigned long *input)

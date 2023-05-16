@@ -1447,7 +1447,8 @@ TranslationBlock *tb_gen_code(CPUState *cpu,
 
     tcg_ctx->cpu = env_cpu(env);
     gen_intermediate_code(cpu, tb, max_insns);
-    if (tb->jump_next_event == EVENT_TYPE_INTERRUPT) {
+    if (tb->jump_next_event == EVENT_TYPE_INTERRUPT || 
+        tb->jump_next_event == EVENT_TYPE_EXCEPTION) {
         return tb;
     }
 

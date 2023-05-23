@@ -70,6 +70,7 @@ static void *mttcg_cpu_thread_fn(void *arg)
 {
     MttcgForceRcuNotifier force_rcu;
     CPUState *cpu = arg;
+    int err = 0;
 
     assert(tcg_enabled());
     g_assert(!icount_enabled());
@@ -89,6 +90,9 @@ static void *mttcg_cpu_thread_fn(void *arg)
     cpu_thread_signal_created(cpu);
     qemu_guest_random_seed_thread_part2(cpu->random_seed);
 
+    // if (rr_in_replay()) {
+    // }
+
     /* process any pending work */
     if (!rr_in_replay())
         cpu->exit_request = 1;
@@ -97,6 +101,18 @@ static void *mttcg_cpu_thread_fn(void *arg)
 
     // sleep(1);
     cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
+
+
+    // CPU_FOREACH(cpu) {
+    err = cpu_breakpoint_insert(cpu, 0xffffffff8108358f, BP_GDB, NULL);
+    if (err) {
+        printf("Replay: failed to insert breakpoint: %d\n", err);
+        abort();
+        // break;
+    } else {
+        printf("Replay: Inserted breakpoint\n");
+    }
+    // }
 
     do {
         if (cpu_can_run(cpu)) {

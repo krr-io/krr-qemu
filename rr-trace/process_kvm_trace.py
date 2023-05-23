@@ -23,4 +23,4 @@ def parse_kvm_trace(dedup=False):
 
     return
 
-parse_kvm_trace(dedup=False)
+parse_kvm_trace(dedup=True)

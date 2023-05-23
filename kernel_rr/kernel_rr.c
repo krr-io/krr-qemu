@@ -105,13 +105,17 @@ void rr_do_replay_cfu(CPUState *cpu)
            env->regs[R_ESI], env->regs[R_EDI], rr_event_log_head->event.cfu.len);
     qemu_log("Replayed CFU, rsi=%lx, rdi=%lx, len=%ld\n",
              env->regs[R_ESI], env->regs[R_EDI], rr_event_log_head->event.cfu.len);
-    rr_event_log_head->event.cfu.data[rr_event_log_head->event.cfu.len] = 0;
+    // rr_event_log_head->event.cfu.data[rr_event_log_head->event.cfu.len] = 0;
 
     int ret = cpu_memory_rw_debug(cpu, rr_event_log_head->event.cfu.dest_addr,
                 rr_event_log_head->event.cfu.data, rr_event_log_head->event.cfu.len, true);
     
     if (ret < 0) {
         printf("Failed to write to address %lx: %d\n", rr_event_log_head->event.cfu.src_addr, ret);
+    }
+
+    if (env->eip == 0xffffffff810cbd51) {
+        env->regs[R_EAX] = rr_event_log_head->event.cfu.len;
     }
 
     cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
@@ -353,42 +357,42 @@ void rr_do_replay_exception(CPUState *cpu)
     env->cr[2] = rr_event_log_head->event.exception.cr2;
 
     cpu->rr_executed_inst = rr_event_log_head->inst_cnt - 54;
+    // replayed_event_num++;
+    // rr_pop_event_head();
+}
+
+void rr_do_replay_exception_end(CPUState *cpu)
+{
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
+    printf("Replayed exception end\n");
+    qemu_log("Replayed exception end\n");
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    env->regs[R_EAX] = rr_event_log_head->event.exception.regs.rax;
+    env->regs[R_EBX] = rr_event_log_head->event.exception.regs.rbx;
+    env->regs[R_ECX] = rr_event_log_head->event.exception.regs.rcx;
+    env->regs[R_EDX] = rr_event_log_head->event.exception.regs.rdx;
+    env->regs[R_EBP] = rr_event_log_head->event.exception.regs.rbp;
+    env->regs[R_ESP] = rr_event_log_head->event.exception.regs.rsp;
+    env->regs[R_EDI] = rr_event_log_head->event.exception.regs.rdi;
+    env->regs[R_ESI] = rr_event_log_head->event.exception.regs.rsi;
+    env->regs[R_R8] = rr_event_log_head->event.exception.regs.r8;
+    env->regs[R_R9] = rr_event_log_head->event.exception.regs.r9;
+    env->regs[R_R10] = rr_event_log_head->event.exception.regs.r10;
+    env->regs[R_R11] = rr_event_log_head->event.exception.regs.r11;
+    env->regs[R_R12] = rr_event_log_head->event.exception.regs.r12;
+    env->regs[R_R13] = rr_event_log_head->event.exception.regs.r13;
+    env->regs[R_R14] = rr_event_log_head->event.exception.regs.r14;
+    env->regs[R_R15] = rr_event_log_head->event.exception.regs.r15;
+
+    cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
     replayed_event_num++;
     rr_pop_event_head();
 }
-
-// void rr_do_replay_exception_end(CPUState *cpu)
-// {
-//     X86CPU *x86_cpu;
-//     CPUArchState *env;
-
-//     printf("Replayed exception end\n");
-//     qemu_log("Replayed exception end\n");
-
-//     x86_cpu = X86_CPU(cpu);
-//     env = &x86_cpu->env;
-
-//     env->regs[R_EAX] = rr_event_log_head->event.exception.regs.rax;
-//     env->regs[R_EBX] = rr_event_log_head->event.exception.regs.rbx;
-//     env->regs[R_ECX] = rr_event_log_head->event.exception.regs.rcx;
-//     env->regs[R_EDX] = rr_event_log_head->event.exception.regs.rdx;
-//     env->regs[R_EBP] = rr_event_log_head->event.exception.regs.rbp;
-//     env->regs[R_ESP] = rr_event_log_head->event.exception.regs.rsp;
-//     env->regs[R_EDI] = rr_event_log_head->event.exception.regs.rdi;
-//     env->regs[R_ESI] = rr_event_log_head->event.exception.regs.rsi;
-//     env->regs[R_R8] = rr_event_log_head->event.exception.regs.r8;
-//     env->regs[R_R9] = rr_event_log_head->event.exception.regs.r9;
-//     env->regs[R_R10] = rr_event_log_head->event.exception.regs.r10;
-//     env->regs[R_R11] = rr_event_log_head->event.exception.regs.r11;
-//     env->regs[R_R12] = rr_event_log_head->event.exception.regs.r12;
-//     env->regs[R_R13] = rr_event_log_head->event.exception.regs.r13;
-//     env->regs[R_R14] = rr_event_log_head->event.exception.regs.r14;
-//     env->regs[R_R15] = rr_event_log_head->event.exception.regs.r15;
-
-//     cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
-//     replayed_event_num++;
-//     rr_pop_event_head();
-// }
 
 void rr_do_replay_syscall(CPUState *cpu)
 {

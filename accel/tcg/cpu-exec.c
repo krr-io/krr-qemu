@@ -1023,6 +1023,7 @@ int cpu_exec(CPUState *cpu)
             }
 
             if (check_for_breakpoints(cpu, pc, &cflags)) {
+                printf("Found breakpoint\n");
                 break;
             }
 
@@ -1076,9 +1077,9 @@ int cpu_exec(CPUState *cpu)
                 rr_do_replay_cfu(cpu);
             }
 
-            // if (rr_in_replay() && (tb->pc == pf_addr)) {
-            //     rr_do_replay_exception_end(cpu);
-            // }
+            if (rr_in_replay() && (tb->pc == pf_addr)) {
+                rr_do_replay_exception_end(cpu);
+            }
 
             qemu_log("\nExecute TB:\n");
             qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);

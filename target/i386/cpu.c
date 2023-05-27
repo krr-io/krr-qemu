@@ -6810,7 +6810,9 @@ int x86_cpu_pending_interrupt(CPUState *cs, int interrupt_request)
 
 static bool x86_cpu_has_work(CPUState *cs)
 {
-    return x86_cpu_pending_interrupt(cs, cs->interrupt_request) != 0;
+    int pending_int = x86_cpu_pending_interrupt(cs, cs->interrupt_request);
+    // printf("Pending int: %d\n", pending_int);
+    return pending_int != 0;
 }
 
 static void x86_disas_set_info(CPUState *cs, disassemble_info *info)

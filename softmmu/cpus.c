@@ -90,14 +90,18 @@ bool cpu_thread_is_idle(CPUState *cpu)
         return false;
     }
     if (cpu_is_stopped(cpu)) {
+        // printf("cpu stoped\n");
         return true;
     }
     if (!cpu->halted || cpu_has_work(cpu)) {
+        // printf("cpu not halt and has work\n");
         return false;
     }
     if (cpus_accel->cpu_thread_is_idle) {
         return cpus_accel->cpu_thread_is_idle(cpu);
     }
+
+    // printf("cpu is idle\n");
     return true;
 }
 
@@ -308,6 +312,7 @@ void cpu_handle_guest_debug(CPUState *cpu)
             cpu_single_step(cpu, 0);
         }
     } else {
+        rr_gdb_set_stopped(1);
         gdb_set_stop_cpu(cpu);
         qemu_system_debug_request();
         cpu->stopped = true;
@@ -419,7 +424,8 @@ void qemu_wait_io_event(CPUState *cpu)
     bool slept = false;
 
     while (cpu_thread_is_idle(cpu)) {
-        if (rr_in_replay() && replay_should_skip_wait()) break;
+        // if (rr_in_replay() && replay_should_skip_wait()) break;
+        if (rr_in_replay() && !rr_is_gdb_stopped()) break;
 
         if (!slept) {
             slept = true;
@@ -588,6 +594,10 @@ void cpu_resume(CPUState *cpu)
 {
     cpu->stop = false;
     cpu->stopped = false;
+
+    if (rr_in_replay())
+        cpu->halted = false;
+
     qemu_cpu_kick(cpu);
 }
 

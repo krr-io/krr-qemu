@@ -14,13 +14,14 @@ def parse_kvm_trace(dedup=False):
                 regs_list.append(l.strip())
 
     if dedup:
-        final_inst_list = count_inst.dedup(inst_list)
+        final_inst_list, final_reg_list = count_inst.dedup(inst_list, regs_list)
     else:
         final_inst_list = inst_list
+        final_reg_list = regs_list
 
     # common.write_inst_list(final_inst_list, "trace-addr/kvm-trace-addr")
-    common.write_inst_regs_list(final_inst_list, regs_list, "trace-addr/kvm-trace-addr-regs")
+    common.write_inst_regs_list(final_inst_list, final_reg_list, "trace-addr/kvm-trace-addr-regs")
 
     return
 
-parse_kvm_trace(dedup=True)
+parse_kvm_trace(dedup=False)

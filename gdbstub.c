@@ -51,6 +51,7 @@
 #include "semihosting/semihost.h"
 #include "exec/exec-all.h"
 #include "sysemu/replay.h"
+#include "sysemu/kernel-rr.h"
 
 #ifdef CONFIG_USER_ONLY
 #define GDB_ATTACHED "0"
@@ -537,6 +538,7 @@ static int gdb_continue_partial(char *newstates)
             case 'c':
                 trace_gdbstub_op_continue_cpu(cpu->cpu_index);
                 cpu_resume(cpu);
+                rr_gdb_set_stopped(0);
                 flag = 1;
                 break;
             default:

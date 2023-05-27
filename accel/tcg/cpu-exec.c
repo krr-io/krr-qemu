@@ -52,6 +52,7 @@
 target_ulong cfu_addr1_exec = 0xffffffff810afc12;
 target_ulong cfu_addr2_exec = 0xffffffff810b4fb8;
 target_ulong cfu_addr3_exec = 0xffffffff810cbd51; // strncpy_from_user
+target_ulong get_user_addr_exec = 0xffffffff81118850;
 
 target_ulong pf_addr = 0xffffffff8111e369;
 
@@ -1023,9 +1024,10 @@ int cpu_exec(CPUState *cpu)
             }
 
             if (check_for_breakpoints(cpu, pc, &cflags)) {
-                printf("Found breakpoint\n");
                 break;
             }
+
+            rr_check_for_breakpoint(pc, cpu);
 
             tb = tb_lookup(cpu, pc, cs_base, flags, cflags);
             if (tb == NULL) {
@@ -1037,11 +1039,9 @@ int cpu_exec(CPUState *cpu)
                  * for the fast lookup
                  */
                 if (tb->jump_next_event == -1) {
-                    qemu_log("Caching tb pc=0x%lx\n", tb->pc);
+                    // qemu_log("Caching tb pc=0x%lx\n", tb->pc);
                     qatomic_set(&cpu->tb_jmp_cache[tb_jmp_cache_hash_func(pc)], tb);
                 }
-            } else {
-                qemu_log("Found cache pc=0x%lx\n", tb->pc);
             }
 
             if (tb->jump_next_event == EVENT_TYPE_INTERRUPT) {
@@ -1072,7 +1072,7 @@ int cpu_exec(CPUState *cpu)
                 rr_do_replay_syscall(cpu);
             }
 
-            if (rr_in_replay() && (tb->pc == cfu_addr1_exec || tb->pc == cfu_addr2_exec || tb->pc == cfu_addr3_exec)) {
+            if (rr_in_replay() && (tb->pc == cfu_addr1_exec || tb->pc == cfu_addr2_exec || tb->pc == cfu_addr3_exec || tb->pc == get_user_addr_exec)) {
                 qemu_log("Next replay cfu\n");
                 rr_do_replay_cfu(cpu);
             }

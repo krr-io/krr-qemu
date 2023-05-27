@@ -45,6 +45,7 @@ typedef struct {
     unsigned long src_addr;
     unsigned long dest_addr;
     unsigned long len;
+    unsigned long rdx;
     uint8_t data[1024];
 } rr_cfu;
 

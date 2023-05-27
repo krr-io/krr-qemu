@@ -35,6 +35,11 @@ static int replayed_event_num = 0;
 
 static bool log_loaded = false;
 
+static int bt_started = 0;
+static unsigned long bp = 0xffffffff8108358f;
+
+static int gdb_stopped = 1;
+
 static void rr_pop_event_head(void);
 
 void rr_fake_call(void){return;}
@@ -87,6 +92,7 @@ void rr_do_replay_cfu(CPUState *cpu)
 {
     X86CPU *x86_cpu;
     CPUArchState *env;
+    int len;
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
@@ -101,24 +107,35 @@ void rr_do_replay_cfu(CPUState *cpu)
                cpu->rr_executed_inst, rr_event_log_head->inst_cnt);
     }
 
-    printf("Replayed CFU, rsi=%lx, rdi=%lx, len=%ld\n",
-           env->regs[R_ESI], env->regs[R_EDI], rr_event_log_head->event.cfu.len);
-    qemu_log("Replayed CFU, rsi=%lx, rdi=%lx, len=%ld\n",
-             env->regs[R_ESI], env->regs[R_EDI], rr_event_log_head->event.cfu.len);
-    // rr_event_log_head->event.cfu.data[rr_event_log_head->event.cfu.len] = 0;
 
-    int ret = cpu_memory_rw_debug(cpu, rr_event_log_head->event.cfu.dest_addr,
-                rr_event_log_head->event.cfu.data, rr_event_log_head->event.cfu.len, true);
-    
-    if (ret < 0) {
-        printf("Failed to write to address %lx: %d\n", rr_event_log_head->event.cfu.src_addr, ret);
+    if (env->eip == 0xffffffff81118850) {
+        printf("Replayed get_user: %lx\n", rr_event_log_head->event.cfu.rdx);
+        qemu_log("Replayed get_user: %lx\n", rr_event_log_head->event.cfu.rdx);
+        env->regs[R_EDX] = rr_event_log_head->event.cfu.rdx;
+    } else {
+
+        printf("Replayed CFU, rsi=%lx, rdi=%lx, len=%ld\n",
+            env->regs[R_ESI], env->regs[R_EDI], rr_event_log_head->event.cfu.len);
+        qemu_log("Replayed CFU, rsi=%lx, rdi=%lx, len=%ld\n",
+                env->regs[R_ESI], env->regs[R_EDI], rr_event_log_head->event.cfu.len);
+
+        len = rr_event_log_head->event.cfu.len;
+
+        if (env->eip == 0xffffffff810cbd51) {
+            rr_event_log_head->event.cfu.data[rr_event_log_head->event.cfu.len] = 0;
+            len = rr_event_log_head->event.cfu.len + 1;
+            env->regs[R_EAX] = rr_event_log_head->event.cfu.len;
+        }
+
+        int ret = cpu_memory_rw_debug(cpu, rr_event_log_head->event.cfu.dest_addr,
+                    rr_event_log_head->event.cfu.data, len, true);
+        
+        if (ret < 0) {
+            printf("Failed to write to address %lx: %d\n", rr_event_log_head->event.cfu.src_addr, ret);
+        }
+
+        cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
     }
-
-    if (env->eip == 0xffffffff810cbd51) {
-        env->regs[R_EAX] = rr_event_log_head->event.cfu.len;
-    }
-
-    cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
 
     rr_pop_event_head();
 
@@ -434,9 +451,8 @@ void rr_do_replay_syscall(CPUState *cpu)
     qemu_log("Replayed syscall=%lu, replayed event number=%d\n", env->regs[R_EAX], replayed_event_num);
     printf("Replayed syscall=%lu, replayed event number=%d\n", env->regs[R_EAX], replayed_event_num);
 
-    if (env->regs[R_EAX] == 61) {
-        printf("Replayed syscall 61\n");
-        rr_trap();
+    if (env->regs[R_EAX] == 59) {
+        rr_check_breakpoint_start();
     }
 
 }
@@ -506,9 +522,63 @@ uint64_t rr_num_instr_before_next_interrupt(void)
 
 int replay_should_skip_wait(void)
 {
+    // int cur_waited = waited;
+
+    // waited = 1;
+
     return started_replay;
 }
 
 void rr_trap(void) {
     return;
+}
+
+int count = 0;
+
+static void hit_point(CPUArchState *env) {
+    printf("get %lx\n", env->eip);
+}
+
+static void rr_handle_bp(CPUArchState *env)
+{
+    if (bt_started) {
+        count++;
+        if (count == 20) {
+            printf("get the point\n");
+            hit_point(env);
+        } else {
+            printf("pass the point\n");
+        }
+    }
+}
+
+void rr_check_for_breakpoint(unsigned long addr, CPUState *cpu)
+{
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
+    if (addr == bp) {
+        x86_cpu = X86_CPU(cpu);
+        env = &x86_cpu->env;
+        rr_handle_bp(env);
+    }
+
+    return;
+}
+
+void rr_check_breakpoint_start(void)
+{
+    bt_started = 1;
+    return;
+}
+
+void rr_gdb_set_stopped(int stopped)
+{
+    gdb_stopped = stopped;
+}
+
+
+int rr_is_gdb_stopped(void)
+{
+    return gdb_stopped;
 }

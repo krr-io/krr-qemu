@@ -17,10 +17,16 @@ def analyze_kvm():
     return inst_num
 
 
-def dedup(inst_list):
+def dedup(inst_list, reg_list):
     last_inst = None
     inst_num = 0
     deduped_inst = []
+    deduped_reg = []
+
+    print("inst list {}, reg list {}".format(len(inst_list), len(reg_list)))
+    assert len(inst_list) == len(reg_list)
+
+    index = 0
 
     for inst in inst_list:
         cur_inst = inst
@@ -28,8 +34,11 @@ def dedup(inst_list):
             inst_num += 1
             last_inst = cur_inst
             deduped_inst.append(cur_inst)
+            deduped_reg.append(reg_list[index])
 
-    return deduped_inst
+        index += 1
+
+    return deduped_inst, deduped_reg
 
 
 def compare():

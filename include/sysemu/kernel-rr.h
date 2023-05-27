@@ -35,4 +35,10 @@ unsigned long rr_get_next_event_rip(void);
 void rr_fake_call(void);
 
 void rr_trap(void);
+void rr_check_for_breakpoint(unsigned long addr, CPUState *cpu);
+void rr_check_breakpoint_start(void);
+
+void rr_gdb_set_stopped(int stopped);
+int rr_is_gdb_stopped(void);
+
 #endif /* KERNEL_RR_H */

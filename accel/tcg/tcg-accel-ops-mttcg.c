@@ -70,7 +70,6 @@ static void *mttcg_cpu_thread_fn(void *arg)
 {
     MttcgForceRcuNotifier force_rcu;
     CPUState *cpu = arg;
-    int err = 0;
 
     assert(tcg_enabled());
     g_assert(!icount_enabled());
@@ -89,30 +88,19 @@ static void *mttcg_cpu_thread_fn(void *arg)
     current_cpu = cpu;
     cpu_thread_signal_created(cpu);
     qemu_guest_random_seed_thread_part2(cpu->random_seed);
+    bool jump_next = false;
 
     // if (rr_in_replay()) {
     // }
 
     /* process any pending work */
-    if (!rr_in_replay())
-        cpu->exit_request = 1;
-    else
-        cpu->exit_request = 0;
+    // if (!rr_in_replay())
+    cpu->exit_request = 1;
+    // else
+    //     cpu->exit_request = 0;
 
     // sleep(1);
     cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
-
-
-    // CPU_FOREACH(cpu) {
-    err = cpu_breakpoint_insert(cpu, 0xffffffff8108358f, BP_GDB, NULL);
-    if (err) {
-        printf("Replay: failed to insert breakpoint: %d\n", err);
-        abort();
-        // break;
-    } else {
-        printf("Replay: Inserted breakpoint\n");
-    }
-    // }
 
     do {
         if (cpu_can_run(cpu)) {
@@ -137,7 +125,9 @@ static void *mttcg_cpu_thread_fn(void *arg)
                  */
                 // g_assert(cpu->halted);
                 qemu_log("enter halt, jump to next\n");
-                cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
+                jump_next = true;
+                // cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
+                // qatomic_mb_set(&cpu->exit_request, 0);
                 break;
             case EXCP_ATOMIC:
                 qemu_mutex_unlock_iothread();
@@ -150,6 +140,11 @@ static void *mttcg_cpu_thread_fn(void *arg)
         }
 
         qatomic_mb_set(&cpu->exit_request, 0);
+        if (jump_next) {
+            jump_next = false;
+            continue;
+        }
+
         qemu_wait_io_event(cpu);
     } while (!cpu->unplug || cpu_can_run(cpu));
 

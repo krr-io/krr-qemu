@@ -32,6 +32,7 @@
 void helper_syscall(CPUX86State *env, int next_eip_addend)
 {
     int selector;
+    CPUState *cs = env_cpu(env);
 
     if (!(env->efer & MSR_EFER_SCE)) {
         raise_exception_err_ra(env, EXCP06_ILLOP, 0, GETPC());
@@ -42,6 +43,10 @@ void helper_syscall(CPUX86State *env, int next_eip_addend)
 
         env->regs[R_ECX] = env->eip + next_eip_addend;
         env->regs[11] = cpu_compute_eflags(env) & ~RF_MASK;
+
+        if (rr_in_replay()) {
+            rr_do_replay_syscall(cs);
+        }
 
         code64 = env->hflags & HF_CS64_MASK;
 

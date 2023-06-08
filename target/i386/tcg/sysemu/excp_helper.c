@@ -22,6 +22,8 @@
 #include "exec/exec-all.h"
 #include "tcg/helper-tcg.h"
 
+#include "sysemu/kernel-rr.h"
+
 #define PG_ERROR_OK (-1)
 
 typedef hwaddr (*MMUTranslateFunc)(CPUState *cs, hwaddr gphys, MMUAccessType access_type,
@@ -361,6 +363,7 @@ static int handle_mmu_fault(CPUState *cs, vaddr addr, int size,
     int pg_mode, prot, page_size;
     hwaddr paddr;
     hwaddr vaddr;
+    __attribute_maybe_unused__ rr_event_log *event;
 
 #if defined(DEBUG_MMU)
     printf("MMU fault: addr=%" VADDR_PRIx " w=%d mmu=%d eip=" TARGET_FMT_lx "\n",
@@ -407,6 +410,8 @@ static int handle_mmu_fault(CPUState *cs, vaddr addr, int size,
                                 prot, mmu_idx, page_size);
         return 0;
     } else {
+        // if (rr_in_replay() && rr_get_next_event_type() != EVENT_TYPE_EXCEPTION) return 0;
+
         if (env->intercept_exceptions & (1 << EXCP0E_PAGE)) {
             /* cr2 is not modified in case of exceptions */
             x86_stq_phys(cs,
@@ -415,6 +420,7 @@ static int handle_mmu_fault(CPUState *cs, vaddr addr, int size,
         } else {
             env->cr[2] = addr;
         }
+
         env->error_code = error_code;
         cs->exception_index = EXCP0E_PAGE;
         return 1;

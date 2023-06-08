@@ -107,7 +107,7 @@ void helper_write_crN(CPUX86State *env, int reg, target_ulong t0)
         break;
     case 3:
         if ((env->efer & MSR_EFER_LMA) &&
-                (t0 & ((~0ULL) << env_archcpu(env)->phys_bits))) {
+                (t0 & ((~0ULL) << env_archcpu(env)->phys_bits)) && !rr_in_replay()) {
             cpu_vmexit(env, SVM_EXIT_ERR, 0, GETPC());
         }
         if (!(env->efer & MSR_EFER_LMA)) {

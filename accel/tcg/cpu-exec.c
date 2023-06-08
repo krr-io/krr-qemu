@@ -49,10 +49,15 @@
 
 #include "sysemu/kernel-rr.h"
 
-target_ulong cfu_addr1_exec = 0xffffffff810afc12;
-target_ulong cfu_addr2_exec = 0xffffffff810b4fb8;
-target_ulong cfu_addr3_exec = 0xffffffff810cbd51; // strncpy_from_user
-target_ulong get_user_addr_exec = 0xffffffff81118850;
+target_ulong raw_copy_from_user = 0xffffffff810b0b05;
+
+
+// target_ulong cfu_addr1_exec = 0xffffffff810afc12;
+// target_ulong cfu_addr2_exec = 0xffffffff810b4fb8;
+// target_ulong cfu_addr3_exec = 0xffffffff810cbd51; // strncpy_from_user
+// target_ulong strncpy_addr_exec = 0xffffffff810cbc58;
+// target_ulong get_user_addr_exec = 0xffffffff81118850;
+// target_ulong strnlen_user_addr_exec = 0xffffffff810cbe47;
 
 target_ulong pf_addr = 0xffffffff8111e369;
 
@@ -1068,11 +1073,13 @@ int cpu_exec(CPUState *cpu)
                 tb_add_jump(last_tb, tb_exit, tb);
             }
 
-            if (tb->jump_next_event == EVENT_TYPE_SYSCALL) {
-                rr_do_replay_syscall(cpu);
-            }
+            // if (tb->jump_next_event == EVENT_TYPE_SYSCALL) {
+            //     rr_do_replay_syscall(cpu);
+            // }
 
-            if (rr_in_replay() && (tb->pc == cfu_addr1_exec || tb->pc == cfu_addr2_exec || tb->pc == cfu_addr3_exec || tb->pc == get_user_addr_exec)) {
+            if (rr_in_replay() && (tb->pc == COPY_FROM_ITER \
+                || tb->pc == COPY_FROM_USER || tb->pc == GET_FROM_USER \
+                || tb->pc == STRNCPY_FROM_USER || tb->pc == STRLEN_USER)) {
                 qemu_log("Next replay cfu\n");
                 rr_do_replay_cfu(cpu);
             }

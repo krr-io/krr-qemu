@@ -10,6 +10,11 @@
 
 #include "qemu/typedefs.h"
 
+#define COPY_FROM_ITER 0xffffffff810afbf1
+#define COPY_FROM_USER 0xffffffff810b4f7d
+#define STRNCPY_FROM_USER 0xffffffff810cbc58
+#define GET_FROM_USER 0xffffffff81118850
+#define STRLEN_USER 0xffffffff810cbe4a
 
 int rr_in_replay(void);
 int rr_in_record(void);
@@ -31,6 +36,7 @@ void rr_do_replay_exception_end(CPUState *cpu);
 
 int rr_get_next_event_type(void);
 unsigned long rr_get_next_event_rip(void);
+rr_event_log* rr_get_next_event(void);
 
 void rr_fake_call(void);
 

@@ -46,6 +46,8 @@ target_ulong last_removed_addr = 0;
 target_ulong userspace_start = 0x0000000000000000;
 target_ulong userspace_end = 0x00007fffffffffff;
 
+static int syscall_seq = 0;
+
 static void rr_insert_userspace_int(CPUState *cs);
 
 static bool rr_is_address_interceptible(target_ulong bp_addr)
@@ -58,6 +60,16 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
         return false;
 
     return true;
+}
+
+static void rr_handle_kernel_entry(target_ulong bp_addr) {
+    char ss_name[10];
+
+    if (bp_addr == syscall_addr) {
+        sprintf(ss_name, "record/%d", syscall_seq);
+        rr_take_snapshot(ss_name);
+        syscall_seq++;
+    }
 }
 
 
@@ -172,6 +184,8 @@ __attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
         if (!rr_is_address_interceptible(bp_addr)) {
             return false;
         }
+
+        rr_handle_kernel_entry(bp_addr);
 
         if (bp_addr == strncpy_addr \
             || bp_addr == get_user_addr \

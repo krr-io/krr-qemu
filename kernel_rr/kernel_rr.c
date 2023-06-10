@@ -1,6 +1,7 @@
 #include "qemu/osdep.h"
 #include "qemu-common.h"
 #include "exec/log.h"
+#include "migration/snapshot.h"
 
 #include "cpu.h"
 
@@ -45,6 +46,32 @@ static void rr_pop_event_head(void);
 void rr_fake_call(void){return;}
 
 // static int entered_exception = 0;
+
+
+void rr_take_snapshot(char *ss_name)
+{
+    Error *err = NULL;
+    // char path[20];
+
+    // if (rr_in_record()) {
+    //     strcat(path, "record/");
+    // } else {
+    //     strcat(path, "replay/");
+    // }
+
+    // strcat(path, ss_name);
+
+    rr_save_snapshot(ss_name, &err);
+    // save_snapshot(ss_name, true, NULL, false, NULL, &err);
+
+    if (err != NULL) {
+        printf("Failed to tabke snapshot");
+        abort();
+    }
+
+    return;
+}
+
 
 rr_event_log* rr_get_next_event(void)
 {

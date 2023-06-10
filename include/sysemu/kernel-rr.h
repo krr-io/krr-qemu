@@ -38,6 +38,8 @@ int rr_get_next_event_type(void);
 unsigned long rr_get_next_event_rip(void);
 rr_event_log* rr_get_next_event(void);
 
+void rr_take_snapshot(char *ss_name);
+
 void rr_fake_call(void);
 
 void rr_trap(void);

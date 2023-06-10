@@ -1121,9 +1121,10 @@ void hmp_rr_replay(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
 
-    if (load_snapshot(qdict_get_try_str(qdict, "name"), NULL, false, NULL, &err)) {
-        vm_start();
-    }
+    rr_load_snapshot(qdict_get_try_str(qdict, "name"), &err);
+    // if (err != NULL) {
+    //     vm_start();
+    // }
 
     hmp_handle_error(mon, err);
 }

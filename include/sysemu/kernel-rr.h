@@ -15,6 +15,7 @@
 #define STRNCPY_FROM_USER 0xffffffff810cbc58
 #define GET_FROM_USER 0xffffffff81118850
 #define STRLEN_USER 0xffffffff810cbe4a
+#define RANDOM_GEN 0xffffffff810e1e25
 
 int rr_in_replay(void);
 int rr_in_record(void);
@@ -26,6 +27,7 @@ int replay_should_skip_wait(void);
 void rr_replay_interrupt(CPUState *cpu, int *interrupt);
 void rr_do_replay_intno(CPUState *cpu, int *intno);
 void rr_do_replay_cfu(CPUState *cpu);
+void rr_do_replay_rand(CPUState *cpu);
 
 uint64_t rr_num_instr_before_next_interrupt(void);
 int rr_is_syscall_ready(CPUState *cpu);

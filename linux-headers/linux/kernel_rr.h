@@ -8,6 +8,7 @@
 #define EVENT_TYPE_SYSCALL   2
 #define EVENT_TYPE_IO_IN     3
 #define EVENT_TYPE_CFU       4
+#define EVENT_TYPE_RANDOM    5
 
 enum REGS {
     ZERO,
@@ -64,6 +65,12 @@ typedef struct {
     struct kvm_regs regs;
 } rr_syscall;
 
+typedef struct {
+    unsigned long buf;
+    unsigned long len;
+    uint8_t data[1024];
+} rr_random;
+
 typedef struct rr_event_log_t{
     int type;
     union {
@@ -72,6 +79,7 @@ typedef struct rr_event_log_t{
         rr_syscall  syscall;
         rr_io_input io_input;
         rr_cfu cfu;
+        rr_random rand;
     } event;
     struct rr_event_log_t *next;
     uint64_t inst_cnt;

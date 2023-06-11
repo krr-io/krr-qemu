@@ -38,8 +38,9 @@ target_ulong strncpy_addr = 0xffffffff810cbd51; // call   0xffffffff811183e0 <co
 
 target_ulong get_user_addr = 0xffffffff81118850;
 target_ulong strnlen_user_addr = 0xffffffff810cbe4a;
+target_ulong random_bytes_addr = 0xffffffff810e1e25;
 
-target_ulong cfu_addr3 = 0xffffffff811183e3;
+// target_ulong cfu_addr3 = 0xffffffff811183e3;
 
 target_ulong last_removed_addr = 0;
 
@@ -56,13 +57,27 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
         bp_addr != copy_from_iter_addr && bp_addr != copy_from_user_addr && \
         bp_addr != strncpy_addr && \
         bp_addr != get_user_addr && \
-        bp_addr != strnlen_user_addr)
+        bp_addr != strnlen_user_addr && \
+        bp_addr != random_bytes_addr)
         return false;
 
     return true;
 }
 
-static void rr_handle_kernel_entry(target_ulong bp_addr) {
+static bool rr_is_address_sw(target_ulong bp_addr)
+{
+    if (bp_addr == strncpy_addr \
+        || bp_addr == get_user_addr \
+        || bp_addr == strnlen_user_addr \
+        || bp_addr == random_bytes_addr)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+__attribute_maybe_unused__ static void rr_handle_kernel_entry(target_ulong bp_addr) {
     char ss_name[10];
 
     if (bp_addr == syscall_addr) {
@@ -123,6 +138,13 @@ void rr_insert_breakpoints(void)
             printf("Inserted breakpoints for strnlen_user_addr\n");
         }
 
+        bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for random_bytes_start_addr: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for random_bytes_start_addr\n");
+        }
+
         if (rr_in_replay()) {
             rr_insert_userspace_int(cpu);
         }
@@ -162,9 +184,7 @@ __attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
         
         bp_type = GDB_BREAKPOINT_HW;
 
-        if (last_removed_addr == strncpy_addr \
-            || last_removed_addr == get_user_addr \
-            || last_removed_addr == strnlen_user_addr) {
+        if (rr_is_address_sw(last_removed_addr)) {
             bp_type = GDB_BREAKPOINT_SW;
         }
         if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, bp_type) > 0) {
@@ -185,11 +205,9 @@ __attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
             return false;
         }
 
-        rr_handle_kernel_entry(bp_addr);
+        // rr_handle_kernel_entry(bp_addr);
 
-        if (bp_addr == strncpy_addr \
-            || bp_addr == get_user_addr \
-            || bp_addr == strnlen_user_addr) {
+        if (rr_is_address_sw(bp_addr)) {
             bp_type = GDB_BREAKPOINT_SW;
         }
         cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);

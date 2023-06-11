@@ -1084,6 +1084,10 @@ int cpu_exec(CPUState *cpu)
                 rr_do_replay_cfu(cpu);
             }
 
+            if (rr_in_replay() && tb->pc == RANDOM_GEN) {
+                rr_do_replay_rand(cpu);
+            }
+
             if (rr_in_replay() && (tb->pc == pf_addr)) {
                 rr_do_replay_exception_end(cpu);
             }

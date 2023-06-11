@@ -26,6 +26,7 @@ static int event_exception_num = 0;
 static int event_interrupt_num = 0;
 static int event_io_input_num = 0;
 static int event_cfu_num = 0;
+static int event_random_num = 0;
 
 static int started_replay = 0;
 static int initialized_replay = 0;
@@ -142,7 +143,11 @@ void rr_do_replay_cfu(CPUState *cpu)
     node = rr_event_log_head;
 
     if (rr_event_log_head->type != EVENT_TYPE_CFU) {
-        if (rr_event_log_head->type == EVENT_TYPE_INTERRUPT) {
+        // The breakpoint we set in record is actually end of CFU, but in replay we feed
+        // the on CFU entry. There might be interrupt or page fault happening during a CFU,
+        // which means it is queued before the CFU in the log, so we do this check if the
+        // next next event is CFU.
+        if (rr_event_log_head->type == EVENT_TYPE_INTERRUPT || rr_event_log_head->type == EVENT_TYPE_EXCEPTION) {
             if (rr_event_log_head->next != NULL && rr_event_log_head->next->type == EVENT_TYPE_CFU) {
                 node = rr_event_log_head->next;
                 rr_event_log_head->next = rr_event_log_head->next->next;
@@ -253,7 +258,8 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
     event_record->inst_cnt = event.inst_cnt;
     event_record->rip = event.rip;
 
-    int event_num = event_syscall_num + event_exception_num + event_interrupt_num + event_io_input_num + 1;
+    int event_num = event_syscall_num + event_exception_num + event_interrupt_num + \
+                    event_io_input_num + event_cfu_num + event_random_num + 1;
 
     switch (event.type)
     {
@@ -297,11 +303,50 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
                  event_record->rip, event_record->inst_cnt, event_num);
         event_cfu_num++;
         break;
+    case EVENT_TYPE_RANDOM:
+        memcpy(&event_record->event.rand, &event.event.rand, sizeof(rr_random));
+        qemu_log("Random: buf=0x%lx, len=%lu, rip=0x%lx, inst_cnt: %lu, number=%d\n",
+                 event_record->event.rand.buf, event_record->event.rand.len,
+                 event_record->rip, event_record->inst_cnt, event_num);
+        event_random_num++;
+        break;
     default:
         break;
     }
 
     return event_record;
+}
+
+void rr_do_replay_rand(CPUState *cpu)
+{
+    int ret;
+
+    if (rr_event_log_head->type != EVENT_TYPE_RANDOM) {
+        printf("Unexpected random\n");
+        qemu_log("Unexpected random\n");
+        abort();
+    }
+
+    ret = cpu_memory_rw_debug(cpu, rr_event_log_head->event.rand.buf,
+                              rr_event_log_head->event.rand.data,
+                              rr_event_log_head->event.rand.len, true);
+
+    if (ret < 0) {
+        printf("Failed to write to address %lx: %d\n", rr_event_log_head->event.rand.buf, ret);
+    } else {
+        printf("Write to address 0x%lx len %lu\n",
+               rr_event_log_head->event.rand.buf,
+               rr_event_log_head->event.rand.len);
+    }
+
+    printf("Replayed random: buf=0x%lx, len=%lu\n",
+           rr_event_log_head->event.rand.buf,
+           rr_event_log_head->event.rand.len);
+    qemu_log("Replayed random: buf=0x%lx, len=%lu\n",
+            rr_event_log_head->event.rand.buf,
+            rr_event_log_head->event.rand.len);
+
+    rr_pop_event_head();
 }
 
 int rr_is_syscall_ready(CPUState *cpu)

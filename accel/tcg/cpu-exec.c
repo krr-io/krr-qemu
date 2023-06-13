@@ -890,13 +890,13 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 {
     int32_t insns_left;
 
-    log_regs(cpu);
-    log_tb(cpu, tb);
+    // log_regs(cpu);
+    // log_tb(cpu, tb);
 
     trace_exec_tb(tb, tb->pc);
     tb = cpu_tb_exec(cpu, tb, tb_exit);
 
-    qemu_log("Finished TB execution\n");
+    // qemu_log("Finished TB execution\n");
 
     if (*tb_exit != TB_EXIT_REQUESTED) {
         *last_tb = tb;
@@ -1080,7 +1080,7 @@ int cpu_exec(CPUState *cpu)
             if (rr_in_replay() && (tb->pc == COPY_FROM_ITER \
                 || tb->pc == COPY_FROM_USER || tb->pc == GET_FROM_USER \
                 || tb->pc == STRNCPY_FROM_USER || tb->pc == STRLEN_USER)) {
-                qemu_log("Next replay cfu\n");
+                // qemu_log("Next replay cfu\n");
                 rr_do_replay_cfu(cpu);
             }
 
@@ -1092,8 +1092,8 @@ int cpu_exec(CPUState *cpu)
                 rr_do_replay_exception_end(cpu);
             }
 
-            qemu_log("\nExecute TB:\n");
-            qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+            // qemu_log("\nExecute TB:\n");
+            // qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
 
             if (tb->pc != cpu->last_pc) {
                 cpu->rr_executed_inst++;
@@ -1103,17 +1103,17 @@ int cpu_exec(CPUState *cpu)
 
             cpu_loop_exec_tb(cpu, tb, &last_tb, &tb_exit);
 
-            if (rr_in_replay()) {
-                qemu_log("end execute tb, executed inst %lu, real inst %lu\n\n",
-                         cpu->rr_executed_inst, cpu->rr_guest_instr_count);
-            }
+            // if (rr_in_replay()) {
+            //     qemu_log("end execute tb, executed inst %lu, real inst %lu\n\n",
+            //              cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+            // }
 
             /* Try to align the host and virtual clocks
                if the guest is in advance */
             align_clocks(&sc, cpu);
         }
 
-        qemu_log("exit interrupt\n");
+        // qemu_log("exit interrupt\n");
     }
 
     if (cpu->rr_executed_inst == 397550) {

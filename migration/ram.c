@@ -392,6 +392,10 @@ uint64_t ram_bytes_remaining(void)
                        0;
 }
 
+void* get_ram_state(void) {
+    return (void *)&ram_state;
+}
+
 MigrationStats ram_counters;
 
 static void ram_transferred_add(uint64_t bytes)
@@ -998,6 +1002,10 @@ static void ramblock_sync_dirty_bitmap(RAMState *rs, RAMBlock *rb)
 {
     uint64_t new_dirty_pages =
         cpu_physical_memory_sync_dirty_bitmap(rb, 0, rb->used_length);
+
+    // if (new_dirty_pages > 0) {
+    //     printf("ramblock dirty pages: %lu\n", new_dirty_pages);
+    // }
 
     rs->migration_dirty_pages += new_dirty_pages;
     rs->num_dirty_pages_period += new_dirty_pages;
@@ -2884,6 +2892,17 @@ void qemu_guest_free_page_hint(void *addr, size_t len)
     }
 }
 
+int rr_ram_save_setup(void *opaque)
+{
+    RAMState **rsp = opaque;
+
+    if (ram_state_init(rsp)) {
+        return -1;
+    }
+
+    return 0;
+}
+
 /*
  * Each of ram_save_setup, ram_save_iterate and ram_save_complete has
  * long-running RCU critical section.  When rcu-reclaims in the code
@@ -2943,6 +2962,22 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
 
     return 0;
 }
+
+int ram_clear_dirty_pages(void *opaque)
+{
+    RAMState **temp = opaque;
+    RAMState *rs = *temp;
+    int pages;
+
+    qemu_mutex_lock(&rs->bitmap_mutex);
+    WITH_RCU_READ_LOCK_GUARD() {
+        pages = ram_find_and_save_block(rs);
+    }
+    qemu_mutex_unlock(&rs->bitmap_mutex);
+
+    return pages;
+}
+
 
 /**
  * ram_save_iterate: iterative stage for migration
@@ -3871,6 +3906,42 @@ void colo_flush_ram_cache(void)
         }
     }
     trace_colo_flush_ram_cache_end();
+}
+
+void kernel_rr_sync_dirty_memory(void)
+{
+    RAMBlock *block = NULL;
+    unsigned long offset = 0;
+
+    memory_global_dirty_log_sync();
+    WITH_RCU_READ_LOCK_GUARD() {
+        RAMBLOCK_FOREACH_NOT_IGNORED(block) {
+            ramblock_sync_dirty_bitmap(ram_state, block);
+        }
+    }
+
+    WITH_RCU_READ_LOCK_GUARD() {
+        block = QLIST_FIRST_RCU(&ram_list.blocks);
+
+        while (block) {
+            unsigned long num = 0;
+
+            offset = colo_bitmap_find_dirty(ram_state, block, offset, &num);
+            if (!offset_in_ramblock(block,
+                                    ((ram_addr_t)offset) << TARGET_PAGE_BITS)) {
+                offset = 0;
+                num = 0;
+                block = QLIST_NEXT_RCU(block, next);
+            } else {
+                unsigned long i = 0;
+                for (i = 0; i < num; i++) {
+                    migration_bitmap_clear_dirty(ram_state, block, offset + i);
+                }
+
+                offset += num;
+            }
+        }
+    }
 }
 
 /**

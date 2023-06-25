@@ -22,6 +22,7 @@
 #include "qemu/guest-random.h"
 #include "qapi/error.h"
 #include "exec/gdbstub.h"
+#include "migration/ram.h"
 
 #include "kvm-cpus.h"
 #include "sysemu/kernel-rr.h"
@@ -33,6 +34,8 @@ target_ulong copy_from_iter_addr = 0xffffffff810afc14;
 
 // target_ulong copy_from_user_addr = 0xffffffff810b4f7d; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
 target_ulong copy_from_user_addr = 0xffffffff810b4fb8; 
+
+target_ulong copy_page_from_iter_addr = 0xffffffff810b0b16;
 
 target_ulong strncpy_addr = 0xffffffff810cbd51; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
 
@@ -47,7 +50,7 @@ target_ulong last_removed_addr = 0;
 target_ulong userspace_start = 0x0000000000000000;
 target_ulong userspace_end = 0x00007fffffffffff;
 
-static int syscall_seq = 0;
+// static int syscall_seq = 0;
 
 static void rr_insert_userspace_int(CPUState *cs);
 
@@ -58,7 +61,8 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
         bp_addr != strncpy_addr && \
         bp_addr != get_user_addr && \
         bp_addr != strnlen_user_addr && \
-        bp_addr != random_bytes_addr)
+        bp_addr != random_bytes_addr && \
+        bp_addr != copy_page_from_iter_addr)
         return false;
 
     return true;
@@ -69,7 +73,8 @@ static bool rr_is_address_sw(target_ulong bp_addr)
     if (bp_addr == strncpy_addr \
         || bp_addr == get_user_addr \
         || bp_addr == strnlen_user_addr \
-        || bp_addr == random_bytes_addr)
+        || bp_addr == random_bytes_addr \
+        || bp_addr == copy_from_iter_addr)
     {
         return true;
     }
@@ -77,42 +82,51 @@ static bool rr_is_address_sw(target_ulong bp_addr)
     return false;
 }
 
-__attribute_maybe_unused__ static void rr_handle_kernel_entry(target_ulong bp_addr) {
-    char ss_name[10];
-
+__attribute_maybe_unused__ static void rr_handle_kernel_entry(CPUState *cpu, target_ulong bp_addr) {
+    // char ss_name[10];
     if (bp_addr == syscall_addr) {
-        sprintf(ss_name, "record/%d", syscall_seq);
-        rr_take_snapshot(ss_name);
-        syscall_seq++;
+        sync_dirty_pages(cpu);
     }
 }
 
 
 void rr_insert_breakpoints(void)
 {
-    int bp_ret;
+    __attribute_maybe_unused__ int bp_ret;
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
         bp_ret = kvm_insert_breakpoint(cpu, syscall_addr, 1, GDB_BREAKPOINT_HW);
-        bp_ret = kvm_insert_breakpoint(cpu, pf_excep_addr, 1, GDB_BREAKPOINT_HW);
-        // bp_ret = kvm_insert_hypercall(cpu, pf_excep_addr);
         if (bp_ret > 0) {
             printf("failed to insert bp: %d\n", bp_ret);
         } else {
             printf("Inserted breakpoints\n");
         }
 
-        bp_ret = kvm_insert_breakpoint(cpu, copy_from_iter_addr, 1, GDB_BREAKPOINT_HW);
+        bp_ret = kvm_insert_breakpoint(cpu, pf_excep_addr, 1, GDB_BREAKPOINT_HW);
         if (bp_ret > 0) {
-            printf("failed to insert bp for CFU[%lx]: %d\n", copy_from_iter_addr, bp_ret);
+            printf("failed to insert bp: %d\n", bp_ret);
         } else {
             printf("Inserted breakpoints\n");
+        }
+
+        bp_ret = kvm_insert_breakpoint(cpu, copy_page_from_iter_addr, 1, GDB_BREAKPOINT_HW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for copy_page_from_iter_addr: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for copy_page_from_iter_addr\n");
         }
 
         bp_ret = kvm_insert_breakpoint(cpu, copy_from_user_addr, 1, GDB_BREAKPOINT_HW);
         if (bp_ret > 0) {
             printf("failed to insert bp for CFU[%lx]: %d\n", copy_from_user_addr, bp_ret);
+        } else {
+            printf("Inserted breakpoints\n");
+        }
+
+        bp_ret = kvm_insert_breakpoint(cpu, copy_from_iter_addr, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for CFU[%lx]: %d\n", copy_from_iter_addr, bp_ret);
         } else {
             printf("Inserted breakpoints\n");
         }
@@ -145,9 +159,9 @@ void rr_insert_breakpoints(void)
             printf("Inserted breakpoints for random_bytes_start_addr\n");
         }
 
-        if (rr_in_replay()) {
-            rr_insert_userspace_int(cpu);
-        }
+        // if (rr_in_replay()) {
+        //     rr_insert_userspace_int(cpu);
+        // }
     }
 }
 
@@ -205,7 +219,7 @@ __attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
             return false;
         }
 
-        // rr_handle_kernel_entry(bp_addr);
+        rr_handle_kernel_entry(cpu, bp_addr);
 
         if (rr_is_address_sw(bp_addr)) {
             bp_type = GDB_BREAKPOINT_SW;

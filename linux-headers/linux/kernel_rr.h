@@ -47,7 +47,7 @@ typedef struct {
     unsigned long dest_addr;
     unsigned long len;
     unsigned long rdx;
-    uint8_t data[1024];
+    uint8_t data[4096];
 } rr_cfu;
 
 typedef struct {
@@ -86,6 +86,12 @@ typedef struct rr_event_log_t{
     unsigned long rip;
 } rr_event_log;
 
+typedef struct rr_mem_access_log_t {
+    unsigned long gpa;
+    unsigned long rip;
+    struct rr_mem_access_log_t *next;
+} rr_mem_access_log;
+
 typedef struct rr_event_list_t {
     rr_event_log *item;
     int length;
@@ -106,5 +112,8 @@ void rr_post_record(void);
 void rr_pre_replay(void);
 
 uint64_t rr_get_next_event_inst(void);
+// void rr_init_dirty_bitmaps(void);
+void rr_print_mem_log(unsigned long gpa, unsigned long rip);
+void rr_finish_mem_log(void);
 
 #endif

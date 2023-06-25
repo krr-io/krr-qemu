@@ -683,6 +683,9 @@ static bool kvm_slot_get_dirty_log(KVMState *s, KVMSlot *slot)
     d.slot = slot->slot | (slot->as_id << 16);
     ret = kvm_vm_ioctl(s, KVM_GET_DIRTY_LOG, &d);
 
+    // if (*slot->dirty_bmap != 0)
+    //     printf("kvm_slot_get_dirty_log: %lx\n", slot->start_addr);
+
     if (ret == -ENOENT) {
         /* kernel does not have dirty bitmap in this slot */
         ret = 0;
@@ -3354,6 +3357,48 @@ static void do_rr_get_vcpu_events(CPUState *cpu, run_on_cpu_data arg)
     return;
 }
 
+
+static void do_rr_get_vcpu_mem_logs(CPUState *cpu, run_on_cpu_data arg)
+{
+    struct rr_mem_access_log_t event;
+    struct rr_event_info event_info;
+    int r = 0;
+    int i;
+
+    r = kvm_vcpu_ioctl(cpu, KVM_GET_RR_MEM_LOG_NUMBER, &event_info);
+
+    for (i = 0; i < event_info.event_number; i++) {
+        r = kvm_vcpu_ioctl(cpu, KVM_GET_RR_NEXT_MEM_LOG, &event);
+        if (r) {
+            printf("failed to get access %d\n", r);
+            return;
+        }
+        rr_print_mem_log(event.gpa, event.rip);
+        // printf("get access 0x%lx, rip=0x%lx\n", event.gpa, event.rip);
+    }
+
+    r = kvm_vcpu_ioctl(cpu, KVM_GET_RR_MEM_LOG_CLEAR, NULL);
+    if (r) {
+        printf("failed to clear mem logs: %d\n", r);
+        return;
+    } else {
+        printf("cleared logs\n");
+    }
+}
+
+
+int rr_get_vcpu_mem_logs(void)
+{
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        run_on_cpu(cpu, do_rr_get_vcpu_mem_logs, RUN_ON_CPU_NULL);
+    }
+
+    return 0;
+}
+
+
 int rr_get_vcpu_events(void)
 {
     CPUState *cpu;
@@ -3374,6 +3419,8 @@ int kvm_start_record(void)
     }
 
     rr_set_record(1);
+    
+    rr_init_dirty_bitmaps();
 
     return 0;
 }
@@ -3384,6 +3431,8 @@ int kvm_end_record(void) {
     CPU_FOREACH(cpu) {
         run_on_cpu(cpu, do_kvm_cpu_end_record, RUN_ON_CPU_NULL);
     }
+
+    rr_finish_mem_log();
 
     rr_get_vcpu_events();
     rr_post_record();

@@ -51,4 +51,7 @@ void rr_check_breakpoint_start(void);
 void rr_gdb_set_stopped(int stopped);
 int rr_is_gdb_stopped(void);
 
+void sync_dirty_pages(CPUState *cpu);
+void rr_init_dirty_bitmaps(void);
+
 #endif /* KERNEL_RR_H */

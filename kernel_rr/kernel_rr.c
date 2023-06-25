@@ -8,8 +8,15 @@
 #include "linux-headers/linux/kernel_rr.h"
 
 #include "sysemu/kernel-rr.h"
+#include "accel/kvm/kvm-cpus.h"
 
+#include "sysemu/kvm.h"
 #include "exec/cpu-common.h"
+#include "migration/ram.h"
+#include "exec/ram_addr.h"
+#include "migration/migration.h"
+#include "qemu/main-loop.h"
+#include "memory.h"
 
 const char *kernel_rr_log = "kernel_rr.log";
 
@@ -34,6 +41,7 @@ static int initialized_replay = 0;
 static int replayed_interrupt_num = 0;
 
 static int replayed_event_num = 0;
+static int total_event_number = 0;
 
 static bool log_loaded = false;
 
@@ -42,9 +50,114 @@ static unsigned long bp = 0xffffffff8108358f;
 
 static int gdb_stopped = 1;
 
+// int64_t replay_start_time = 0;
+static unsigned long dirty_page_num = 0;
+
 static void rr_pop_event_head(void);
 
 void rr_fake_call(void){return;}
+
+
+static void rr_init_ram_bitmaps(void) {
+    RAMBlock *block;
+    unsigned long pages;
+    uint8_t shift = 18;
+
+    /* Skip setting bitmap if there is no RAM */
+    if (ram_bytes_total()) {
+        if (shift > CLEAR_BITMAP_SHIFT_MAX) {
+            error_report("clear_bitmap_shift (%u) too big, using "
+                         "max value (%u)", shift, CLEAR_BITMAP_SHIFT_MAX);
+            shift = CLEAR_BITMAP_SHIFT_MAX;
+        } else if (shift < CLEAR_BITMAP_SHIFT_MIN) {
+            error_report("clear_bitmap_shift (%u) too small, using "
+                         "min value (%u)", shift, CLEAR_BITMAP_SHIFT_MIN);
+            shift = CLEAR_BITMAP_SHIFT_MIN;
+        }
+
+        RAMBLOCK_FOREACH_NOT_IGNORED(block) {
+            pages = block->max_length >> TARGET_PAGE_BITS;
+            /*
+             * The initial dirty bitmap for migration must be set with all
+             * ones to make sure we'll migrate every guest RAM page to
+             * destination.
+             * Here we set RAMBlock.bmap all to 1 because when rebegin a
+             * new migration after a failed migration, ram_list.
+             * dirty_memory[DIRTY_MEMORY_MIGRATION] don't include the whole
+             * guest memory.
+             */
+            block->bmap = bitmap_new(pages);
+            bitmap_set(block->bmap, 0, pages);
+            block->clear_bmap_shift = shift;
+            block->clear_bmap = bitmap_new(clear_bmap_size(pages, shift));
+        }
+    }
+}
+
+void rr_init_dirty_bitmaps(void) {
+
+    if (rr_ram_save_setup(get_ram_state()) != 0) {
+        printf("Failed to init ram state\n");
+        abort();
+    }
+
+    /* For memory_global_dirty_log_start below.  */
+    // qemu_mutex_lock_iothread();
+    qemu_mutex_lock_ramlist();
+
+    WITH_RCU_READ_LOCK_GUARD() {
+        rr_init_ram_bitmaps();
+        memory_global_dirty_log_start(GLOBAL_DIRTY_MIGRATION);
+    }
+    qemu_mutex_unlock_ramlist();
+    // qemu_mutex_unlock_iothread();
+
+    /*
+     * After an eventual first bitmap sync, fixup the initial bitmap
+     * containing all 1s to exclude any discarded pages from migration.
+     */
+    // migration_bitmap_clear_discarded_pages(rs);
+}
+
+
+__attribute_maybe_unused__ static void track_dirty_pages(RAMBlock *rb)
+{
+    uint64_t new_dirty_pages =
+        cpu_physical_memory_sync_dirty_bitmap(rb, 0, rb->used_length);
+
+    if (new_dirty_pages > 0) {
+        printf("new_dirty_pages: %lu\n", new_dirty_pages);
+    }
+
+    dirty_page_num += new_dirty_pages;
+}
+
+static unsigned long rr_get_syscall_num(CPUState *cpu)
+{
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    return env->regs[R_EAX];
+}
+
+void rr_print_mem_log(unsigned long gpa, unsigned long rip)
+{
+    qemu_log("gpa=0x%lx, rip=0x%lx\n", gpa, rip);
+}
+
+void sync_dirty_pages(CPUState *cpu) {
+    kvm_cpu_synchronize_state(cpu);
+
+    kernel_rr_sync_dirty_memory();
+
+    rr_get_vcpu_mem_logs();
+
+    qemu_log("Syscall: %lu\n", rr_get_syscall_num(cpu));
+}
+
 
 // static int entered_exception = 0;
 
@@ -72,7 +185,6 @@ void rr_take_snapshot(char *ss_name)
 
     return;
 }
-
 
 rr_event_log* rr_get_next_event(void)
 {
@@ -118,10 +230,7 @@ void rr_set_replay(int replay, unsigned long ram_size)
     // printf("set kernel replay = %d\n", g_rr_in_replay);
 }
 
-void accel_start_kernel_replay(void)
-{
-    // kvm_start_record();
-}
+void accel_start_kernel_replay(void){}
 
 void rr_do_replay_cfu(CPUState *cpu)
 {
@@ -169,9 +278,11 @@ void rr_do_replay_cfu(CPUState *cpu)
     //     abort();
     // }
 
+    replayed_event_num++;
+
     if (env->eip == GET_FROM_USER) {
-        printf("Replayed get_user: %lx\n", node->event.cfu.rdx);
-        qemu_log("Replayed get_user: %lx\n", node->event.cfu.rdx);
+        printf("Replayed get_user: %lx, event number=%d\n", node->event.cfu.rdx, replayed_event_num);
+        qemu_log("Replayed get_user: %lx, event number=%d\n", node->event.cfu.rdx, replayed_event_num);
         env->regs[R_EDX] = node->event.cfu.rdx;
 
         if (cpu->rr_executed_inst != node->inst_cnt) {
@@ -180,8 +291,8 @@ void rr_do_replay_cfu(CPUState *cpu)
         }
     } 
     else if(env->eip == STRLEN_USER) {
-        printf("Replayed strlen_user: len=%lu\n", node->event.cfu.len);
-        qemu_log("Replayed strlen_user: len=%lu\n", node->event.cfu.len);
+        printf("Replayed strlen_user: len=%lu, event number=%d\n", node->event.cfu.len, replayed_event_num);
+        qemu_log("Replayed strlen_user: len=%lu, event number=%d\n", node->event.cfu.len, replayed_event_num);
         // len = rr_event_log_head->event.cfu.len;
         env->regs[R_EAX] = node->event.cfu.len;
     } else {
@@ -196,27 +307,27 @@ void rr_do_replay_cfu(CPUState *cpu)
             cur_len = env->regs[R_EDX];
             compare_len = true;
         } else if (env->eip == STRNCPY_FROM_USER) {
-            printf("Replayed strncpy: src_addr=0x%lx, dest_addr=0x%lx, len=%lu\n",
+            printf("Replayed strncpy: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
                 node->event.cfu.src_addr,
                 node->event.cfu.dest_addr,
-                node->event.cfu.len);
-            qemu_log("Replayed strncpy: src_addr=0x%lx, dest_addr=0x%lx, len=%lu\n",
+                node->event.cfu.len, replayed_event_num);
+            qemu_log("Replayed strncpy: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
                     node->event.cfu.src_addr,
                     node->event.cfu.dest_addr,
-                    node->event.cfu.len);
+                    node->event.cfu.len, replayed_event_num);
             cur_src_addr = env->regs[R_ESI];
             cur_dest_addr = env->regs[R_EDI];
         }
 
-        printf("Replayed CFU[0x%lx], src_addr=0x%lx, dest_addr=%lx, len=%lu, logged src_addr=0x%lx, dest_addr=0x%lx, len=%lu\n",
+        printf("Replayed CFU[0x%lx], src_addr=0x%lx, dest_addr=0x%lx, len=%lu, logged src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
                 env->eip, cur_src_addr, cur_dest_addr, cur_len,
                 node->event.cfu.src_addr, node->event.cfu.dest_addr,
-                node->event.cfu.len);
+                node->event.cfu.len, replayed_event_num);
 
-        qemu_log("Replayed CFU[0x%lx], src_addr=0x%lx, dest_addr=%lx, len=%ld, logged src_addr=0x%lx, dest_addr=0x%lx, len=%lu\n",
+        qemu_log("Replayed CFU[0x%lx], src_addr=0x%lx, dest_addr=0x%lx, len=%ld, logged src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
                 env->eip, cur_src_addr, cur_dest_addr, cur_len,
                 node->event.cfu.src_addr, node->event.cfu.dest_addr,
-                node->event.cfu.len);
+                node->event.cfu.len, replayed_event_num);
 
         assert(cur_src_addr == node->event.cfu.src_addr);
         assert(cur_dest_addr == node->event.cfu.dest_addr);
@@ -339,12 +450,14 @@ void rr_do_replay_rand(CPUState *cpu)
                rr_event_log_head->event.rand.len);
     }
 
-    printf("Replayed random: buf=0x%lx, len=%lu\n",
+    replayed_event_num++;
+
+    printf("Replayed random: buf=0x%lx, len=%lu, event number=%d\n",
            rr_event_log_head->event.rand.buf,
-           rr_event_log_head->event.rand.len);
-    qemu_log("Replayed random: buf=0x%lx, len=%lu\n",
+           rr_event_log_head->event.rand.len, replayed_event_num);
+    qemu_log("Replayed random: buf=0x%lx, len=%lu, event number=%d\n",
             rr_event_log_head->event.rand.buf,
-            rr_event_log_head->event.rand.len);
+            rr_event_log_head->event.rand.len, replayed_event_num);
 
     rr_pop_event_head();
 }
@@ -395,8 +508,16 @@ rr_event_log *rr_event_log_new(void)
 
 void rr_print_events_stat(void)
 {
-    printf("interrupt: %d\nsyscall: %d\nexception: %d\n",
-           event_interrupt_num, event_syscall_num, event_exception_num);
+    printf("=== Event Stats ===\n");
+
+    printf("Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nRandom: %d\nIO Input: %d\n",
+           event_interrupt_num, event_syscall_num, event_exception_num,
+           event_cfu_num, event_random_num, event_io_input_num);
+
+    total_event_number = event_interrupt_num + event_syscall_num + event_exception_num +\
+                         event_cfu_num + event_random_num + event_io_input_num;
+
+    printf("Total Replay Events: %d\n", total_event_number);
 }
 
 static void persist_bin(rr_event_log *event, FILE *fptr) {
@@ -428,7 +549,7 @@ static void rr_load_events(void) {
 	while(fread(&loaded_node, sizeof(rr_event_log), 1, fptr)) {
 		append_event(loaded_node);
 	}
-	
+
     rr_print_events_stat();
     log_loaded = true;
 
@@ -444,6 +565,19 @@ __attribute_maybe_unused__ static void rr_clear_redundant_events(CPUState *cpu)
            rr_event_log_head->inst_cnt <= cpu->rr_executed_inst) {
         rr_event_log_head = rr_event_log_head->next;
     }
+}
+
+void rr_finish_mem_log(void)
+{
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        sync_dirty_pages(cpu);
+    }
+
+    memory_global_dirty_log_stop(GLOBAL_DIRTY_MIGRATION);
+
+    qemu_log("=== End of Memory Log ===\n\n");
 }
 
 void rr_post_record(void)
@@ -464,6 +598,7 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
     if (rr_event_log_head == NULL) {
         if (started_replay) {
             printf("Replay finished\n");
+            rr_print_events_stat();
             exit(0);
         }
 
@@ -543,15 +678,15 @@ void rr_do_replay_exception_end(CPUState *cpu)
         printf("Expected PF address: 0x%lx\n", env->cr[2]);
     }
 
-    printf("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d\n", 
+    printf("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
            rr_event_log_head->event.exception.exception_index,
            rr_event_log_head->event.exception.cr2,
-           rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code);
+           rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code, replayed_event_num);
 
-    qemu_log("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d\n", 
+    qemu_log("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
             rr_event_log_head->event.exception.exception_index,
             rr_event_log_head->event.exception.cr2,
-            rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code);
+            rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code, replayed_event_num);
 
     env->regs[R_EAX] = rr_event_log_head->event.exception.regs.rax;
     env->regs[R_EBX] = rr_event_log_head->event.exception.regs.rbx;
@@ -678,6 +813,7 @@ uint64_t rr_num_instr_before_next_interrupt(void)
             initialized_replay = 1;
         } else {
             printf("Replay finished\n");
+            
             exit(0);
         }
     }

@@ -890,13 +890,13 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 {
     int32_t insns_left;
 
-    // log_regs(cpu);
-    // log_tb(cpu, tb);
+    log_regs(cpu);
+    log_tb(cpu, tb);
 
     trace_exec_tb(tb, tb->pc);
     tb = cpu_tb_exec(cpu, tb, tb_exit);
 
-    // qemu_log("Finished TB execution\n");
+    qemu_log("Finished TB execution\n");
 
     if (*tb_exit != TB_EXIT_REQUESTED) {
         *last_tb = tb;

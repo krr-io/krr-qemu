@@ -36,6 +36,7 @@
 #include "trace/trace-root.h"
 #include "tb-hash.h"
 #include "internal.h"
+#include "sysemu/kernel-rr.h"
 #ifdef CONFIG_PLUGIN
 #include "qemu/plugin-memory.h"
 #endif
@@ -2360,6 +2361,8 @@ store_helper(CPUArchState *env, target_ulong addr, uint64_t val,
 
         /* Handle I/O access.  */
         if (tlb_addr & TLB_MMIO) {
+            rr_store_op(env, addr);
+
             io_writex(env, iotlbentry, mmu_idx, val, addr, retaddr,
                       op ^ (need_swap * MO_BSWAP));
             return;
@@ -2401,6 +2404,9 @@ store_helper(CPUArchState *env, target_ulong addr, uint64_t val,
     }
 
     haddr = (void *)((uintptr_t)addr + entry->addend);
+
+    rr_store_op(env, addr);
+
     store_memop(haddr, val, op);
 }
 

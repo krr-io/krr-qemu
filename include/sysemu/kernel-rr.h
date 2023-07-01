@@ -53,5 +53,6 @@ int rr_is_gdb_stopped(void);
 
 void sync_dirty_pages(CPUState *cpu);
 void rr_init_dirty_bitmaps(void);
+void rr_store_op(CPUArchState *env, unsigned long addr);
 
 #endif /* KERNEL_RR_H */

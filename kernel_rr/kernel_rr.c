@@ -145,7 +145,7 @@ static unsigned long rr_get_syscall_num(CPUState *cpu)
 
 void rr_print_mem_log(unsigned long gpa, unsigned long rip)
 {
-    qemu_log("gpa=0x%lx, rip=0x%lx\n", gpa, rip);
+    qemu_log("[mem_trace] gpa=0x%lx, rip=0x%lx\n", gpa, rip);
 }
 
 void sync_dirty_pages(CPUState *cpu) {
@@ -155,7 +155,7 @@ void sync_dirty_pages(CPUState *cpu) {
 
     rr_get_vcpu_mem_logs();
 
-    qemu_log("Syscall: %lu\n", rr_get_syscall_num(cpu));
+    qemu_log("[mem_trace] Syscall: %lu\n", rr_get_syscall_num(cpu));
 }
 
 
@@ -750,6 +750,8 @@ void rr_do_replay_syscall(CPUState *cpu)
     qemu_log("Replayed syscall=%lu, replayed event number=%d\n", env->regs[R_EAX], replayed_event_num);
     printf("Replayed syscall=%lu, replayed event number=%d\n", env->regs[R_EAX], replayed_event_num);
 
+    qemu_log("[mem_trace] Syscall: %lu\n", env->regs[R_EAX]);
+
     if (env->regs[R_EAX] == 59) {
         rr_check_breakpoint_start();
     }
@@ -872,4 +874,17 @@ void rr_gdb_set_stopped(int stopped)
 int rr_is_gdb_stopped(void)
 {
     return gdb_stopped;
+}
+
+
+void rr_store_op(CPUArchState *env, unsigned long addr)
+{
+    CPUState *cs = env_cpu(env);
+    hwaddr gpa;
+
+    gpa = cpu_get_phys_page_debug(cs, addr & TARGET_PAGE_MASK);
+
+    if (gpa != -1) {
+        qemu_log("[mem_trace] gpa=0x%lx, rip=0x%lx\n", gpa, env->eip);
+    }
 }

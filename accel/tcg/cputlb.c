@@ -2320,6 +2320,8 @@ store_helper(CPUArchState *env, target_ulong addr, uint64_t val,
     void *haddr;
     size_t size = memop_size(op);
 
+    rr_store_op(env, addr);
+
     /* Handle CPU specific unaligned behaviour */
     if (addr & ((1 << a_bits) - 1)) {
         cpu_unaligned_access(env_cpu(env), addr, MMU_DATA_STORE,
@@ -2404,9 +2406,6 @@ store_helper(CPUArchState *env, target_ulong addr, uint64_t val,
     }
 
     haddr = (void *)((uintptr_t)addr + entry->addend);
-
-    rr_store_op(env, addr);
-
     store_memop(haddr, val, op);
 }
 

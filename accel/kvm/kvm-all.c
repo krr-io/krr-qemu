@@ -3373,7 +3373,7 @@ static void do_rr_get_vcpu_mem_logs(CPUState *cpu, run_on_cpu_data arg)
             printf("failed to get access %d\n", r);
             return;
         }
-        rr_print_mem_log(event.gpa, event.rip);
+        rr_create_mem_log(-1, event.gpa, event.rip);
         // printf("get access 0x%lx, rip=0x%lx\n", event.gpa, event.rip);
     }
 

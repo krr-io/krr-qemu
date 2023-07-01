@@ -1,3 +1,7 @@
+#define OPENSSL_API_COMPAT 0x10100000L
+
+#include<openssl/md5.h>
+
 #include "qemu/osdep.h"
 #include "qemu-common.h"
 #include "exec/log.h"
@@ -6,6 +10,9 @@
 #include "cpu.h"
 
 #include "linux-headers/linux/kernel_rr.h"
+
+#include "exec/memory.h"
+#include "exec/address-spaces.h"
 
 #include "sysemu/kernel-rr.h"
 #include "accel/kvm/kvm-cpus.h"
@@ -143,19 +150,20 @@ static unsigned long rr_get_syscall_num(CPUState *cpu)
     return env->regs[R_EAX];
 }
 
-void rr_print_mem_log(unsigned long gpa, unsigned long rip)
-{
-    qemu_log("[mem_trace] gpa=0x%lx, rip=0x%lx\n", gpa, rip);
-}
 
 void sync_dirty_pages(CPUState *cpu) {
+    unsigned long syscall;
+
     kvm_cpu_synchronize_state(cpu);
 
     kernel_rr_sync_dirty_memory();
 
+    syscall = rr_get_syscall_num(cpu);
+
+    rr_create_mem_log(syscall, 0, 0);
     rr_get_vcpu_mem_logs();
 
-    qemu_log("[mem_trace] Syscall: %lu\n", rr_get_syscall_num(cpu));
+    qemu_log("[mem_trace] Syscall: %lu\n", syscall);
 }
 
 
@@ -583,6 +591,7 @@ void rr_finish_mem_log(void)
 void rr_post_record(void)
 {
     rr_save_events();
+    rr_memlog_post_record();
 }
 
 // void rr_pre_replay(void)
@@ -885,6 +894,9 @@ void rr_store_op(CPUArchState *env, unsigned long addr)
     gpa = cpu_get_phys_page_debug(cs, addr & TARGET_PAGE_MASK);
 
     if (gpa != -1) {
+        gpa += (addr & ~TARGET_PAGE_MASK);
         qemu_log("[mem_trace] gpa=0x%lx, rip=0x%lx\n", gpa, env->eip);
+    } else {
+        qemu_log("[mem_trace] page not mapped\n");
     }
 }

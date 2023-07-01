@@ -55,4 +55,17 @@ void sync_dirty_pages(CPUState *cpu);
 void rr_init_dirty_bitmaps(void);
 void rr_store_op(CPUArchState *env, unsigned long addr);
 
+typedef struct rr_mem_log_t {
+    unsigned long gpa;
+    unsigned long rip;
+    char md5[34];
+    int syscall;
+    struct rr_mem_log_t *next;
+} rr_mem_log;
+
+rr_mem_log *rr_mem_log_new(void);
+void append_mem_log(rr_mem_log *mem_log);
+void rr_memlog_post_record(void);
+void rr_verify_dirty_mem(void);
+
 #endif /* KERNEL_RR_H */

@@ -1073,9 +1073,9 @@ int cpu_exec(CPUState *cpu)
                 tb_add_jump(last_tb, tb_exit, tb);
             }
 
-            // if (tb->jump_next_event == EVENT_TYPE_SYSCALL) {
-            //     rr_do_replay_syscall(cpu);
-            // }
+            if (tb->jump_next_event == EVENT_TYPE_SYSCALL) {
+                rr_verify_dirty_mem();
+            }
 
             if (rr_in_replay() && (tb->pc == COPY_FROM_ITER \
                 || tb->pc == COPY_FROM_USER || tb->pc == GET_FROM_USER \

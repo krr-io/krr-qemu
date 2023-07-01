@@ -113,7 +113,8 @@ void rr_pre_replay(void);
 
 uint64_t rr_get_next_event_inst(void);
 // void rr_init_dirty_bitmaps(void);
-void rr_print_mem_log(unsigned long gpa, unsigned long rip);
+void rr_create_mem_log(int syscall, unsigned long gpa, unsigned long rip);
 void rr_finish_mem_log(void);
+void rr_load_mem_logs(void);
 
 #endif

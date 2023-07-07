@@ -31,6 +31,9 @@ const char *kernel_rr_mem_log = "kernel_rr_mem.log";
 rr_mem_log *rr_mem_log_head = NULL;
 rr_mem_log *rr_mem_log_cur = NULL;
 
+int total_check = 0;
+int unpassed_check = 0;
+
 
 static void persist_mem_log(rr_mem_log *log, FILE *fptr) {
 	fwrite(log, sizeof(rr_mem_log), 1, fptr);
@@ -144,6 +147,11 @@ void rr_memlog_post_record(void)
     rr_save_mem_logs();
 }
 
+void rr_memlog_post_replay(void)
+{
+    printf("Total checked mem addresses: %d, unpassed: %d\n", total_check, unpassed_check);
+}
+
 void rr_load_mem_logs(void) {
 	__attribute_maybe_unused__ FILE *fptr = fopen(kernel_rr_mem_log, "r");
 
@@ -182,10 +190,14 @@ static void rr_check_gpa(rr_mem_log *log)
         get_md5sum(buf, TARGET_PAGE_SIZE, out);
 
         if( strcmp(log->md5, out) != 0) {
-            printf("gpa 0x%lx is not consistent, expected: %s, actual: %s\n", log->gpa, log->md5, out);
+            unpassed_check++;
+            qemu_log("gpa 0x%lx is not consistent, expected: %s, actual: %s, rip=0x%lx\n",
+                     log->gpa, log->md5, out, log->rip);
         } else {
-            printf("gpa 0x%lx passed\n", log->gpa);
+            qemu_log("gpa 0x%lx passed\n", log->gpa);
         }
+
+        total_check++;
     }
 }
 
@@ -196,7 +208,7 @@ void rr_verify_dirty_mem(void)
     rr_pop_mem_log_head();
 
     while (rr_mem_log_head != NULL && rr_mem_log_head->syscall == -1) {
-        printf("Check gpa 0x%lx\n", rr_mem_log_head->gpa);
+        qemu_log("Check gpa 0x%lx\n", rr_mem_log_head->gpa);
         rr_check_gpa(rr_mem_log_head);
         rr_pop_mem_log_head();
     }

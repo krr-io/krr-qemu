@@ -10,6 +10,7 @@
 
 #include "qemu/typedefs.h"
 
+#define SYSCALL 0xffffffff81200000
 #define COPY_FROM_ITER 0xffffffff810afbf1
 #define COPY_FROM_USER 0xffffffff810b4f7d
 #define STRNCPY_FROM_USER 0xffffffff810cbc58
@@ -35,6 +36,7 @@ void rr_do_replay_io_input(unsigned long *input);
 void rr_do_replay_syscall(CPUState *cpu);
 void rr_do_replay_exception(CPUState *cpu);
 void rr_do_replay_exception_end(CPUState *cpu);
+void rr_do_replay_rdtsc(unsigned long *tsc);
 
 int rr_get_next_event_type(void);
 unsigned long rr_get_next_event_rip(void);
@@ -67,5 +69,6 @@ rr_mem_log *rr_mem_log_new(void);
 void append_mem_log(rr_mem_log *mem_log);
 void rr_memlog_post_record(void);
 void rr_verify_dirty_mem(void);
+void rr_memlog_post_replay(void);
 
 #endif /* KERNEL_RR_H */

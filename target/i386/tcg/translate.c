@@ -8763,7 +8763,10 @@ void log_regs(CPUState *cpu)
     X86CPU *x86_cpu = X86_CPU(cpu);
     CPUX86State *env = &x86_cpu->env;
 
-    qemu_log("Regs: rax=0x%lx,rbx=0x%lx,rcx=0x%lx,rdx=0x%lx,rsi=0x%lx,rdi=0x%lx,rbp=0x%lx,rsp=0x%lx,r8=0x%lx,r9=0x%lx,r10=0x%lx,r11=0x%lx,r12=0x%lx,r13=0x%lx,r14=0x%lx,r15=0x%lx\n",\
+    qemu_log("Regs: rax=0x%lx,rbx=0x%lx,rcx=0x%lx,rdx=0x%lx,rsi=0x%lx,rdi=0x%lx,"\
+              "rbp=0x%lx,rsp=0x%lx,r8=0x%lx,r9=0x%lx,r10=0x%lx,r11=0x%lx,r12=0x%lx,"\
+              "r13=0x%lx,r14=0x%lx,r15=0x%lx, gs.base=0x%lx, gs_kernel=0x%lx\n",
              env->regs[R_EAX], env->regs[R_EBX], env->regs[R_ECX],  env->regs[R_EDX], env->regs[R_ESI], env->regs[R_EDI],\
-             env->regs[R_ESP], env->regs[R_EBP], env->regs[R_R8], env->regs[R_R9], env->regs[R_R10], env->regs[R_R11], env->regs[R_R12], env->regs[R_R13], env->regs[R_R14], env->regs[R_R15]);
+             env->regs[R_ESP], env->regs[R_EBP], env->regs[R_R8], env->regs[R_R9], env->regs[R_R10], env->regs[R_R11],\
+             env->regs[R_R12], env->regs[R_R13], env->regs[R_R14], env->regs[R_R15], env->segs[R_GS].base, env->kernelgsbase);
 }

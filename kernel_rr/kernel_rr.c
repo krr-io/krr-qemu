@@ -403,12 +403,14 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
 
     case EVENT_TYPE_SYSCALL:
         memcpy(&event_record->event.syscall, &event.event.syscall, sizeof(rr_syscall));
-        qemu_log("Syscall: %llu, inst_cnt: %lu, number=%d\n",
-                 event_record->event.syscall.regs.rax, event.inst_cnt, event_num);
+        qemu_log("Syscall: %llu, gs_kernel=0x%lx, inst_cnt: %lu, number=%d\n",
+                 event_record->event.syscall.regs.rax, event_record->event.syscall.kernel_gsbase,
+                 event.inst_cnt, event_num);
         event_syscall_num++;
         break;
 
      case EVENT_TYPE_IO_IN:
+     case EVENT_TYPE_RDTSC:
         memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
         qemu_log("IO Input: %lx, rip=0x%lx, number=%d\n",
                  event_record->event.io_input.value, event_record->rip, event_num);
@@ -608,6 +610,9 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
         if (started_replay) {
             printf("Replay finished\n");
             rr_print_events_stat();
+        
+            rr_memlog_post_replay();
+            
             exit(0);
         }
 
@@ -753,6 +758,9 @@ void rr_do_replay_syscall(CPUState *cpu)
     env->regs[R_R14] = rr_event_log_head->event.syscall.regs.r14;
     env->regs[R_R15] = rr_event_log_head->event.syscall.regs.r15;
 
+    env->kernelgsbase = rr_event_log_head->event.syscall.kernel_gsbase;
+    env->segs[R_GS].base = rr_event_log_head->event.syscall.msr_gsbase;
+
     replayed_event_num++;
     rr_pop_event_head();
 
@@ -781,6 +789,22 @@ void rr_do_replay_io_input(unsigned long *input)
 
     qemu_log("Replayed io input=%lx, replayed event number=%d\n", *input, replayed_event_num);
     printf("Replayed io input=%lx, replayed event number=%d\n", *input, replayed_event_num);
+}
+
+void rr_do_replay_rdtsc(unsigned long *tsc)
+{
+    if (rr_event_log_head->type != EVENT_TYPE_RDTSC) {
+        printf("Expected %d event, found %d", EVENT_TYPE_RDTSC, rr_event_log_head->type);
+        abort();
+    }
+  
+    replayed_event_num++;
+
+    *tsc = rr_event_log_head->event.io_input.value;
+    rr_pop_event_head();
+
+    qemu_log("Replayed rdtsc=%lx, replayed event number=%d\n", *tsc, replayed_event_num);
+    printf("Replayed rdtsc=%lx, replayed event number=%d\n", *tsc, replayed_event_num);
 }
 
 void rr_do_replay_intno(CPUState *cpu, int *intno)
@@ -824,7 +848,6 @@ uint64_t rr_num_instr_before_next_interrupt(void)
             initialized_replay = 1;
         } else {
             printf("Replay finished\n");
-            
             exit(0);
         }
     }

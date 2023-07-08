@@ -1075,7 +1075,8 @@ int cpu_exec(CPUState *cpu)
 
             if (rr_in_replay() && (tb->pc == COPY_FROM_ITER \
                 || tb->pc == COPY_FROM_USER || tb->pc == GET_FROM_USER \
-                || tb->pc == STRNCPY_FROM_USER || tb->pc == STRLEN_USER)) {
+                || tb->pc == STRNCPY_FROM_USER || tb->pc == STRLEN_USER \
+                || tb->pc == COPY_PAGE_FROM_ITER_ATOMIC)) {
                 // qemu_log("Next replay cfu\n");
                 rr_do_replay_cfu(cpu);
             }

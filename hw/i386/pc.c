@@ -1736,7 +1736,7 @@ static void pc_machine_class_init(ObjectClass *oc, void *data)
      * to be used at the moment, 32K should be enough for a while.  */
     pcmc->acpi_data_size = 0x20000 + 0x8000;
     pcmc->pvh_enabled = true;
-    pcmc->kvmclock_create_always = true;
+    pcmc->kvmclock_create_always = false;
     assert(!mc->get_hotplug_handler);
     mc->get_hotplug_handler = pc_get_hotplug_handler;
     mc->hotplug_allowed = pc_hotplug_allowed;

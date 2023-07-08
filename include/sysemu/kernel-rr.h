@@ -17,6 +17,8 @@
 #define GET_FROM_USER 0xffffffff81118850
 #define STRLEN_USER 0xffffffff810cbe4a
 #define RANDOM_GEN 0xffffffff810e1e25
+#define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff810b0af1
+
 
 int rr_in_replay(void);
 int rr_in_record(void);

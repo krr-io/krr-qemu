@@ -314,6 +314,11 @@ void rr_do_replay_cfu(CPUState *cpu)
             cur_dest_addr = env->regs[R_EDI];
             cur_len = env->regs[R_EDX];
             compare_len = true;
+        } else if (env->eip == COPY_PAGE_FROM_ITER_ATOMIC) {
+            cur_src_addr = env->regs[R_ECX];
+            cur_dest_addr = env->regs[R_R12]; 
+            cur_len = env->regs[R_ESI];
+            compare_len = true;
         } else if (env->eip == STRNCPY_FROM_USER) {
             printf("Replayed strncpy: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
                 node->event.cfu.src_addr,

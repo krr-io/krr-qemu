@@ -34,6 +34,19 @@ rr_mem_log *rr_mem_log_cur = NULL;
 int total_check = 0;
 int unpassed_check = 0;
 
+static int mem_log_enabled = 0;
+
+
+int rr_mem_logs_enabled(void)
+{
+    return mem_log_enabled;
+}
+
+void rr_enable_mem_logs(void)
+{
+    printf("memlog is enabled\n");
+    mem_log_enabled = 1;
+}
 
 static void persist_mem_log(rr_mem_log *log, FILE *fptr) {
 	fwrite(log, sizeof(rr_mem_log), 1, fptr);

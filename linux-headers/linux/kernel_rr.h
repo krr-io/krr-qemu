@@ -118,5 +118,7 @@ uint64_t rr_get_next_event_inst(void);
 void rr_create_mem_log(int syscall, unsigned long gpa, unsigned long rip);
 void rr_finish_mem_log(void);
 void rr_load_mem_logs(void);
+int rr_mem_logs_enabled(void);
+void rr_enable_mem_logs(void);
 
 #endif

@@ -83,7 +83,9 @@ static bool rr_is_address_sw(target_ulong bp_addr)
 }
 
 __attribute_maybe_unused__ static void rr_handle_kernel_entry(CPUState *cpu, target_ulong bp_addr) {
-    // char ss_name[10];
+    if (!rr_mem_logs_enabled())
+        return;
+
     if (bp_addr == syscall_addr) {
         sync_dirty_pages(cpu);
     }

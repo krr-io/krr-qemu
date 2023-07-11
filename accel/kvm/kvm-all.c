@@ -3420,7 +3420,8 @@ int kvm_start_record(void)
 
     rr_set_record(1);
     
-    rr_init_dirty_bitmaps();
+    if (rr_mem_logs_enabled())
+        rr_init_dirty_bitmaps();
 
     return 0;
 }
@@ -3432,7 +3433,8 @@ int kvm_end_record(void) {
         run_on_cpu(cpu, do_kvm_cpu_end_record, RUN_ON_CPU_NULL);
     }
 
-    rr_finish_mem_log();
+    if (rr_mem_logs_enabled())
+        rr_finish_mem_log();
 
     rr_get_vcpu_events();
     rr_post_record();

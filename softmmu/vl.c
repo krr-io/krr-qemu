@@ -3674,6 +3674,9 @@ void qemu_init(int argc, char **argv, char **envp)
             case QEMU_OPTION_kernel_replay:
                 kernel_replay_name = optarg;
                 break;
+            case QEMU_OPTION_kernel_memlog:
+                rr_enable_mem_logs();
+                break;
             default:
                 if (os_parse_cmd_args(popt->index, optarg)) {
                     error_report("Option not supported in this build");

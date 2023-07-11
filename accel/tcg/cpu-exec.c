@@ -1085,7 +1085,7 @@ int cpu_exec(CPUState *cpu)
                 rr_do_replay_rand(cpu);
             }
 
-            if (rr_in_replay() && tb->pc == SYSCALL) {
+            if (rr_in_replay() && tb->pc == SYSCALL && rr_mem_logs_enabled()) {
                 rr_verify_dirty_mem();
             }
 

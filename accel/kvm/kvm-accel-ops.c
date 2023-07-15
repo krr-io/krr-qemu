@@ -29,23 +29,26 @@
 
 target_ulong syscall_addr = 0xffffffff81200000;
 target_ulong pf_excep_addr = 0xffffffff8111e369;
-// target_ulong copy_from_iter_addr = 0xffffffff810afbf1; // call   <_copy_from_iter+97>
 target_ulong copy_from_iter_addr = 0xffffffff810afc14;
-
-// target_ulong copy_from_user_addr = 0xffffffff810b4f7d; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
 target_ulong copy_from_user_addr = 0xffffffff810b4fb8; 
-
 target_ulong copy_page_from_iter_addr = 0xffffffff810b0b16;
-
 target_ulong strncpy_addr = 0xffffffff810cbd51; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
-
 target_ulong get_user_addr = 0xffffffff81118850;
 target_ulong strnlen_user_addr = 0xffffffff810cbe4a;
 target_ulong random_bytes_addr = 0xffffffff810e1e25;
-
-// target_ulong cfu_addr3 = 0xffffffff811183e3;
-
 target_ulong last_removed_addr = 0;
+
+
+// target_ulong syscall_addr = 0xffffffff81c00000;
+// target_ulong pf_excep_addr = 0xffffffff81a2c020;
+// target_ulong copy_from_iter_addr = 0xffffffff8166e139;
+// target_ulong copy_from_user_addr = 0xffffffff816757f7; 
+// target_ulong copy_page_from_iter_addr = 0xffffffff8166fdd3;
+// target_ulong strncpy_addr = 0xffffffff816e96ac; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
+// target_ulong get_user_addr = 0xffffffff819c4820;
+// target_ulong strnlen_user_addr = 0xffffffff816e97b1;
+// target_ulong random_bytes_addr = 0xffffffff81812040;
+// target_ulong last_removed_addr = 0;
 
 target_ulong userspace_start = 0x0000000000000000;
 target_ulong userspace_end = 0x00007fffffffffff;
@@ -100,14 +103,14 @@ void rr_insert_breakpoints(void)
     CPU_FOREACH(cpu) {
         bp_ret = kvm_insert_breakpoint(cpu, syscall_addr, 1, GDB_BREAKPOINT_HW);
         if (bp_ret > 0) {
-            printf("failed to insert bp: %d\n", bp_ret);
+            printf("failed to insert bp for syscall: %d\n", bp_ret);
         } else {
             printf("Inserted breakpoints\n");
         }
 
         bp_ret = kvm_insert_breakpoint(cpu, pf_excep_addr, 1, GDB_BREAKPOINT_HW);
         if (bp_ret > 0) {
-            printf("failed to insert bp: %d\n", bp_ret);
+            printf("failed to insert bp for pf: %d\n", bp_ret);
         } else {
             printf("Inserted breakpoints\n");
         }
@@ -257,8 +260,6 @@ static void *kvm_vcpu_thread_fn(void *arg)
     /* signal CPU creation */
     cpu_thread_signal_created(cpu);
     qemu_guest_random_seed_thread_part2(cpu->random_seed);
-
-    // rr_insert_breakpoints();
 
     do {
         if (cpu_can_run(cpu)) {

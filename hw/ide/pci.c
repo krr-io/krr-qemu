@@ -303,7 +303,7 @@ void bmdma_cmd_writeb(BMDMAState *bm, uint32_t val)
                 bm->status |= BM_STATUS_DMAING;
                 /* start dma transfer if possible */
                 if (bm->dma_cb)
-                    bm->dma_cb(bmdma_active_if(bm), 0);
+                    bm->dma_cb(bmdma_active_if(bm), 1);
             }
         }
     }

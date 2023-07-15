@@ -15,6 +15,7 @@
 #include "qemu/main-loop.h"
 #include "sysemu/cpu-timers.h"
 #include "qemu/range.h"
+#include "sysemu/kernel-rr.h"
 
 /* #define DEBUG_IOMMU */
 
@@ -100,6 +101,12 @@ static void dma_blk_unmap(DMAAIOCB *dbs)
 static void dma_complete(DMAAIOCB *dbs, int ret)
 {
     trace_dma_complete(dbs, ret, dbs->common.cb);
+
+    if (rr_in_record()) {
+        if (dbs->dir == DMA_DIRECTION_FROM_DEVICE) {
+            rr_append_dma_sg(dbs->sg);
+        }
+    }
 
     assert(!dbs->acb && !dbs->bh);
     dma_blk_unmap(dbs);

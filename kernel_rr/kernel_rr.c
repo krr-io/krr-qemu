@@ -15,6 +15,7 @@
 #include "exec/address-spaces.h"
 
 #include "sysemu/kernel-rr.h"
+#include "sysemu/dma.h"
 #include "accel/kvm/kvm-cpus.h"
 
 #include "sysemu/kvm.h"
@@ -41,6 +42,7 @@ static int event_interrupt_num = 0;
 static int event_io_input_num = 0;
 static int event_cfu_num = 0;
 static int event_random_num = 0;
+static int event_dma_done = 0;
 
 static int started_replay = 0;
 static int initialized_replay = 0;
@@ -383,7 +385,7 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
     event_record->rip = event.rip;
 
     int event_num = event_syscall_num + event_exception_num + event_interrupt_num + \
-                    event_io_input_num + event_cfu_num + event_random_num + 1;
+                    event_io_input_num + event_cfu_num + event_random_num + event_dma_done + 1;
 
     switch (event.type)
     {
@@ -435,6 +437,10 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
                  event_record->event.rand.buf, event_record->event.rand.len,
                  event_record->rip, event_record->inst_cnt, event_num);
         event_random_num++;
+        break;
+    case EVENT_TYPE_DMA_DONE:
+        qemu_log("DMA Done number=%d\n", event_num);
+        event_dma_done++;
         break;
     default:
         break;
@@ -525,12 +531,12 @@ void rr_print_events_stat(void)
 {
     printf("=== Event Stats ===\n");
 
-    printf("Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nRandom: %d\nIO Input: %d\n",
+    printf("Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nRandom: %d\nIO Input: %d\n DMA Done: %d\n",
            event_interrupt_num, event_syscall_num, event_exception_num,
-           event_cfu_num, event_random_num, event_io_input_num);
+           event_cfu_num, event_random_num, event_io_input_num, event_dma_done);
 
     total_event_number = event_interrupt_num + event_syscall_num + event_exception_num +\
-                         event_cfu_num + event_random_num + event_io_input_num;
+                         event_cfu_num + event_random_num + event_io_input_num + event_dma_done;
 
     printf("Total Replay Events: %d\n", total_event_number);
 }
@@ -598,6 +604,7 @@ void rr_finish_mem_log(void)
 void rr_post_record(void)
 {
     rr_save_events();
+    rr_dma_post_record();
     rr_memlog_post_record();
 }
 

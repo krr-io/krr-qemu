@@ -321,4 +321,9 @@ void dma_acct_start(BlockBackend *blk, BlockAcctCookie *cookie,
 uint64_t dma_aligned_pow2_mask(uint64_t start, uint64_t end,
                                int max_addr_bits);
 
+
+void rr_append_dma_sg(QEMUSGList *sg);
+void rr_end_dma_entry(void);
+void rr_dma_post_record(void);
+
 #endif

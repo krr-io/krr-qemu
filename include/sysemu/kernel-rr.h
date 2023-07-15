@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #include "qemu/typedefs.h"
+// #include "sysemu/dma.h"
 
 #define SYSCALL 0xffffffff81200000
 #define COPY_FROM_ITER 0xffffffff810afbf1
@@ -66,6 +67,18 @@ typedef struct rr_mem_log_t {
     int syscall;
     struct rr_mem_log_t *next;
 } rr_mem_log;
+
+typedef struct rr_sg_data_t {
+    uint64_t addr;
+    uint64_t len;
+    uint8_t *buf;
+} rr_sg_data;
+
+typedef struct rr_dma_entry_t {
+    int len;
+    rr_sg_data *sgs[1024];
+    struct rr_dma_entry_t *next;
+} rr_dma_entry;
 
 rr_mem_log *rr_mem_log_new(void);
 void append_mem_log(rr_mem_log *mem_log);

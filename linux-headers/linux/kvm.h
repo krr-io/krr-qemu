@@ -1639,6 +1639,7 @@ struct kvm_enc_region {
 #define KVM_GET_RR_NEXT_MEM_LOG   _IOR(KVMIO, 0xd6, struct rr_mem_access_log_t)
 #define KVM_GET_RR_MEM_LOG_NUMBER   _IOR(KVMIO, 0xd7, struct rr_event_info)
 #define KVM_GET_RR_MEM_LOG_CLEAR _IO(KVMIO, 0xd8)
+#define KVM_RR_MARK_DMA_DONE	 _IO(KVMIO, 0xd9)
 
 
 struct kvm_s390_pv_sec_parm {

@@ -27,4 +27,5 @@ int kvm_start_replay(void);
 int kvm_end_replay(void);
 int rr_get_vcpu_events(void);
 int rr_get_vcpu_mem_logs(void);
+int rr_signal_dma_finish(void);
 #endif /* KVM_CPUS_H */

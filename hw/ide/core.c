@@ -42,6 +42,7 @@
 #include "sysemu/runstate.h"
 #include "hw/ide/internal.h"
 #include "trace.h"
+#include "sysemu/kernel-rr.h"
 
 /* These values were based on a Seagate ST3500418AS but have been modified
    to make more sense in QEMU */
@@ -906,6 +907,12 @@ static void ide_dma_cb(void *opaque, int ret)
     /* end of transfer ? */
     if (s->nsector == 0) {
         s->status = READY_STAT | SEEK_STAT;
+        if (rr_in_record()) {
+            if (s->dma_cmd == IDE_DMA_READ) {
+                rr_end_dma_entry();
+                printf("set irq, nsg=%d\n", s->sg.nsg);
+            }
+        }
         ide_set_irq(s->bus);
         goto eot;
     }

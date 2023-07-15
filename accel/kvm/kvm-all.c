@@ -3386,6 +3386,29 @@ static void do_rr_get_vcpu_mem_logs(CPUState *cpu, run_on_cpu_data arg)
     }
 }
 
+static void do_rr_signal_dma_finish(CPUState *cpu, run_on_cpu_data arg)
+{
+    int r;
+
+    r = kvm_vcpu_ioctl(cpu, KVM_RR_MARK_DMA_DONE, NULL);
+    if (r) {
+        printf("failed to mark dma done %d\n", r);
+        return;
+    }
+}
+
+
+int rr_signal_dma_finish(void)
+{
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        run_on_cpu(cpu, do_rr_signal_dma_finish, RUN_ON_CPU_NULL);
+    }
+
+    return 0;
+}
+
 
 int rr_get_vcpu_mem_logs(void)
 {

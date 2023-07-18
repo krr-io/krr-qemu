@@ -1106,6 +1106,8 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
 
     save_snapshot(qdict_get_try_str(qdict, "name"), true, NULL, false, NULL, &err);
 
+    hmp_handle_error(mon, err);
+
     // rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
     kvm_start_record();
     rr_insert_breakpoints();

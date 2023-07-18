@@ -103,6 +103,23 @@ static void rr_init_ram_bitmaps(void) {
     }
 }
 
+static void finish_replay(void)
+{
+    printf("Replay finished\n");
+    rr_print_events_stat();
+
+    rr_memlog_post_replay();
+    exit(0);
+}
+
+static void pre_record(void) {
+    printf("Removing existing log files\n");
+    remove(kernel_rr_log);
+
+    rr_pre_mem_record();
+    rr_dma_pre_record();
+}
+
 void rr_init_dirty_bitmaps(void) {
 
     if (rr_ram_save_setup(get_ram_state()) != 0) {
@@ -198,6 +215,10 @@ void rr_take_snapshot(char *ss_name)
 
 rr_event_log* rr_get_next_event(void)
 {
+    if (rr_event_log_head == NULL) {
+        finish_replay();
+    }
+
     return rr_event_log_head;
 }
 
@@ -229,7 +250,11 @@ int rr_in_replay(void)
 
 void rr_set_record(int record)
 {
-    g_rr_in_record = 1;
+    if (record) {
+        pre_record();
+    }
+
+    g_rr_in_record = record;
 }
 
 void rr_set_replay(int replay, unsigned long ram_size)
@@ -307,9 +332,15 @@ void rr_do_replay_cfu(CPUState *cpu)
         env->regs[R_EAX] = node->event.cfu.len;
     } else {
         if (env->eip == COPY_FROM_ITER) {
-            cur_src_addr = env->regs[R_ECX];
-            cur_dest_addr = env->regs[R_EDI];
-            cur_len = env->regs[R_ESI];
+            // Version 1
+            // cur_src_addr = env->regs[R_ECX];
+            // cur_dest_addr = env->regs[R_EDI];
+            // cur_len = env->regs[R_ESI];
+
+            // Version 2
+            cur_src_addr = env->regs[R_ESI];
+            cur_dest_addr = env->regs[R_R14];
+            cur_len = env->regs[R_EAX];
             compare_len = true;
         } else if (env->eip == COPY_FROM_USER) {
             cur_src_addr = env->regs[R_ESI];
@@ -620,12 +651,7 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
 
     if (rr_event_log_head == NULL) {
         if (started_replay) {
-            printf("Replay finished\n");
-            rr_print_events_stat();
-        
-            rr_memlog_post_replay();
-            
-            exit(0);
+            finish_replay();            
         }
 
         *interrupt = -1;
@@ -857,6 +883,7 @@ uint64_t rr_num_instr_before_next_interrupt(void)
     if (rr_event_log_head == NULL) {
         if (!initialized_replay) {
             rr_load_events();
+            rr_dma_pre_replay();
             initialized_replay = 1;
         } else {
             printf("Replay finished\n");
@@ -934,4 +961,11 @@ void rr_store_op(CPUArchState *env, unsigned long addr)
     } else {
         qemu_log("[mem_trace] page not mapped\n");
     }
+}
+
+void rr_replay_dma_entry(void)
+{
+    printf("Replaying dma\n");
+    rr_replay_next_dma();
+    rr_pop_event_head();
 }

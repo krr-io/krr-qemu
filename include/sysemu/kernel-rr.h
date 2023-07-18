@@ -11,14 +11,27 @@
 #include "qemu/typedefs.h"
 // #include "sysemu/dma.h"
 
-#define SYSCALL 0xffffffff81200000
-#define COPY_FROM_ITER 0xffffffff810afbf1
-#define COPY_FROM_USER 0xffffffff810b4f7d
-#define STRNCPY_FROM_USER 0xffffffff810cbc58
-#define GET_FROM_USER 0xffffffff81118850
-#define STRLEN_USER 0xffffffff810cbe4a
-#define RANDOM_GEN 0xffffffff810e1e25
-#define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff810b0af1
+
+#define SYSCALL 0xffffffff81a00000
+#define COPY_FROM_ITER 0xffffffff816452dd
+#define COPY_FROM_USER 0xffffffff8164c940
+#define STRNCPY_FROM_USER 0xffffffff816c0570
+#define GET_FROM_USER 0xffffffff818fa750
+#define STRLEN_USER 0xffffffff816c0751
+#define RANDOM_GEN 0xffffffff817700a3
+#define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff81646d70
+#define PF_EXEC 0xffffffff819528f0
+
+
+// #define SYSCALL 0xffffffff81200000
+// #define COPY_FROM_ITER 0xffffffff810afbf1
+// #define COPY_FROM_USER 0xffffffff810b4f7d
+// #define STRNCPY_FROM_USER 0xffffffff810cbc58
+// #define GET_FROM_USER 0xffffffff81118850
+// #define STRLEN_USER 0xffffffff810cbe4a
+// #define RANDOM_GEN 0xffffffff810e1e25
+// #define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff810b0af1
+// #define PF_EXEC 0xffffffff8111e369
 
 
 int rr_in_replay(void);
@@ -85,5 +98,7 @@ void append_mem_log(rr_mem_log *mem_log);
 void rr_memlog_post_record(void);
 void rr_verify_dirty_mem(void);
 void rr_memlog_post_replay(void);
+void rr_pre_mem_record(void);
+void rr_replay_dma_entry(void);
 
 #endif /* KERNEL_RR_H */

@@ -226,3 +226,8 @@ void rr_verify_dirty_mem(void)
         rr_pop_mem_log_head();
     }
 }
+
+void rr_pre_mem_record(void)
+{
+    remove(kernel_rr_mem_log);
+}

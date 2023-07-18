@@ -59,8 +59,6 @@ target_ulong raw_copy_from_user = 0xffffffff810b0b05;
 // target_ulong get_user_addr_exec = 0xffffffff81118850;
 // target_ulong strnlen_user_addr_exec = 0xffffffff810cbe47;
 
-target_ulong pf_addr = 0xffffffff8111e369;
-
 /* -icount align implementation. */
 
 typedef struct SyncClocks {
@@ -1073,6 +1071,14 @@ int cpu_exec(CPUState *cpu)
                 tb_add_jump(last_tb, tb_exit, tb);
             }
 
+            if (rr_in_replay()) {
+                rr_event_log *next_event = rr_get_next_event();
+
+                if (next_event->type == EVENT_TYPE_DMA_DONE) {
+                    rr_replay_dma_entry();
+                }
+            }
+
             if (rr_in_replay() && (tb->pc == COPY_FROM_ITER \
                 || tb->pc == COPY_FROM_USER || tb->pc == GET_FROM_USER \
                 || tb->pc == STRNCPY_FROM_USER || tb->pc == STRLEN_USER \
@@ -1089,12 +1095,12 @@ int cpu_exec(CPUState *cpu)
                 rr_verify_dirty_mem();
             }
 
-            if (rr_in_replay() && (tb->pc == pf_addr)) {
+            if (rr_in_replay() && (tb->pc == PF_EXEC)) {
                 rr_do_replay_exception_end(cpu);
             }
 
-            // qemu_log("\nExecute TB:\n");
-            // qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+            qemu_log("\nExecute TB:\n");
+            qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
 
             if (tb->pc != cpu->last_pc) {
                 cpu->rr_executed_inst++;

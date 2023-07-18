@@ -1,0 +1,10 @@
+target_ulong syscall_addr = 0xffffffff81200000;
+target_ulong pf_excep_addr = 0xffffffff8111e369;
+target_ulong copy_from_iter_addr = 0xffffffff810afc14;
+target_ulong copy_from_user_addr = 0xffffffff810b4fb8; 
+target_ulong copy_page_from_iter_addr = 0xffffffff810b0b16;
+target_ulong strncpy_addr = 0xffffffff810cbd51; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
+target_ulong get_user_addr = 0xffffffff81118850;
+target_ulong strnlen_user_addr = 0xffffffff810cbe4a;
+target_ulong random_bytes_addr = 0xffffffff810e1e25;
+target_ulong last_removed_addr = 0;

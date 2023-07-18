@@ -325,5 +325,8 @@ uint64_t dma_aligned_pow2_mask(uint64_t start, uint64_t end,
 void rr_append_dma_sg(QEMUSGList *sg);
 void rr_end_dma_entry(void);
 void rr_dma_post_record(void);
+void rr_dma_pre_record(void);
+void rr_replay_next_dma(void);
+void rr_dma_pre_replay(void);
 
 #endif

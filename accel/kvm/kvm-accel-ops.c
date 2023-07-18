@@ -27,28 +27,31 @@
 #include "kvm-cpus.h"
 #include "sysemu/kernel-rr.h"
 
-target_ulong syscall_addr = 0xffffffff81200000;
-target_ulong pf_excep_addr = 0xffffffff8111e369;
-target_ulong copy_from_iter_addr = 0xffffffff810afc14;
-target_ulong copy_from_user_addr = 0xffffffff810b4fb8; 
-target_ulong copy_page_from_iter_addr = 0xffffffff810b0b16;
-target_ulong strncpy_addr = 0xffffffff810cbd51; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
-target_ulong get_user_addr = 0xffffffff81118850;
-target_ulong strnlen_user_addr = 0xffffffff810cbe4a;
-target_ulong random_bytes_addr = 0xffffffff810e1e25;
-target_ulong last_removed_addr = 0;
-
-
-// target_ulong syscall_addr = 0xffffffff81c00000;
-// target_ulong pf_excep_addr = 0xffffffff81a2c020;
-// target_ulong copy_from_iter_addr = 0xffffffff8166e139;
-// target_ulong copy_from_user_addr = 0xffffffff816757f7; 
-// target_ulong copy_page_from_iter_addr = 0xffffffff8166fdd3;
-// target_ulong strncpy_addr = 0xffffffff816e96ac; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
-// target_ulong get_user_addr = 0xffffffff819c4820;
-// target_ulong strnlen_user_addr = 0xffffffff816e97b1;
-// target_ulong random_bytes_addr = 0xffffffff81812040;
+// target_ulong syscall_addr = 0xffffffff81200000;
+// target_ulong pf_excep_addr = 0xffffffff8111e369;
+// target_ulong copy_from_iter_addr = 0xffffffff810afc14;
+// target_ulong copy_from_user_addr = 0xffffffff810b4fb8; 
+// target_ulong copy_page_from_iter_addr = 0xffffffff810b0b16;
+// target_ulong strncpy_addr = 0xffffffff810cbd51; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
+// target_ulong get_user_addr = 0xffffffff81118850;
+// target_ulong strnlen_user_addr = 0xffffffff810cbe4a;
+// target_ulong random_bytes_addr = 0xffffffff810e1e25;
 // target_ulong last_removed_addr = 0;
+
+
+target_ulong syscall_addr = 0xffffffff81a00000;
+target_ulong pf_excep_addr = 0xffffffff819528f0;
+target_ulong copy_from_iter_addr = 0xffffffff816452a9;
+target_ulong copy_from_user_addr = 0xffffffff8164c967; 
+target_ulong copy_page_from_iter_addr = 0xffffffff000000;
+target_ulong strncpy_addr = 0xffffffff816c064c; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
+target_ulong get_user_addr = 0xffffffff818fa750;
+target_ulong strnlen_user_addr = 0xffffffff816c0751;
+
+target_ulong random_bytes_addr_start = 0xffffffff81770030;
+target_ulong random_bytes_addr_end = 0xffffffff817700a3;
+// target_ulong random_bytes_addr = 0xffffffff81811f11;
+target_ulong last_removed_addr = 0;
 
 target_ulong userspace_start = 0x0000000000000000;
 target_ulong userspace_end = 0x00007fffffffffff;
@@ -64,7 +67,8 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
         bp_addr != strncpy_addr && \
         bp_addr != get_user_addr && \
         bp_addr != strnlen_user_addr && \
-        bp_addr != random_bytes_addr && \
+        bp_addr != random_bytes_addr_start && \
+        bp_addr != random_bytes_addr_end && \
         bp_addr != copy_page_from_iter_addr)
         return false;
 
@@ -76,7 +80,8 @@ static bool rr_is_address_sw(target_ulong bp_addr)
     if (bp_addr == strncpy_addr \
         || bp_addr == get_user_addr \
         || bp_addr == strnlen_user_addr \
-        || bp_addr == random_bytes_addr \
+        || bp_addr == random_bytes_addr_start \
+        || bp_addr == random_bytes_addr_end \
         || bp_addr == copy_from_iter_addr)
     {
         return true;
@@ -157,11 +162,18 @@ void rr_insert_breakpoints(void)
             printf("Inserted breakpoints for strnlen_user_addr\n");
         }
 
-        bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr, 1, GDB_BREAKPOINT_SW);
+        bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr_start, 1, GDB_BREAKPOINT_SW);
         if (bp_ret > 0) {
-            printf("failed to insert bp for random_bytes_start_addr: %d\n", bp_ret);
+            printf("failed to insert bp for random_bytes_start_addr_start: %d\n", bp_ret);
         } else {
-            printf("Inserted breakpoints for random_bytes_start_addr\n");
+            printf("Inserted breakpoints for random_bytes_start_addr_start\n");
+        }
+
+        bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr_end, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for random_bytes_start_addr_end: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for random_bytes_start_addr_end\n");
         }
 
         // if (rr_in_replay()) {

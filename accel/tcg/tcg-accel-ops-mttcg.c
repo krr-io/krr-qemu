@@ -93,6 +93,10 @@ static void *mttcg_cpu_thread_fn(void *arg)
     if (rr_mem_logs_enabled())
         rr_load_mem_logs();
 
+    // rr_gdb_set_stopped(1);
+    // cpu->stop = true;
+    // qemu_wait_io_event(cpu);
+
     // if (rr_in_replay()) {
     // }
 

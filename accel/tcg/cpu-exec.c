@@ -262,6 +262,12 @@ static bool check_for_breakpoints(CPUState *cpu, target_ulong pc,
     CPUBreakpoint *bp;
     bool match_page = false;
 
+    if (cpu->cause_debug == 1) {
+        cpu->cause_debug = 0;
+        cpu->exception_index = EXCP_DEBUG;
+        return true;
+    }
+
     if (likely(QTAILQ_EMPTY(&cpu->breakpoints))) {
         return false;
     }
@@ -1076,6 +1082,7 @@ int cpu_exec(CPUState *cpu)
 
                 if (next_event->type == EVENT_TYPE_DMA_DONE) {
                     rr_replay_dma_entry();
+                    cpu->cause_debug = 1;
                 }
             }
 
@@ -1092,7 +1099,7 @@ int cpu_exec(CPUState *cpu)
             }
 
             if (rr_in_replay() && tb->pc == SYSCALL && rr_mem_logs_enabled()) {
-                rr_verify_dirty_mem();
+                rr_verify_dirty_mem(cpu);
             }
 
             if (rr_in_replay() && (tb->pc == PF_EXEC)) {

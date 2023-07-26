@@ -40,6 +40,7 @@ void rr_set_record(int record);
 void rr_set_replay(int replay, unsigned long ram_size);
 void accel_start_kernel_replay(void);
 int replay_should_skip_wait(void);
+void rr_pop_event_head(void);
 
 void rr_replay_interrupt(CPUState *cpu, int *interrupt);
 void rr_do_replay_intno(CPUState *cpu, int *intno);
@@ -48,11 +49,11 @@ void rr_do_replay_rand(CPUState *cpu);
 
 uint64_t rr_num_instr_before_next_interrupt(void);
 int rr_is_syscall_ready(CPUState *cpu);
-void rr_do_replay_io_input(unsigned long *input);
+void rr_do_replay_io_input(CPUState *cpu, unsigned long *input);
 void rr_do_replay_syscall(CPUState *cpu);
 void rr_do_replay_exception(CPUState *cpu);
 void rr_do_replay_exception_end(CPUState *cpu);
-void rr_do_replay_rdtsc(unsigned long *tsc);
+void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc);
 
 int rr_get_next_event_type(void);
 unsigned long rr_get_next_event_rip(void);
@@ -76,6 +77,7 @@ void rr_store_op(CPUArchState *env, unsigned long addr);
 typedef struct rr_mem_log_t {
     unsigned long gpa;
     unsigned long rip;
+    unsigned long inst_cnt;
     char md5[34];
     int syscall;
     struct rr_mem_log_t *next;
@@ -84,6 +86,7 @@ typedef struct rr_mem_log_t {
 typedef struct rr_sg_data_t {
     uint64_t addr;
     uint64_t len;
+    unsigned long checksum;
     uint8_t *buf;
 } rr_sg_data;
 
@@ -91,14 +94,18 @@ typedef struct rr_dma_entry_t {
     int len;
     rr_sg_data *sgs[1024];
     struct rr_dma_entry_t *next;
+    int replayed_sgs;
 } rr_dma_entry;
 
 rr_mem_log *rr_mem_log_new(void);
 void append_mem_log(rr_mem_log *mem_log);
 void rr_memlog_post_record(void);
-void rr_verify_dirty_mem(void);
+void rr_verify_dirty_mem(CPUState *cpu);
 void rr_memlog_post_replay(void);
 void rr_pre_mem_record(void);
 void rr_replay_dma_entry(void);
-
+int get_md5sum(void* buffer,
+               unsigned long buffersize,
+               char* checksum);
+unsigned long get_checksum(uint8_t *buffer, unsigned long buffersize);
 #endif /* KERNEL_RR_H */

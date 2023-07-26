@@ -39,7 +39,7 @@ target_ulong helper_inb(CPUX86State *env, uint32_t port)
     unsigned long input;
 
     if (rr_in_replay()) {
-        rr_do_replay_io_input(&input);
+        rr_do_replay_io_input(env_cpu(env), &input);
         return input;
     }
 

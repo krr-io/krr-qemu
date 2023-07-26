@@ -128,7 +128,7 @@ static void dma_blk_cb(void *opaque, int ret)
     dbs->acb = NULL;
     dbs->offset += dbs->iov.size;
 
-    if (dbs->sg_cur_index == dbs->sg->nsg || ret < 0) {
+    if ((dbs->sg_cur_index == dbs->sg->nsg || ret < 0) || (rr_in_replay() && dbs->dir == DMA_DIRECTION_TO_DEVICE)) {
         dma_complete(dbs, ret);
         return;
     }
@@ -139,6 +139,8 @@ static void dma_blk_cb(void *opaque, int ret)
         cur_len = dbs->sg->sg[dbs->sg_cur_index].len - dbs->sg_cur_byte;
         mem = dma_memory_map(dbs->sg->as, cur_addr, &cur_len, dbs->dir,
                              MEMTXATTRS_UNSPECIFIED);
+        if (rr_in_record())
+            qemu_log("dma mapped addr=0x%lx len=%lu\n", cur_addr, cur_len);
         /*
          * Make reads deterministic in icount mode. Windows sometimes issues
          * disk read requests with overlapping SGs. It leads
@@ -162,11 +164,33 @@ static void dma_blk_cb(void *opaque, int ret)
         if (!mem)
             break;
         qemu_iovec_add(&dbs->iov, mem, cur_len);
+
+        if (rr_in_replay()) {
+            rr_check_dma_sg(dbs->sg->sg[dbs->sg_cur_index], dbs->sg);
+        }
+
+        if (rr_in_record()) {
+            qemu_log("record dma_addr=0x%lx, len=%lu\n",
+                     dbs->sg->sg[dbs->sg_cur_index].base,
+                     dbs->sg->sg[dbs->sg_cur_index].len);
+        }
+
         dbs->sg_cur_byte += cur_len;
         if (dbs->sg_cur_byte == dbs->sg->sg[dbs->sg_cur_index].len) {
             dbs->sg_cur_byte = 0;
             ++dbs->sg_cur_index;
         }
+    }
+
+    if (rr_in_record() || rr_in_replay()) {
+        rr_get_dma_ctx();
+        rr_set_trap();
+        qemu_log("record one sg done\n");
+    }
+
+    if (rr_in_replay()) {
+        dma_blk_cb(dbs, 0);
+        return;
     }
 
     if (dbs->iov.size == 0) {

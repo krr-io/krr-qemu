@@ -328,5 +328,8 @@ void rr_dma_post_record(void);
 void rr_dma_pre_record(void);
 void rr_replay_next_dma(void);
 void rr_dma_pre_replay(void);
+void rr_check_dma_sg(ScatterGatherEntry sg, QEMUSGList *sgList);
+void rr_get_dma_ctx(void);
+void rr_set_trap(void);
 
 #endif

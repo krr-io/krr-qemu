@@ -44,6 +44,8 @@
 #include "trace.h"
 #include "sysemu/kernel-rr.h"
 
+#include "accel/kvm/kvm-cpus.h"
+
 /* These values were based on a Seagate ST3500418AS but have been modified
    to make more sense in QEMU */
 static const int smart_attributes[][12] = {
@@ -714,6 +716,10 @@ void ide_cancel_dma_sync(IDEState *s)
 {
     IDEBufferedRequest *req;
 
+    if (rr_in_replay()) {
+        return;
+    }
+
     /* First invoke the callbacks of all buffered requests
      * and flag those requests as orphaned. Ideally there
      * are no unbuffered (Scatter Gather DMA Requests or
@@ -871,6 +877,27 @@ static void ide_dma_cb(void *opaque, int ret)
     bool stay_active = false;
     int32_t prep_size = 0;
 
+    // if (rr_in_replay()) {
+    //     return;
+    //     // qemu_log("ide_dma_cb called\n");
+    // }
+
+    // if (rr_in_record())
+    //     rr_signal_dma_finish();
+
+    if (rr_in_replay()) {
+        // int type = rr_get_next_event_type();
+        // if(type != EVENT_TYPE_DMA_DONE) {
+        //     printf("Expected DMA done, actual %d\n", type);
+        //     abort();
+        // }
+
+        // qemu_log("Replayed DMA Done\n");
+        // printf("Replayed DMA Done\n");
+        // rr_pop_event_head();
+        return;
+    }
+
     if (ret == -EINVAL) {
         ide_dma_error(s);
         return;
@@ -904,15 +931,25 @@ static void ide_dma_cb(void *opaque, int ret)
         s->nsector -= n;
     }
 
+    if (rr_in_record() || rr_in_replay()) {
+        qemu_log("ide_dma_cb: nsector=%u\n", s->nsector);
+    }
+
     /* end of transfer ? */
     if (s->nsector == 0) {
         s->status = READY_STAT | SEEK_STAT;
         if (rr_in_record()) {
             if (s->dma_cmd == IDE_DMA_READ) {
                 rr_end_dma_entry();
-                printf("set irq, nsg=%d\n", s->sg.nsg);
+                rr_signal_dma_finish();
+                // printf("set irq, nsg=%d\n", s->sg.nsg);
             }
         }
+
+        if (rr_in_replay()) {
+            goto eot;
+        }
+
         ide_set_irq(s->bus);
         goto eot;
     }
@@ -2771,6 +2808,9 @@ static int transfer_end_table_idx(EndTransferFunc *fn)
 static int ide_drive_post_load(void *opaque, int version_id)
 {
     IDEState *s = opaque;
+
+    if (rr_in_replay())
+        rr_register_ide_as(s->bus->dma);
 
     if (s->blk && s->identify_set) {
         blk_set_enable_write_cache(s->blk, !!(s->identify_data[85] & (1 << 5)));

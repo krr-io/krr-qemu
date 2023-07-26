@@ -92,6 +92,7 @@ typedef struct rr_event_log_t{
 typedef struct rr_mem_access_log_t {
     unsigned long gpa;
     unsigned long rip;
+    unsigned long inst_cnt;
     struct rr_mem_access_log_t *next;
 } rr_mem_access_log;
 
@@ -116,7 +117,7 @@ void rr_pre_replay(void);
 
 uint64_t rr_get_next_event_inst(void);
 // void rr_init_dirty_bitmaps(void);
-void rr_create_mem_log(int syscall, unsigned long gpa, unsigned long rip);
+void rr_create_mem_log(int syscall, unsigned long gpa, unsigned long rip, unsigned long inst_cnt);
 void rr_finish_mem_log(void);
 void rr_load_mem_logs(void);
 int rr_mem_logs_enabled(void);

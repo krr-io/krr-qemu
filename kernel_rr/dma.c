@@ -22,9 +22,29 @@
 #include "migration/migration.h"
 #include "qemu/main-loop.h"
 #include "memory.h"
+#include "hw/ide/pci.h"
+#include "hw/ide/internal.h"
 
 const char *kernel_rr_dma_log = "kernel_rr_dma.log";
+static AddressSpace *dma_as = NULL;
 
+
+void rr_register_ide_as(IDEDMA *dma)
+{
+    if (dma_as != NULL) {
+        return;
+    }
+
+    BMDMAState *bm = DO_UPCAST(BMDMAState, dma, dma);
+    PCIDevice *pci_dev = PCI_DEVICE(bm->pci_dev);
+
+    printf("Initialized dma address space\n");
+    dma_as = pci_get_address_space(pci_dev);
+
+    if (dma_as != NULL) {
+        printf("initialized dma as\n");
+    }
+}
 
 __attribute_maybe_unused__ static rr_dma_entry *pending_dma_entry = NULL;
 
@@ -91,14 +111,10 @@ static void append_dma_entry(rr_dma_entry *dma_entry)
 
 __attribute_maybe_unused__ void rr_end_dma_entry(void)
 {
-    // if (entry_cnt > 1) {
-    //     return;
-    // }
+    pending_dma_entry->replayed_sgs = 0;
 
     append_dma_entry(pending_dma_entry);
     pending_dma_entry = NULL;
-
-    rr_signal_dma_finish();
 
     entry_cnt++;
 
@@ -106,7 +122,11 @@ __attribute_maybe_unused__ void rr_end_dma_entry(void)
 }
 
 static void persist_dma_buf(rr_sg_data *sg, FILE *fptr) {
-    printf("Save sg len=%ld\n", sg->len);
+    sg->checksum = get_checksum(sg->buf, sg->len);
+
+    printf("Save sg addr=0x%lx len=%ld, checksum=%lu\n", sg->addr, sg->len, sg->checksum);
+
+    fwrite(sg, sizeof(rr_sg_data), 1, fptr);
     fwrite(sg->buf, sizeof(uint8_t), sg->len, fptr);
 }
 
@@ -118,7 +138,6 @@ static void persist_dma_log(rr_dma_entry *log, FILE *fptr) {
     fwrite(log, sizeof(rr_dma_entry), 1, fptr);
 
     for (i = 0; i < log->len; i++) {
-	    fwrite(log->sgs[i], sizeof(rr_sg_data), 1, fptr);
         persist_dma_buf(log->sgs[i], fptr);
     }
 }
@@ -137,21 +156,17 @@ static void rr_save_dma_logs(void)
 }
 
 static void rr_load_dma_buf(uint8_t *buf, uint64_t len, FILE *fptr) {
-    // int i = 0;
-    // int data;
     printf("load buf for len=%ld\n", len);
 
     if (!fread(buf, sizeof(uint8_t), len, fptr)) {
         printf("Failed to read data\n");
-        // printf("Read data index %d\n", i);
-        // buf[i] = data;
-        // i++;
     }
 }
 
 static void rr_load_dma_log(rr_dma_entry *log, FILE *fptr) {
     rr_sg_data loaded_sg;
     int i = 0;
+    unsigned long checksum;
     
     while(i < log->len && fread(&loaded_sg, sizeof(rr_sg_data), 1, fptr)) {
         rr_sg_data *sg = (rr_sg_data*)malloc(sizeof(rr_sg_data));
@@ -160,6 +175,15 @@ static void rr_load_dma_log(rr_dma_entry *log, FILE *fptr) {
         memcpy(sg, &loaded_sg, sizeof(rr_sg_data));
 
         rr_load_dma_buf(buf, sg->len, fptr);
+
+        checksum = get_checksum(buf, sg->len);
+
+        if (checksum != sg->checksum) {
+            printf("Unmatched checksum of DMA data: %lu vs %lu\n", checksum, sg->checksum);
+            abort();
+        } else {
+            printf("Checksum check passed for 0x%lx\n", sg->addr);
+        }
 
         sg->buf = buf;
         log->sgs[i] = sg;
@@ -183,6 +207,8 @@ static void rr_load_dma_logs(void) {
 
         rr_load_dma_log(log, fptr);
 
+        log->replayed_sgs = 0;
+
         for (i = 0; i < log->len; i++) {
             printf("log: sg_addr=0x%lx, sg_len=%ld\n", log->sgs[i]->addr, log->sgs[i]->len);
         }
@@ -194,12 +220,27 @@ static void rr_load_dma_logs(void) {
 static void do_replay_dma_entry(rr_dma_entry *dma_entry)
 {
     int i, res;
+    void *mem;
 
     for (i = 0; i < dma_entry->len; i++) {
         rr_sg_data *sg = dma_entry->sgs[i];
-        
+        uint64_t len = sg->len;
+        // uint8_t buf[sg->len + 1];
 
-        res = address_space_write(&address_space_io,
+        printf("Replay dma addr 0x%lx\n", sg->addr);
+
+        // buf[sg->len] = 0; 
+        
+        mem = dma_memory_map(dma_as,
+                             sg->addr, &len,
+                             DMA_DIRECTION_FROM_DEVICE,
+                             MEMTXATTRS_UNSPECIFIED);
+
+        if (!mem) {
+             printf("failed to map addr 0x%lx\n", sg->addr);
+             continue;
+        }
+        res = address_space_write(dma_as,
                                   sg->addr,
                                   MEMTXATTRS_UNSPECIFIED,
                                   sg->buf, sg->len);
@@ -215,6 +256,29 @@ static void do_replay_dma_entry(rr_dma_entry *dma_entry)
     }
 }
 
+
+static void do_replay_dma_sg(rr_sg_data *dma_sg, AddressSpace *as)
+{
+    int res;
+
+    printf("write to dma addr 0x%lx, len=%lu\n", dma_sg->addr, dma_sg->len);
+
+    res = address_space_write(as,
+                              dma_sg->addr,
+                              MEMTXATTRS_UNSPECIFIED,
+                              dma_sg->buf, dma_sg->len);
+
+
+    if (res != MEMTX_OK) {
+        if (res == MEMTX_ACCESS_ERROR) {
+            printf("access is denied for addr=0x%lx\n", dma_sg->addr);
+        }
+        printf("failed to write to mem: %d, addr=0x%lx\n", res, dma_sg->addr);
+    } else {
+        printf("write to dma base=0x%lx\n", dma_sg->addr);
+    }    
+}
+
 void rr_dma_pre_record(void)
 {
     remove(kernel_rr_dma_log);
@@ -228,12 +292,6 @@ void rr_dma_pre_replay(void)
 void rr_dma_post_record(void)
 {
     rr_save_dma_logs();
-
-    // while (dma_entry_head != NULL) {
-    //     printf("DMA entry: %d\n", dma_entry_head->len);
-    //     dma_entry_head = dma_entry_head->next;
-    // }
-
     return;
 }
 
@@ -241,4 +299,66 @@ void rr_replay_next_dma(void)
 {
     do_replay_dma_entry(dma_entry_head);
     dma_entry_head = dma_entry_head->next;
+
+    if (rr_get_next_event_type() == EVENT_TYPE_DMA_DONE) {
+        rr_pop_event_head();
+        printf("Pop current dma event\n");
+    }
+}
+
+void rr_check_dma_sg(ScatterGatherEntry sg, QEMUSGList *sgList)
+{
+    int i;
+    rr_dma_entry *cur = NULL;
+
+    if (dma_entry_head == NULL) {
+        return;
+    }
+
+    cur = dma_entry_head;
+
+    // while (cur != NULL) {
+    for (i = 0; i < cur->len; i++) {
+        if (cur->sgs[i]->addr == sg.base) {
+            printf("found matched addr 0x%lx\n", sg.base);
+            assert(cur->sgs[i]->len == sg.len);
+            do_replay_dma_sg(cur->sgs[i], sgList->as);
+            cur->replayed_sgs++;
+            if (dma_entry_head->replayed_sgs == dma_entry_head->len) {
+                dma_entry_head = dma_entry_head->next;
+            }
+            return;
+        }
+    }
+
+    //     cur = cur->next;
+    // }
+
+    printf("Didn't find any addr: 0x%lx\n", sg.base);
+}
+
+void rr_set_trap(void)
+{
+    CPUState *cpu;
+    CPU_FOREACH(cpu) {
+        cpu->cause_debug = 1;
+    }
+}
+
+
+void rr_get_dma_ctx(void)
+{
+    CPUState *cpu;
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
+    CPU_FOREACH(cpu) {
+        if (rr_in_record()) {
+            kvm_cpu_synchronize_state(cpu);
+        }
+        x86_cpu = X86_CPU(cpu);
+        env = &x86_cpu->env;
+
+        qemu_log("Current RIP=0x%lx\n", env->eip);
+    }
 }

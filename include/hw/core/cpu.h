@@ -438,6 +438,8 @@ struct CPUState {
     uint64_t rr_executed_inst;
 
     uint64_t last_pc;
+
+    int cause_debug;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

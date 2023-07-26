@@ -62,8 +62,6 @@ static int gdb_stopped = 1;
 // int64_t replay_start_time = 0;
 static unsigned long dirty_page_num = 0;
 
-static void rr_pop_event_head(void);
-
 void rr_fake_call(void){return;}
 
 
@@ -179,7 +177,7 @@ void sync_dirty_pages(CPUState *cpu) {
 
     syscall = rr_get_syscall_num(cpu);
 
-    rr_create_mem_log(syscall, 0, 0);
+    rr_create_mem_log(syscall, 0, 0, 0);
     rr_get_vcpu_mem_logs();
 
     qemu_log("[mem_trace] Syscall: %lu\n", syscall);
@@ -450,8 +448,8 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
      case EVENT_TYPE_IO_IN:
      case EVENT_TYPE_RDTSC:
         memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
-        qemu_log("IO Input: %lx, rip=0x%lx, number=%d\n",
-                 event_record->event.io_input.value, event_record->rip, event_num);
+        qemu_log("IO Input: %lx, rip=0x%lx, inst_cnt: %lu, number=%d\n",
+                 event_record->event.io_input.value, event_record->rip, event_record->inst_cnt, event_num);
         event_io_input_num++;
         break;
     case EVENT_TYPE_CFU:
@@ -470,7 +468,7 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
         event_random_num++;
         break;
     case EVENT_TYPE_DMA_DONE:
-        qemu_log("DMA Done number=%d\n", event_num);
+        qemu_log("DMA Done number=%d, inst_cnt=%lu\n", event_num, event_record->inst_cnt);
         event_dma_done++;
         break;
     default:
@@ -548,7 +546,7 @@ void append_event(rr_event_log event)
     rr_event_cur->next = NULL;
 }
 
-static void rr_pop_event_head(void) {
+void rr_pop_event_head(void) {
     rr_event_log_head = rr_event_log_head->next;
 }
 
@@ -813,10 +811,34 @@ void rr_do_replay_syscall(CPUState *cpu)
 
 }
 
-void rr_do_replay_io_input(unsigned long *input)
+void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
 {
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
     if (rr_event_log_head->type != EVENT_TYPE_IO_IN) {
         printf("Expected %d event, found %d", EVENT_TYPE_IO_IN, rr_event_log_head->type);
+        abort();
+    }
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst - 1) {
+
+        if (rr_event_log_head->inst_cnt == cpu->rr_executed_inst || rr_event_log_head->inst_cnt == cpu->rr_executed_inst + 1) {
+            cpu->rr_executed_inst = rr_event_log_head->inst_cnt + 1;
+        } else {
+            printf("Mismatched IO Input, expected inst cnt %lu, found %lu, logged rip= 0x%lx, actual rip=0x%lx\n",
+                rr_event_log_head->inst_cnt, cpu->rr_executed_inst, rr_event_log_head->rip, env->eip);
+            rr_verify_dirty_mem(cpu);
+            abort();
+        }
+    }
+
+    if (rr_event_log_head->rip != env->eip) {
+        printf("Unexpected IO Input RIP, expected 0x%lx, actual 0x%lx\n",
+            rr_event_log_head->rip, env->eip);
         abort();
     }
 
@@ -825,17 +847,36 @@ void rr_do_replay_io_input(unsigned long *input)
     *input = rr_event_log_head->event.io_input.value;
     rr_pop_event_head();
 
-    qemu_log("Replayed io input=%lx, replayed event number=%d\n", *input, replayed_event_num);
-    printf("Replayed io input=%lx, replayed event number=%d\n", *input, replayed_event_num);
+    qemu_log("Replayed io input=0x%lx, replayed event number=%d\n", *input, replayed_event_num);
+    printf("Replayed io input=0x%lx, replayed event number=%d\n", *input, replayed_event_num);
 }
 
-void rr_do_replay_rdtsc(unsigned long *tsc)
+void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
 {
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
     if (rr_event_log_head->type != EVENT_TYPE_RDTSC) {
         printf("Expected %d event, found %d", EVENT_TYPE_RDTSC, rr_event_log_head->type);
         abort();
     }
   
+    if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst - 1 &&
+        rr_event_log_head->inst_cnt != cpu->rr_executed_inst) {
+        printf("Mismatched RDTSC, expected inst cnt %lu, found %lu\n",
+               rr_event_log_head->inst_cnt, cpu->rr_executed_inst);
+        abort();
+    }
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    if (rr_event_log_head->rip != env->eip) {
+        printf("Unexpected IO Input RIP, expected 0x%lx, actual 0x%lx\n",
+            rr_event_log_head->rip, env->eip);
+        abort();
+    }
+
     replayed_event_num++;
 
     *tsc = rr_event_log_head->event.io_input.value;
@@ -967,5 +1008,4 @@ void rr_replay_dma_entry(void)
 {
     printf("Replaying dma\n");
     rr_replay_next_dma();
-    rr_pop_event_head();
 }

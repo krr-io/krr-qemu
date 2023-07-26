@@ -2927,6 +2927,10 @@ int kvm_cpu_exec(CPUState *cpu)
                           run->io.size,
                           run->io.count);
             ret = 0;
+            if (cpu->cause_debug == 1) {
+                cpu->cause_debug = 0;
+                // ret = EXCP_DEBUG;
+            }
             break;
         case KVM_EXIT_MMIO:
             DPRINTF("handle_mmio\n");
@@ -3373,7 +3377,7 @@ static void do_rr_get_vcpu_mem_logs(CPUState *cpu, run_on_cpu_data arg)
             printf("failed to get access %d\n", r);
             return;
         }
-        rr_create_mem_log(-1, event.gpa, event.rip);
+        rr_create_mem_log(-1, event.gpa, event.rip, event.inst_cnt);
         // printf("get access 0x%lx, rip=0x%lx\n", event.gpa, event.rip);
     }
 

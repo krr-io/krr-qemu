@@ -66,9 +66,22 @@ static void rr_save_mem_logs(void)
 }
 
 
-__attribute_maybe_unused__ static int get_md5sum(void* buffer,
-                 unsigned long buffersize,
-                 char* checksum){
+unsigned long get_checksum(uint8_t *buffer, unsigned long buffersize)
+{
+    unsigned long ret = 0;
+
+    for (int i = 0; i < buffersize; i++) {
+        ret += buffer[i];
+    }
+
+    return ret;
+}
+
+
+int get_md5sum(void* buffer,
+               unsigned long buffersize,
+               char* checksum)
+{
 
     MD5_CTX ctx;
     int rc,i;
@@ -120,7 +133,7 @@ void append_mem_log(rr_mem_log *mem_log)
     rr_mem_log_cur->next = NULL;
 }
 
-void rr_create_mem_log(int syscall, unsigned long gpa, unsigned long rip)
+void rr_create_mem_log(int syscall, unsigned long gpa, unsigned long rip, unsigned long inst_cnt)
 {
     hwaddr page;
     // char out[MD5_DIGEST_LENGTH * 2 + 2];
@@ -147,6 +160,7 @@ void rr_create_mem_log(int syscall, unsigned long gpa, unsigned long rip)
 
         log->gpa = page;
         log->rip = rip;
+        log->inst_cnt = inst_cnt;
 
         printf("Read from addr 0x%lx\n", page);
         qemu_log("[mem_trace] gpa=0x%lx, rip=0x%lx, md5=%s\n", gpa, rip, log->md5);
@@ -202,7 +216,7 @@ static void rr_check_gpa(rr_mem_log *log)
     } else {
         get_md5sum(buf, TARGET_PAGE_SIZE, out);
 
-        if( strcmp(log->md5, out) != 0) {
+        if(strcmp(log->md5, out) != 0) {
             unpassed_check++;
             qemu_log("gpa 0x%lx is not consistent, expected: %s, actual: %s, rip=0x%lx\n",
                      log->gpa, log->md5, out, log->rip);
@@ -214,13 +228,13 @@ static void rr_check_gpa(rr_mem_log *log)
     }
 }
 
-void rr_verify_dirty_mem(void)
+void rr_verify_dirty_mem(CPUState *cpu)
 {
     assert(rr_mem_log_head->syscall >= 0);
     
     rr_pop_mem_log_head();
 
-    while (rr_mem_log_head != NULL && rr_mem_log_head->syscall == -1) {
+    while (rr_mem_log_head != NULL && rr_mem_log_head->syscall == -1 && cpu->rr_executed_inst) {
         qemu_log("Check gpa 0x%lx\n", rr_mem_log_head->gpa);
         rr_check_gpa(rr_mem_log_head);
         rr_pop_mem_log_head();

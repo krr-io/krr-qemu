@@ -74,6 +74,8 @@ void sync_dirty_pages(CPUState *cpu);
 void rr_init_dirty_bitmaps(void);
 void rr_store_op(CPUArchState *env, unsigned long addr);
 
+typedef uint64_t sg_addr;
+
 typedef struct rr_mem_log_t {
     unsigned long gpa;
     unsigned long rip;
@@ -87,7 +89,7 @@ typedef struct rr_sg_data_t {
     uint64_t addr;
     uint64_t len;
     unsigned long checksum;
-    uint8_t *buf;
+    sg_addr *buf;
 } rr_sg_data;
 
 typedef struct rr_dma_entry_t {
@@ -107,5 +109,5 @@ void rr_replay_dma_entry(void);
 int get_md5sum(void* buffer,
                unsigned long buffersize,
                char* checksum);
-unsigned long get_checksum(uint8_t *buffer, unsigned long buffersize);
+unsigned long get_checksum(sg_addr *buffer, unsigned long buffersize);
 #endif /* KERNEL_RR_H */

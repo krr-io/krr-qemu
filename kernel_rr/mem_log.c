@@ -66,7 +66,7 @@ static void rr_save_mem_logs(void)
 }
 
 
-unsigned long get_checksum(uint8_t *buffer, unsigned long buffersize)
+unsigned long get_checksum(sg_addr *buffer, unsigned long buffersize)
 {
     unsigned long ret = 0;
 
@@ -93,7 +93,7 @@ int get_md5sum(void* buffer,
         return 1;
     }
 
-    rc =  MD5_Update(&ctx,buffer,sizeof(int)*buffersize);
+    rc =  MD5_Update(&ctx, buffer, sizeof(sg_addr) * buffersize);
     if(rc != 1) {
         printf("error in get_md5sum : MD5_Update\n");
         return 1;

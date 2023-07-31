@@ -439,9 +439,9 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
 
     case EVENT_TYPE_SYSCALL:
         memcpy(&event_record->event.syscall, &event.event.syscall, sizeof(rr_syscall));
-        qemu_log("Syscall: %llu, gs_kernel=0x%lx, inst_cnt: %lu, number=%d\n",
+        qemu_log("Syscall: %llu, gs_kernel=0x%lx, cr3=0x%lx, inst_cnt: %lu, number=%d\n",
                  event_record->event.syscall.regs.rax, event_record->event.syscall.kernel_gsbase,
-                 event.inst_cnt, event_num);
+                 event.event.syscall.cr3, event.inst_cnt, event_num);
         event_syscall_num++;
         break;
 
@@ -796,6 +796,7 @@ void rr_do_replay_syscall(CPUState *cpu)
 
     env->kernelgsbase = rr_event_log_head->event.syscall.kernel_gsbase;
     env->segs[R_GS].base = rr_event_log_head->event.syscall.msr_gsbase;
+    env->cr[3] = rr_event_log_head->event.syscall.cr3;
 
     replayed_event_num++;
     rr_pop_event_head();

@@ -65,7 +65,7 @@ typedef struct {
 
 typedef struct {
     struct kvm_regs regs;
-    unsigned long kernel_gsbase, msr_gsbase;
+    unsigned long kernel_gsbase, msr_gsbase, cr3;
 } rr_syscall;
 
 typedef struct {

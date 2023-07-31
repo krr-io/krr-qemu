@@ -1082,7 +1082,7 @@ int cpu_exec(CPUState *cpu)
 
                 if (next_event->type == EVENT_TYPE_DMA_DONE) {
                     rr_replay_dma_entry();
-                    cpu->cause_debug = 1;
+                    // cpu->cause_debug = 1;
                 }
             }
 

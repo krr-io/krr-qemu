@@ -110,4 +110,5 @@ int get_md5sum(void* buffer,
                unsigned long buffersize,
                char* checksum);
 unsigned long get_checksum(sg_addr *buffer, unsigned long buffersize);
+void rr_pop_next_event_type(int event_type);
 #endif /* KERNEL_RR_H */

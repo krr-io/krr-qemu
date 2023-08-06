@@ -2929,7 +2929,6 @@ int kvm_cpu_exec(CPUState *cpu)
             ret = 0;
             if (cpu->cause_debug == 1) {
                 cpu->cause_debug = 0;
-                ret = EXCP_DEBUG;
             }
             break;
         case KVM_EXIT_MMIO:

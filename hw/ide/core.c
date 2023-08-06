@@ -886,12 +886,8 @@ static void ide_dma_cb(void *opaque, int ret)
     //     rr_signal_dma_finish();
 
     if (rr_in_replay()) {
-        // int type = rr_get_next_event_type();
-        // if(type != EVENT_TYPE_DMA_DONE) {
-        //     printf("Expected DMA done, actual %d\n", type);
-        //     abort();
-        // }
-
+        rr_pop_next_event_type(EVENT_TYPE_DMA_DONE);
+        rr_replay_dma_entry();
         // qemu_log("Replayed DMA Done\n");
         // printf("Replayed DMA Done\n");
         // rr_pop_event_head();

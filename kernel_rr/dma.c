@@ -261,6 +261,7 @@ static void do_replay_dma_entry(rr_dma_entry *dma_entry)
             }
             printf("failed to write to mem: %d, addr=0x%lx\n", res, sg->addr);
         } else {
+            qemu_log("DMA_Replay: write to dma base=0x%lx, len=%ld\n", sg->addr, sg->len);
             printf("write to dma base=0x%lx, len=%ld\n", sg->addr, sg->len);
         }
 
@@ -275,8 +276,10 @@ void rr_dma_pre_record(void)
     remove(kernel_rr_dma_log);
 }
 
-void rr_dma_pre_replay(void)
+void rr_dma_pre_replay(int dma_event_num)
 {
+    int entry_num = 0;
+
     rr_load_dma_logs();
 
     rr_dma_entry *cur = dma_entry_head;
@@ -287,6 +290,12 @@ void rr_dma_pre_replay(void)
         }
 
         cur = cur->next;
+        entry_num++;
+    }
+
+    if (entry_num != dma_event_num) {
+        printf("DMA entry number %d, dma event number %d, not equal\n", entry_num, dma_event_num);
+        exit(1);
     }
 }
 

@@ -894,8 +894,10 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 {
     int32_t insns_left;
 
-    log_regs(cpu);
-    log_tb(cpu, tb);
+    if (cpu->rr_executed_inst > 6215158) {
+        log_regs(cpu);
+        log_tb(cpu, tb);
+    }
 
     trace_exec_tb(tb, tb->pc);
     tb = cpu_tb_exec(cpu, tb, tb_exit);
@@ -1077,14 +1079,14 @@ int cpu_exec(CPUState *cpu)
                 tb_add_jump(last_tb, tb_exit, tb);
             }
 
-            if (rr_in_replay()) {
-                rr_event_log *next_event = rr_get_next_event();
+            // if (rr_in_replay()) {
+            //     rr_event_log *next_event = rr_get_next_event();
 
-                if (next_event->type == EVENT_TYPE_DMA_DONE) {
-                    rr_replay_dma_entry();
-                    // cpu->cause_debug = 1;
-                }
-            }
+            //     if (next_event->type == EVENT_TYPE_DMA_DONE) {
+            //         rr_replay_dma_entry();
+            //         // cpu->cause_debug = 1;
+            //     }
+            // }
 
             if (rr_in_replay() && (tb->pc == COPY_FROM_ITER \
                 || tb->pc == COPY_FROM_USER || tb->pc == GET_FROM_USER \
@@ -1106,8 +1108,8 @@ int cpu_exec(CPUState *cpu)
                 rr_do_replay_exception_end(cpu);
             }
 
-            qemu_log("\nExecute TB:\n");
-            qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+            // qemu_log("\nExecute TB:\n");
+            // qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
 
             if (tb->pc != cpu->last_pc) {
                 cpu->rr_executed_inst++;

@@ -182,6 +182,23 @@ void rr_insert_breakpoints(void)
     }
 }
 
+void rr_remove_breakpoints(void)
+{
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        kvm_remove_breakpoint(cpu, syscall_addr, 1, GDB_BREAKPOINT_HW);
+        kvm_remove_breakpoint(cpu, pf_excep_addr, 1, GDB_BREAKPOINT_HW);
+        kvm_remove_breakpoint(cpu, copy_page_from_iter_addr, 1, GDB_BREAKPOINT_HW);
+        kvm_remove_breakpoint(cpu, copy_from_user_addr, 1, GDB_BREAKPOINT_HW);
+        kvm_remove_breakpoint(cpu, copy_from_iter_addr, 1, GDB_BREAKPOINT_SW);
+        kvm_remove_breakpoint(cpu, strncpy_addr, 1, GDB_BREAKPOINT_SW);
+        kvm_remove_breakpoint(cpu, get_user_addr, 1, GDB_BREAKPOINT_SW);
+        kvm_remove_breakpoint(cpu, strnlen_user_addr, 1, GDB_BREAKPOINT_SW);
+
+    }
+}
+
 __attribute_maybe_unused__ static void rr_insert_userspace_int(CPUState *cs)
 {
     int bp_ret;
@@ -278,6 +295,7 @@ static void *kvm_vcpu_thread_fn(void *arg)
             r = kvm_cpu_exec(cpu);
             if (r == EXCP_DEBUG) {
                 if (!handle_on_bp(cpu)) {
+                    printf("break on addr 0x%llx\n", cpu->kvm_run->debug.arch.pc);
                     cpu_handle_guest_debug(cpu);
                 }
             }

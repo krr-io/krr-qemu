@@ -81,10 +81,10 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
         rr_sg_data *sgd = (rr_sg_data*)malloc(sizeof(rr_sg_data));
         sgd->buf = (sg_addr*)malloc(sizeof(sg_addr) * sg->sg[i].len);
 
-        if (sg->sg[i].len > 4096) {
-            printf("DMA overflow size: %ld\n", sg->sg[i].len);
-            // abort();
-        }
+        // if (sg->sg[i].len > 4096) {
+        //     printf("DMA overflow size: %ld\n", sg->sg[i].len);
+        //     // abort();
+        // }
 
         res = address_space_read(sg->as,
                                  sg->sg[i].base,
@@ -92,9 +92,10 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
                                  sgd->buf, sg->sg[i].len * sizeof(sg_addr));
         if (res != MEMTX_OK) {
             printf("failed to read from addr %d\n", res);
-        } else {
-            printf("read from dma base=0x%lx\n", sg->sg[i].base);
-        }
+        } 
+        // else {
+        //     printf("read from dma base=0x%lx\n", sg->sg[i].base);
+        // }
 
         sgd->addr = sg->sg[i].base;
         sgd->len = sg->sg[i].len;
@@ -102,9 +103,8 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
         pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
 
         assert(sg->sg[i].len == qiov->iov[i].iov_len);
-
-        qemu_log("Get actual data:\n");
-        log_addr_md5(qiov->iov[i].iov_base, qiov->iov[i].iov_len, sg->sg[i].base);
+        // qemu_log("Get actual data:\n");
+        // log_addr_md5(qiov->iov[i].iov_base, qiov->iov[i].iov_len, sg->sg[i].base);
         // qemu_log("Get logged data:\n");
         // log_addr_md5(sgd->buf, sg->sg[i].len, sg->sg[i].base);
     }
@@ -143,7 +143,7 @@ __attribute_maybe_unused__ void rr_end_dma_entry(void)
 static void persist_dma_buf(rr_sg_data *sg, FILE *fptr) {
     sg->checksum = get_checksum(sg->buf, sg->len);
 
-    printf("Save sg addr=0x%lx len=%ld, checksum=%lu\n", sg->addr, sg->len, sg->checksum);
+    // printf("Save sg addr=0x%lx len=%ld, checksum=%lu\n", sg->addr, sg->len, sg->checksum);
 
     fwrite(sg, sizeof(rr_sg_data), 1, fptr);
     fwrite(sg->buf, sizeof(sg_addr), sg->len, fptr);
@@ -152,7 +152,7 @@ static void persist_dma_buf(rr_sg_data *sg, FILE *fptr) {
 static void persist_dma_log(rr_dma_entry *log, FILE *fptr) {
     int i = 0;
 
-    printf("Persist log entry, len=%d\n", log->len);
+    // printf("Persist log entry, len=%d\n", log->len);
 
     fwrite(log, sizeof(rr_dma_entry), 1, fptr);
 
@@ -297,6 +297,8 @@ void rr_dma_pre_replay(int dma_event_num)
         printf("DMA entry number %d, dma event number %d, not equal\n", entry_num, dma_event_num);
         exit(1);
     }
+
+    printf("dma entry number: %d\n", entry_num);
 }
 
 void rr_dma_post_record(void)

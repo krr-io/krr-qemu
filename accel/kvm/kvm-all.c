@@ -3459,6 +3459,7 @@ int kvm_end_record(void) {
         run_on_cpu(cpu, do_kvm_cpu_end_record, RUN_ON_CPU_NULL);
     }
 
+    rr_remove_breakpoints();
     if (rr_mem_logs_enabled())
         rr_finish_mem_log();
 

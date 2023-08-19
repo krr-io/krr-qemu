@@ -4263,6 +4263,15 @@ SRST
     Start right away with a saved state (``loadvm`` in monitor)
 ERST
 
+DEF("kernel-memlog", HAS_ARG, QEMU_OPTION_kernel_memlog, \
+    "-kernel-memlog \n",
+    QEMU_ARCH_ALL)
+SRST
+``-kernel-replay name``
+    Start right away with a saved state (``loadvm`` in monitor)
+ERST
+
+
 #ifndef _WIN32
 DEF("daemonize", 0, QEMU_OPTION_daemonize, \
     "-daemonize      daemonize QEMU after initializing\n", QEMU_ARCH_ALL)

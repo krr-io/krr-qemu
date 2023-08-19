@@ -39,14 +39,14 @@
 // target_ulong last_removed_addr = 0;
 
 
-target_ulong syscall_addr = 0xffffffff81a00000;
-target_ulong pf_excep_addr = 0xffffffff819528f0;
-target_ulong copy_from_iter_addr = 0xffffffff816452a9;
-target_ulong copy_from_user_addr = 0xffffffff8164c967; 
-target_ulong copy_page_from_iter_addr = 0xffffffff000000;
-target_ulong strncpy_addr = 0xffffffff816c064c; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
-target_ulong get_user_addr = 0xffffffff818fa750;
-target_ulong strnlen_user_addr = 0xffffffff816c0751;
+target_ulong syscall_addr = 0xffffffff81800000;
+target_ulong pf_excep_addr = 0xffffffff81800ab0;
+target_ulong copy_from_iter_addr = 0xffffffff8149923d;
+target_ulong copy_from_user_addr = 0xffffffff814a0997; 
+target_ulong copy_page_from_iter_addr = 0xffffffff8149ae23;
+target_ulong strncpy_addr = 0xffffffff814d2d9b; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
+target_ulong get_user_addr = 0xffffffff817814d0;
+target_ulong strnlen_user_addr = 0xffffffff814d2ea1;
 
 target_ulong random_bytes_addr_start = 0xffffffff81770030;
 target_ulong random_bytes_addr_end = 0xffffffff817700a3;
@@ -162,19 +162,19 @@ void rr_insert_breakpoints(void)
             printf("Inserted breakpoints for strnlen_user_addr\n");
         }
 
-        bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr_start, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for random_bytes_start_addr_start: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for random_bytes_start_addr_start\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr_start, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for random_bytes_start_addr_start: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for random_bytes_start_addr_start\n");
+        // }
 
-        bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr_end, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for random_bytes_start_addr_end: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for random_bytes_start_addr_end\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr_end, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for random_bytes_start_addr_end: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for random_bytes_start_addr_end\n");
+        // }
 
         // if (rr_in_replay()) {
         //     rr_insert_userspace_int(cpu);

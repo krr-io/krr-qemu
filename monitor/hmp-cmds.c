@@ -1112,7 +1112,7 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
     kvm_start_record();
     rr_insert_breakpoints();
 
-    hmp_handle_error(mon, err);
+    // hmp_handle_error(mon, err);
 }
 
 void hmp_rr_end_record(Monitor *mon, const QDict *qdict)

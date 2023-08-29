@@ -4578,7 +4578,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
 
  next_byte:
     b = x86_ldub_code(env, s);
-    qemu_log("prefix: %d\n", b);
+    // qemu_log("prefix: %d\n", b);
     /* Collect prefixes.  */
     switch (b) {
     case 0xf3:
@@ -4718,7 +4718,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
 
     /* now check op code */
  reswitch:
-    qemu_log("op byte: %x\n", b);
+    // qemu_log("op byte: %x\n", b);
 
     switch(b) {
     case 0x0f:

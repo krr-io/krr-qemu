@@ -12,15 +12,15 @@
 // #include "sysemu/dma.h"
 
 
-#define SYSCALL 0xffffffff81a00000
-#define COPY_FROM_ITER 0xffffffff816452dd
-#define COPY_FROM_USER 0xffffffff8164c940
-#define STRNCPY_FROM_USER 0xffffffff816c0570
-#define GET_FROM_USER 0xffffffff818fa750
-#define STRLEN_USER 0xffffffff816c0751
-#define RANDOM_GEN 0xffffffff817700a3
-#define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff81646d70
-#define PF_EXEC 0xffffffff819528f0
+#define SYSCALL 0xffffffff81800000
+#define COPY_FROM_ITER 0xffffffff8144af4a
+#define COPY_FROM_USER 0xffffffff814528c0
+#define STRNCPY_FROM_USER 0xffffffff81483650
+#define GET_FROM_USER 0xffffffff81708100
+#define STRLEN_USER 0xffffffff81483812
+#define RANDOM_GEN 0xffffffff815336ee
+#define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff8144dcb0
+#define PF_EXEC 0xffffffff81741930
 
 
 // #define SYSCALL 0xffffffff81200000
@@ -41,6 +41,7 @@ void rr_set_replay(int replay, unsigned long ram_size);
 void accel_start_kernel_replay(void);
 int replay_should_skip_wait(void);
 void rr_pop_event_head(void);
+int get_replayed_event_num(void);
 
 void rr_replay_interrupt(CPUState *cpu, int *interrupt);
 void rr_do_replay_intno(CPUState *cpu, int *intno);

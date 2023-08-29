@@ -39,19 +39,18 @@
 // target_ulong last_removed_addr = 0;
 
 
-target_ulong syscall_addr = 0xffffffff81800000;
-target_ulong pf_excep_addr = 0xffffffff81800ab0;
-target_ulong copy_from_iter_addr = 0xffffffff8149923d;
-target_ulong copy_from_user_addr = 0xffffffff814a0997; 
-target_ulong copy_page_from_iter_addr = 0xffffffff8149ae23;
-target_ulong strncpy_addr = 0xffffffff814d2d9b; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
-target_ulong get_user_addr = 0xffffffff817814d0;
-target_ulong strnlen_user_addr = 0xffffffff814d2ea1;
+const unsigned long syscall_addr = 0xffffffff81800000; // info addr entry_SYSCALL_64
+const unsigned long pf_excep_addr = 0xffffffff81741930; // info addr exc_page_fault
+const unsigned long copy_from_iter_addr = 0xffffffff8144af0d; // lib/iov_iter.c:186
+const unsigned long copy_from_user_addr = 0xffffffff814528e7; // lib/usercopy.c:21
+const unsigned long copy_page_from_iter_addr = 0xffffffff8144dd7e;
+const unsigned long strncpy_addr = 0xffffffff81483712; // lib/strncpy_from_user.c:141
+const unsigned long get_user_addr = 0xffffffff81708100; // arch/x86/lib/getuser.S:103
+const unsigned long strnlen_user_addr = 0xffffffff81483812; // lib/strnlen_user.c:115
 
-target_ulong random_bytes_addr_start = 0xffffffff81770030;
-target_ulong random_bytes_addr_end = 0xffffffff817700a3;
-// target_ulong random_bytes_addr = 0xffffffff81811f11;
-target_ulong last_removed_addr = 0;
+const unsigned long random_bytes_addr_start = 0xffffffff81533620; // b _get_random_bytes
+const unsigned long random_bytes_addr_end = 0xffffffff815336ee; // b drivers/char/random.c:382
+unsigned long last_removed_addr = 0;
 
 target_ulong userspace_start = 0x0000000000000000;
 target_ulong userspace_end = 0x00007fffffffffff;
@@ -102,7 +101,7 @@ __attribute_maybe_unused__ static void rr_handle_kernel_entry(CPUState *cpu, tar
 
 void rr_insert_breakpoints(void)
 {
-    __attribute_maybe_unused__ int bp_ret;
+    __attribute_maybe_unused__ int bp_ret ;
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
@@ -162,19 +161,19 @@ void rr_insert_breakpoints(void)
             printf("Inserted breakpoints for strnlen_user_addr\n");
         }
 
-        // bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr_start, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for random_bytes_start_addr_start: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for random_bytes_start_addr_start\n");
-        // }
+        bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr_start, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for random_bytes_start_addr_start: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for random_bytes_start_addr_start\n");
+        }
 
-        // bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr_end, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for random_bytes_start_addr_end: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for random_bytes_start_addr_end\n");
-        // }
+        bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr_end, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for random_bytes_start_addr_end: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for random_bytes_start_addr_end\n");
+        }
 
         // if (rr_in_replay()) {
         //     rr_insert_userspace_int(cpu);

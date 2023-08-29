@@ -1123,7 +1123,7 @@ void do_interrupt_all(X86CPU *cpu, int intno, int is_int,
 #endif
 #ifdef TARGET_X86_64
         if (env->hflags & HF_LMA_MASK) {
-            qemu_log("do int64\n");
+            // qemu_log("do int64\n");
             do_interrupt64(env, intno, is_int, error_code, next_eip, is_hw);
         } else
 #endif

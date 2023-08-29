@@ -220,7 +220,7 @@ static inline TranslationBlock *tb_lookup(CPUState *cpu, target_ulong pc,
     }
 
     if (tb->jump_next_event == -1) {
-        qemu_log("Caching tb pc=0x%lx\n", tb->pc);
+        // qemu_log("Caching tb pc=0x%lx\n", tb->pc);
         qatomic_set(&cpu->tb_jmp_cache[hash], tb);
     }
     return tb;
@@ -894,15 +894,14 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 {
     int32_t insns_left;
 
-    if (cpu->rr_executed_inst > 6215158) {
-        log_regs(cpu);
-        log_tb(cpu, tb);
-    }
+    // if (get_replayed_event_num() > 5) {
+    //     log_regs(cpu);
+    //     log_tb(cpu, tb);
+    //     qemu_log("Finished TB execution\n");
+    // }
 
     trace_exec_tb(tb, tb->pc);
     tb = cpu_tb_exec(cpu, tb, tb_exit);
-
-    qemu_log("Finished TB execution\n");
 
     if (*tb_exit != TB_EXIT_REQUESTED) {
         *last_tb = tb;
@@ -1108,8 +1107,10 @@ int cpu_exec(CPUState *cpu)
                 rr_do_replay_exception_end(cpu);
             }
 
-            // qemu_log("\nExecute TB:\n");
-            // qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+            // if (get_replayed_event_num() > 5) {
+            //     qemu_log("\nExecute TB:\n");
+            //     qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+            // }
 
             if (tb->pc != cpu->last_pc) {
                 cpu->rr_executed_inst++;
@@ -1132,10 +1133,6 @@ int cpu_exec(CPUState *cpu)
         // qemu_log("exit interrupt\n");
     }
 
-    if (cpu->rr_executed_inst == 397550) {
-        rr_fake_call();
-    }
-    qemu_log("exit exception, ret=%d\n", ret);
     cpu_exec_exit(cpu);
     rcu_read_unlock();
 

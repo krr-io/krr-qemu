@@ -3357,6 +3357,12 @@ static void do_rr_get_vcpu_events(CPUState *cpu, run_on_cpu_data arg)
         append_event(event);
     }
 
+    r = kvm_vcpu_ioctl(cpu, KVM_RR_CLEAR_EVENTS, NULL);
+    if (r) {
+        printf("failed to clear rr events %d\n", r);
+        return;
+    }
+
     return;
 }
 

@@ -408,10 +408,16 @@ void rr_do_replay_cfu(CPUState *cpu)
         //     cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
         // }
 
-        node->event.cfu.data[node->event.cfu.len] = 0;
+        // node->event.cfu.data[node->event.cfu.len] = 0;
+        int zero = 0;
         ret = cpu_memory_rw_debug(cpu, node->event.cfu.src_addr,
                                 node->event.cfu.data,
-                                node->event.cfu.len + 1, true);
+                                node->event.cfu.len, true);
+    
+        // Appending zero to the end
+        ret = cpu_memory_rw_debug(cpu, node->event.cfu.src_addr + node->event.cfu.len,
+                                  &zero, 1, true);
+
         if (ret < 0) {
             printf("Failed to write to address %lx: %d\n", node->event.cfu.dest_addr, ret);
         } else {

@@ -888,6 +888,7 @@ static void ide_dma_cb(void *opaque, int ret)
     if (rr_in_replay() && s->dma_cmd == IDE_DMA_READ) {
         rr_pop_next_event_type(EVENT_TYPE_DMA_DONE);
         rr_replay_dma_entry();
+        inc_replayed_number();
         // qemu_log("Replayed DMA Done\n");
         // printf("Replayed DMA Done\n");
         // rr_pop_event_head();

@@ -19,7 +19,7 @@
 #define GET_FROM_USER 0xffffffff81708100
 #define STRLEN_USER 0xffffffff81483812
 #define RANDOM_GEN 0xffffffff815336ee
-#define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff8144dcb0
+#define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff8144dd68
 #define PF_EXEC 0xffffffff81741930
 
 
@@ -112,4 +112,5 @@ int get_md5sum(void* buffer,
                char* checksum);
 unsigned long get_checksum(sg_addr *buffer, unsigned long buffersize);
 void rr_pop_next_event_type(int event_type);
+void inc_replayed_number(void);
 #endif /* KERNEL_RR_H */

@@ -894,7 +894,7 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 {
     int32_t insns_left;
 
-    // if (get_replayed_event_num() > 5) {
+    // if (get_replayed_event_num() >= 2236) {
     //     log_regs(cpu);
     //     log_tb(cpu, tb);
     //     qemu_log("Finished TB execution\n");
@@ -1107,7 +1107,7 @@ int cpu_exec(CPUState *cpu)
                 rr_do_replay_exception_end(cpu);
             }
 
-            // if (get_replayed_event_num() > 5) {
+            // if (get_replayed_event_num() >= 2236) {
             //     qemu_log("\nExecute TB:\n");
             //     qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
             // }

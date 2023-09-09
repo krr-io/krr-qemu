@@ -15,12 +15,16 @@
 #define SYSCALL 0xffffffff81800000
 #define COPY_FROM_ITER 0xffffffff8144af4a
 #define COPY_FROM_USER 0xffffffff814528c0
-#define STRNCPY_FROM_USER 0xffffffff81483650
-#define GET_FROM_USER 0xffffffff81708100
-#define STRLEN_USER 0xffffffff81483812
-#define RANDOM_GEN 0xffffffff815336ee
+#define STRNCPY_FROM_USER 0xffffffff81455b00
+#define GET_FROM_USER 0xffffffff816c2220
+#define STRLEN_USER 0xffffffff81455ce2
+#define RANDOM_GEN 0xffffffff81533800
 #define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff8144dd68
-#define PF_EXEC 0xffffffff81741930
+#define PF_EXEC 0xffffffff816fa920
+
+
+#define KVM_HC_RR_STRNCPY			14
+#define KVM_HC_RR_RANDOM			15
 
 
 // #define SYSCALL 0xffffffff81200000
@@ -111,6 +115,6 @@ int get_md5sum(void* buffer,
                unsigned long buffersize,
                char* checksum);
 unsigned long get_checksum(sg_addr *buffer, unsigned long buffersize);
-void rr_pop_next_event_type(int event_type);
+int rr_pop_next_event_type(int event_type);
 void inc_replayed_number(void);
 #endif /* KERNEL_RR_H */

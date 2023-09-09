@@ -443,6 +443,7 @@ void rr_do_replay_cfu(CPUState *cpu)
                                 write_len, true);
         if (ret < 0) {
             printf("Failed to write to address %lx: %d\n", node->event.cfu.src_addr, ret);
+            // abort();
         } else {
             printf("Write to address 0x%lx len %lu\n",
                     node->event.cfu.src_addr,

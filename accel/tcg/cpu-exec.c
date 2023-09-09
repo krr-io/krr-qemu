@@ -82,8 +82,9 @@ static int64_t max_advance;
 
 static bool should_log_trace(void)
 {
-    return get_replayed_event_num() >= 148;
+    // return get_replayed_event_num() >= 148;
     // return false;
+    return false;
 }
 
 static bool should_manual_breakpoint(target_ulong pc)
@@ -1104,17 +1105,15 @@ int cpu_exec(CPUState *cpu)
             //     }
             // }
 
-            if (rr_in_replay() && (tb->pc == COPY_FROM_ITER \
-                || tb->pc == COPY_FROM_USER || tb->pc == GET_FROM_USER \
-                || tb->pc == STRNCPY_FROM_USER || tb->pc == STRLEN_USER \
-                || tb->pc == COPY_PAGE_FROM_ITER_ATOMIC)) {
+            if (rr_in_replay() && (tb->pc == GET_FROM_USER \
+                || tb->pc == STRNCPY_FROM_USER || tb->pc == STRLEN_USER)) {
                 // qemu_log("Next replay cfu\n");
                 rr_do_replay_cfu(cpu);
             }
 
-            if (rr_in_replay() && tb->pc == RANDOM_GEN) {
-                rr_do_replay_rand(cpu);
-            }
+            // if (rr_in_replay() && tb->pc == RANDOM_GEN) {
+            //     rr_do_replay_rand(cpu);
+            // }
 
             if (rr_in_replay() && tb->pc == SYSCALL && rr_mem_logs_enabled()) {
                 rr_verify_dirty_mem(cpu);

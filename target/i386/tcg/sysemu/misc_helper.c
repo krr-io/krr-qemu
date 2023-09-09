@@ -19,6 +19,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu/main-loop.h"
+#include "qemu/log.h"
 #include "cpu.h"
 #include "exec/helper-proto.h"
 #include "exec/cpu_ldst.h"
@@ -38,7 +39,8 @@ target_ulong helper_inb(CPUX86State *env, uint32_t port)
 {
     unsigned long input;
 
-    if (rr_in_replay() && env->eip != 0xffffffff81024e42 && env->eip != 0xffffffff81024dd5) {
+    // arch/x86/include/asm/shared/io.h:22
+    if (rr_in_replay() && env->eip != 0xffffffff81024032 && env->eip != 0xffffffff81023fc5) {
         rr_do_replay_io_input(env_cpu(env), &input);
         return input;
     }
@@ -523,4 +525,22 @@ void QEMU_NORETURN helper_mwait(CPUX86State *env, int next_eip_addend)
     } else {
         do_hlt(env);
     }
+}
+
+void helper_vmcall(CPUX86State *env)
+{
+    qemu_log("Vmcall called, a0=0x%lx, a1=0x%lx, a2=0x%lx, a3=0x%lx\n",
+             env->regs[R_EAX], env->regs[R_EBX], env->regs[R_ECX], env->regs[R_EDX]);
+    
+    CPUState *cs = env_cpu(env);
+
+    if (env->regs[R_EAX] == KVM_HC_RR_RANDOM) {
+        rr_do_replay_rand(cs);
+        return;
+    }
+
+    if (env->regs[R_EAX] != KVM_HC_RR_STRNCPY)
+        rr_do_replay_cfu(cs);
+
+    return;
 }

@@ -7471,6 +7471,12 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_op_st_v(s, CODE64(s) + MO_32, s->T0, s->A0);
             break;
 
+        case 0xc1: /* vmcall */
+            gen_update_cc_op(s);
+            gen_jmp_im(s, pc_start - s->cs_base);
+            gen_helper_vmcall(cpu_env);
+            break;
+
         case 0xc8: /* monitor */
             if (!(s->cpuid_ext_features & CPUID_EXT_MONITOR) || CPL(s) != 0) {
                 goto illegal_op;

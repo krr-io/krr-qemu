@@ -83,9 +83,10 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
 
     if (rr_in_replay() && db->in_user_mode) {
         qemu_log("User mode, fetch next event\n");
-
-        int next_event = rr_get_next_event_type();
-        uint64_t inst_cnt = rr_get_next_event_inst();
+// retry:
+        rr_event_log *log = rr_get_next_event();
+        int next_event = log->type;
+        uint64_t inst_cnt = log->inst_cnt;
 
         switch(next_event) {
             case EVENT_TYPE_SYSCALL:
@@ -104,8 +105,13 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
                 qemu_log("Next event exception\n");
                 break;
             default:
-                printf("Unexpected next event %d\n", next_event);
-                abort();
+                qemu_log("Unexpected next event %d, rip=0x%lx\n", next_event, log->rip);
+                printf("Unexpected next event %d, rip=0x%lx\n", next_event, log->rip);
+                exit(1);
+                return;
+                // rr_pop_event_head();
+                // goto retry;
+                // abort();
         }
     }
 

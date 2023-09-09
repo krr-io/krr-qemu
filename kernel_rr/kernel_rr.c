@@ -245,7 +245,7 @@ int rr_get_next_event_type(void)
     return rr_event_log_head->type;
 }
 
-void rr_pop_next_event_type(int event_type)
+int rr_pop_next_event_type(int event_type)
 {
     rr_event_log *cur = rr_event_log_head;
 
@@ -259,8 +259,11 @@ void rr_pop_next_event_type(int event_type)
     if (cur->next != NULL) {
         printf("Poped event %d\n", cur->next->type);
         cur->next = cur->next->next;
+        return 0;
     } else {
         printf("Not found event %d\n", event_type);
+
+        return -1;
     }
 }
 
@@ -478,7 +481,7 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
     case EVENT_TYPE_INTERRUPT:
         memcpy(&event_record->event.interrupt, &event.event.interrupt, sizeof(rr_interrupt));
 
-        qemu_log("Interrupt: %d, inst_cnt: %lu, rip=%lx, number=%d\n",
+        qemu_log("Interrupt: %d, inst_cnt: %lu, rip=0x%lx, number=%d\n",
                  event_record->event.interrupt.lapic.vector,
                  event.inst_cnt, event_record->rip, event_num);
         event_interrupt_num++;
@@ -585,14 +588,14 @@ int rr_is_syscall_ready(CPUState *cpu)
 
 void append_event(rr_event_log event)
 {
-    rr_event_log *event_record = rr_event_log_new_from_event(event);
-
-    if (rr_event_cur != NULL && event_record->inst_cnt == rr_event_cur->inst_cnt && \
-        event_record->type != EVENT_TYPE_INTERRUPT && \
-        event_record->type != EVENT_TYPE_DMA_DONE) {
-        qemu_log("Skip repetitive event %d\n", event_record->type);
+    if (rr_event_cur != NULL && event.inst_cnt == rr_event_cur->inst_cnt && \
+        event.type != EVENT_TYPE_INTERRUPT && \
+        event.type != EVENT_TYPE_DMA_DONE) {
+        qemu_log("Skip repetitive event %d\n",event.type);
         return;
     }
+
+    rr_event_log *event_record = rr_event_log_new_from_event(event);
 
     if (rr_event_cur == NULL) {
         rr_event_log_head = event_record;
@@ -740,14 +743,19 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
                 env->eip = rr_event_log_head->rip;
             }
 
-            if (env->eip != rr_event_log_head->rip) {
-                wait_see_next = true;
-            } else {
+            if (env->eip == rr_event_log_head->rip) {
                 matched = true;
+            } else {
+                wait_see_next = true;
+            }
+        } else {
+            if (rr_event_log_head->inst_cnt == cpu->rr_executed_inst + 1 && env->eip == rr_event_log_head->rip) {
+                matched = true;
+                cpu->rr_executed_inst++;
             }
         }
 
-        if (matched && env->eip == rr_event_log_head->rip) {
+        if (matched) {
             *interrupt = CPU_INTERRUPT_HARD;
             qemu_log("Ready to replay int request\n");
             cpu->rr_executed_inst++;
@@ -757,10 +765,11 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
 
         if (mismatched) {
             printf("Mismatched, interrupt=%d inst number=%lu and rip=0x%lx, actual rip=0x%lx\n", 
-            rr_event_log_head->event.interrupt.lapic.vector, rr_event_log_head->inst_cnt,
-            rr_event_log_head->rip, env->eip);
+                    rr_event_log_head->event.interrupt.lapic.vector, rr_event_log_head->inst_cnt,
+                    rr_event_log_head->rip, env->eip);
             // abort();
-            cpu->cause_debug = 1;
+            exit(1);
+            // cpu->cause_debug = 1;
         }
   
     }
@@ -779,7 +788,9 @@ void rr_do_replay_exception(CPUState *cpu)
 
     if (rr_event_log_head->type != EVENT_TYPE_EXCEPTION) {
         printf("rr_do_replay_exception: Unexpected exception: addr=0x%lx\n", env->cr[2]);
-        abort();
+        cpu->cause_debug = 1;
+        return;
+        // abort();
         // return;
     }
 
@@ -805,8 +816,9 @@ void rr_do_replay_exception_end(CPUState *cpu)
 
     if (rr_event_log_head->type != EVENT_TYPE_EXCEPTION) {
         printf("rr_do_replay_exception_end: Unexpected exception: addr=0x%lx\n", env->cr[2]);
-        abort();
-        // return;
+        // abort();
+        cpu->cause_debug = 1;
+        return;
     }
 
     if (rr_event_log_head->event.exception.cr2 != env->cr[2] ) {
@@ -890,10 +902,16 @@ void rr_do_replay_syscall(CPUState *cpu)
     replayed_event_num++;
     rr_pop_event_head();
 
-    qemu_log("Replayed syscall=%lu, replayed event number=%d\n", env->regs[R_EAX], replayed_event_num);
-    printf("Replayed syscall=%lu, replayed event number=%d\n", env->regs[R_EAX], replayed_event_num);
+    qemu_log("Replayed syscall=%lu, inst_cnt=%lu, replayed event number=%d\n",
+            env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
+    printf("Replayed syscall=%lu, inst_cnt=%lu, replayed event number=%d\n",
+           env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
 
     qemu_log("[mem_trace] Syscall: %lu\n", env->regs[R_EAX]);
+
+    // if (cpu->rr_executed_inst == 114950724) {
+    //     cpu->cause_debug = 1;
+    // }
 
     if (env->regs[R_EAX] == 59) {
         rr_check_breakpoint_start();
@@ -940,8 +958,10 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
     *input = rr_event_log_head->event.io_input.value;
     rr_pop_event_head();
 
-    qemu_log("Replayed io input=0x%lx, replayed event number=%d\n", *input, replayed_event_num);
-    printf("Replayed io input=0x%lx, replayed event number=%d\n", *input, replayed_event_num);
+    qemu_log("Replayed io input=0x%lx, inst_cnt=%lu, replayed event number=%d\n",
+             *input, cpu->rr_executed_inst, replayed_event_num);
+    printf("Replayed io input=0x%lx, inst_cnt=%lu, replayed event number=%d\n",
+           *input, cpu->rr_executed_inst, replayed_event_num);
 }
 
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)

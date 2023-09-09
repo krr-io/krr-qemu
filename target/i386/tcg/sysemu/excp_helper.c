@@ -410,7 +410,7 @@ static int handle_mmu_fault(CPUState *cs, vaddr addr, int size,
                                 prot, mmu_idx, page_size);
         return 0;
     } else {
-        // if (rr_in_replay() && rr_get_next_event_type() != EVENT_TYPE_EXCEPTION) return 0;
+        if (rr_in_replay() && rr_get_next_event_type() != EVENT_TYPE_EXCEPTION) return 0;
 
         if (env->intercept_exceptions & (1 << EXCP0E_PAGE)) {
             /* cr2 is not modified in case of exceptions */

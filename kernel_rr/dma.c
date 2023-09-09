@@ -235,6 +235,10 @@ static void do_replay_dma_entry(rr_dma_entry *dma_entry)
     int res;
     void *mem;
 
+    if (dma_entry == NULL) {
+        return;
+    }
+
     for (i = 0; i < dma_entry->len; i++) {
         rr_sg_data *sg = dma_entry->sgs[i];
         uint64_t len = sg->len;
@@ -309,6 +313,10 @@ void rr_dma_post_record(void)
 
 void rr_replay_next_dma(void)
 {
+    if (dma_entry_head == NULL) {
+        return;
+    }
+
     do_replay_dma_entry(dma_entry_head);
     dma_entry_head = dma_entry_head->next;
 

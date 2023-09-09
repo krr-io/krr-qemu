@@ -80,6 +80,17 @@ typedef struct SyncClocks {
 static int64_t max_delay;
 static int64_t max_advance;
 
+static bool should_log_trace(void)
+{
+    return get_replayed_event_num() >= 148;
+    // return false;
+}
+
+static bool should_manual_breakpoint(target_ulong pc)
+{
+    return false;
+}
+
 static void align_clocks(SyncClocks *sc, CPUState *cpu)
 {
     int64_t cpu_icount;
@@ -894,11 +905,11 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 {
     int32_t insns_left;
 
-    // if (get_replayed_event_num() >= 2236) {
-    //     log_regs(cpu);
-    //     log_tb(cpu, tb);
-    //     qemu_log("Finished TB execution\n");
-    // }
+    if (should_log_trace()) {
+        log_regs(cpu);
+        log_tb(cpu, tb);
+        qemu_log("Finished TB execution\n");
+    }
 
     trace_exec_tb(tb, tb->pc);
     tb = cpu_tb_exec(cpu, tb, tb_exit);
@@ -945,6 +956,7 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 }
 
 /* main execution loop */
+bool breaked = false;
 
 int cpu_exec(CPUState *cpu)
 {
@@ -1033,6 +1045,11 @@ int cpu_exec(CPUState *cpu)
                 cpu->cflags_next_tb = -1;
             }
 
+            if (should_log_trace() && should_manual_breakpoint(pc) && !breaked) {
+                cpu->cause_debug = 1;
+                breaked = true;
+            }
+
             if (check_for_breakpoints(cpu, pc, &cflags)) {
                 break;
             }
@@ -1107,10 +1124,10 @@ int cpu_exec(CPUState *cpu)
                 rr_do_replay_exception_end(cpu);
             }
 
-            // if (get_replayed_event_num() >= 2236) {
-            //     qemu_log("\nExecute TB:\n");
-            //     qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
-            // }
+            if (should_log_trace()) {
+                qemu_log("\nExecute TB:\n");
+                qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+            }
 
             if (tb->pc != cpu->last_pc) {
                 cpu->rr_executed_inst++;

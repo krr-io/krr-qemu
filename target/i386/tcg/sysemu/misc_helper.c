@@ -40,7 +40,7 @@ target_ulong helper_inb(CPUX86State *env, uint32_t port)
     unsigned long input;
 
     // arch/x86/include/asm/shared/io.h:22
-    if (rr_in_replay() && env->eip != 0xffffffff81024032 && env->eip != 0xffffffff81023fc5) {
+    if (rr_in_replay() && env->eip != 0xffffffff81023c52 && env->eip != 0xffffffff81023be5) {
         rr_do_replay_io_input(env_cpu(env), &input);
         return input;
     }
@@ -529,18 +529,27 @@ void QEMU_NORETURN helper_mwait(CPUX86State *env, int next_eip_addend)
 
 void helper_vmcall(CPUX86State *env)
 {
+    uint8_t nr;
+    CPUState *cs = env_cpu(env);
+
     qemu_log("Vmcall called, a0=0x%lx, a1=0x%lx, a2=0x%lx, a3=0x%lx\n",
              env->regs[R_EAX], env->regs[R_EBX], env->regs[R_ECX], env->regs[R_EDX]);
     
-    CPUState *cs = env_cpu(env);
+    nr = env->regs[R_EAX];
 
-    if (env->regs[R_EAX] == KVM_HC_RR_RANDOM) {
-        rr_do_replay_rand(cs);
-        return;
+    switch (nr) {
+        case KVM_HC_RR_RANDOM:
+            rr_do_replay_rand(cs);
+            return;
+        case KVM_HC_RR_STRNCPY:
+            // Ignore
+            return;
+        case KVM_HC_RR_DATA_IN:
+            rr_do_replay_cfu(cs);
+            return;
+        case KVM_HC_RR_GETUSER:
+            rr_do_replay_gfu(cs);
+            return;
     }
-
-    if (env->regs[R_EAX] != KVM_HC_RR_STRNCPY)
-        rr_do_replay_cfu(cs);
-
     return;
 }

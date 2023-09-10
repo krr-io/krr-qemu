@@ -11,6 +11,8 @@
 #define EVENT_TYPE_RANDOM    5
 #define EVENT_TYPE_RDTSC     6
 #define EVENT_TYPE_DMA_DONE  7
+#define EVENT_TYPE_GFU       8
+
 
 enum REGS {
     ZERO,
@@ -53,6 +55,10 @@ typedef struct {
 } rr_cfu;
 
 typedef struct {
+    unsigned long val;
+} rr_gfu;
+
+typedef struct {
     lapic_log lapic;
 } rr_interrupt;
 
@@ -83,6 +89,7 @@ typedef struct rr_event_log_t{
         rr_io_input io_input;
         rr_cfu cfu;
         rr_random rand;
+        rr_gfu gfu;
     } event;
     struct rr_event_log_t *next;
     uint64_t inst_cnt;

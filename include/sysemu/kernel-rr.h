@@ -15,16 +15,18 @@
 #define SYSCALL 0xffffffff81800000
 #define COPY_FROM_ITER 0xffffffff8144af4a
 #define COPY_FROM_USER 0xffffffff814528c0
-#define STRNCPY_FROM_USER 0xffffffff81455b00
+// #define STRNCPY_FROM_USER 0xffffffff81455b00
+#define STRNCPY_FROM_USER 0xffffffff814456f0
 #define GET_FROM_USER 0xffffffff816c2220
-#define STRLEN_USER 0xffffffff81455ce2
+#define STRLEN_USER 0xffffffff814458d2
 #define RANDOM_GEN 0xffffffff81533800
 #define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff8144dd68
-#define PF_EXEC 0xffffffff816fa920
+#define PF_EXEC 0xffffffff81700a20
 
-
+#define KVM_HC_RR_DATA_IN           13
 #define KVM_HC_RR_STRNCPY			14
 #define KVM_HC_RR_RANDOM			15
+#define KVM_HC_RR_GETUSER			16
 
 
 // #define SYSCALL 0xffffffff81200000
@@ -59,6 +61,7 @@ void rr_do_replay_syscall(CPUState *cpu);
 void rr_do_replay_exception(CPUState *cpu);
 void rr_do_replay_exception_end(CPUState *cpu);
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc);
+void rr_do_replay_gfu(CPUState *cpu);
 
 int rr_get_next_event_type(void);
 unsigned long rr_get_next_event_rip(void);

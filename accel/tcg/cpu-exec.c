@@ -1105,8 +1105,7 @@ int cpu_exec(CPUState *cpu)
             //     }
             // }
 
-            if (rr_in_replay() && (tb->pc == GET_FROM_USER \
-                || tb->pc == STRNCPY_FROM_USER || tb->pc == STRLEN_USER)) {
+            if (rr_in_replay() && (tb->pc == STRNCPY_FROM_USER || tb->pc == STRLEN_USER)) {
                 // qemu_log("Next replay cfu\n");
                 rr_do_replay_cfu(cpu);
             }

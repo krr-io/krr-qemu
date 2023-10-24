@@ -107,6 +107,14 @@ typedef struct rr_dma_entry_t {
     int replayed_sgs;
 } rr_dma_entry;
 
+typedef struct rr_event_guest_queue_header_t {
+    unsigned int current_pos;
+    unsigned int total_pos;
+    unsigned int header_size;
+    unsigned int entry_size;
+    unsigned int rr_enabled;
+} rr_event_guest_queue_header;
+
 rr_mem_log *rr_mem_log_new(void);
 void append_mem_log(rr_mem_log *mem_log);
 void rr_memlog_post_record(void);
@@ -120,4 +128,6 @@ int get_md5sum(void* buffer,
 unsigned long get_checksum(sg_addr *buffer, unsigned long buffersize);
 int rr_pop_next_event_type(int event_type);
 void inc_replayed_number(void);
+
+void rr_register_ivshmem(RAMBlock *rb);
 #endif /* KERNEL_RR_H */

@@ -1112,11 +1112,9 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
     hmp_handle_error(mon, err);
 
     printf("Snapshot taken, start recording...\n");
-    // rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
-    kvm_start_record();
-    rr_insert_breakpoints();
 
-    // vm_stop(RUN_STATE_DEBUG);
+    kvm_start_record();
+
     vm_start();
 
     // hmp_handle_error(mon, err);

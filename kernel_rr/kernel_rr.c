@@ -63,6 +63,10 @@ static int gdb_stopped = 1;
 // int64_t replay_start_time = 0;
 static unsigned long dirty_page_num = 0;
 
+static void *ivshmem_base_addr = NULL;
+
+static void rr_ivshmem_set_rr_enabled(int enabled);
+
 void rr_fake_call(void){return;}
 
 
@@ -303,6 +307,7 @@ void rr_set_record(int record)
         pre_record();
     }
 
+    rr_ivshmem_set_rr_enabled(record);
     g_rr_in_record = record;
 }
 
@@ -1125,4 +1130,22 @@ void rr_replay_dma_entry(void)
     qemu_log("DMA_Replay: Replaying dma\n");
     printf("Replaying dma\n");
     rr_replay_next_dma();
+}
+
+
+void rr_register_ivshmem(RAMBlock *rb)
+{
+    ivshmem_base_addr = rb->host;
+
+    rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
+    printf("Host addr for shared memory: %p\nHeader info:\ntotal_pos=%u\nrr_endabled=%u\n",
+           ivshmem_base_addr, header->total_pos, header->rr_enabled);
+}
+
+
+static void rr_ivshmem_set_rr_enabled(int enabled)
+{
+    rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
+
+    header->rr_enabled = enabled;
 }

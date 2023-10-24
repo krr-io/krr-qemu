@@ -40,6 +40,8 @@
 #include "hw/misc/ivshmem.h"
 #include "qom/object.h"
 
+#include "sysemu/kernel-rr.h"
+
 #define PCI_VENDOR_ID_IVSHMEM   PCI_VENDOR_ID_REDHAT_QUMRANET
 #define PCI_DEVICE_ID_IVSHMEM   0x1110
 
@@ -915,6 +917,9 @@ static void ivshmem_common_realize(PCIDevice *dev, Error **errp)
                      PCI_BASE_ADDRESS_MEM_PREFETCH |
                      PCI_BASE_ADDRESS_MEM_TYPE_64,
                      s->ivshmem_bar2);
+    
+    // printf("bar address %u\n", *s->ivshmem_bar2->ram_block->host);
+    rr_register_ivshmem(s->ivshmem_bar2->ram_block);
 }
 
 static void ivshmem_exit(PCIDevice *dev)

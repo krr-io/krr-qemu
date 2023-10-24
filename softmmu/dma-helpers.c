@@ -167,11 +167,11 @@ static void dma_blk_cb(void *opaque, int ret)
             rr_check_dma_sg(dbs->sg->sg[dbs->sg_cur_index], dbs->sg);
         }
 
-        if (rr_in_record()) {
-            qemu_log("record dma_addr=0x%lx, len=%lu\n",
-                     dbs->sg->sg[dbs->sg_cur_index].base,
-                     dbs->sg->sg[dbs->sg_cur_index].len);
-        }
+        // if (rr_in_record()) {
+        //     qemu_log("record dma_addr=0x%lx, len=%lu\n",
+        //              dbs->sg->sg[dbs->sg_cur_index].base,
+        //              dbs->sg->sg[dbs->sg_cur_index].len);
+        // }
 
         dbs->sg_cur_byte += cur_len;
         if (dbs->sg_cur_byte == dbs->sg->sg[dbs->sg_cur_index].len) {

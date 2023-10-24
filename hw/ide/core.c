@@ -928,9 +928,9 @@ static void ide_dma_cb(void *opaque, int ret)
         s->nsector -= n;
     }
 
-    if (rr_in_record() || rr_in_replay()) {
-        qemu_log("ide_dma_cb: nsector=%u\n", s->nsector);
-    }
+    // if (rr_in_record() || rr_in_replay()) {
+    //     qemu_log("ide_dma_cb: nsector=%u\n", s->nsector);
+    // }
 
     /* end of transfer ? */
     if (s->nsector == 0) {

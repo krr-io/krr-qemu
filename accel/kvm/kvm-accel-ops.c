@@ -40,13 +40,13 @@
 
 
 const unsigned long syscall_addr = 0xffffffff81800000; // info addr entry_SYSCALL_64
-const unsigned long pf_excep_addr = 0xffffffff81700a20; // info addr exc_page_fault
+const unsigned long pf_excep_addr = 0xffffffff81741960; // info addr exc_page_fault
 const unsigned long copy_from_iter_addr = 0xffffffff8144af0d; // lib/iov_iter.c:186
 const unsigned long copy_from_user_addr = 0xffffffff814528e7; // lib/usercopy.c:21
 const unsigned long copy_page_from_iter_addr = 0xffffffff8144dd7e;
 const unsigned long strncpy_addr = 0xffffffff81483732; // lib/strncpy_from_user.c:141
 const unsigned long get_user_addr = 0xffffffff816c2220; // arch/x86/lib/getuser.S:103
-const unsigned long strnlen_user_addr = 0xffffffff814458d2; // lib/strnlen_user.c:115
+const unsigned long strnlen_user_addr = 0xffffffff8146bb66; // lib/strnlen_user.c:115
 
 // const unsigned long random_bytes_addr_start = 0xffffffff81533620; // b _get_random_bytes
 // const unsigned long random_bytes_addr_end = 0xffffffff815337c0; // b drivers/char/random.c:382

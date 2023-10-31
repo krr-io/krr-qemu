@@ -58,7 +58,7 @@ static void log_addr_md5(void *ptr, size_t len, dma_addr_t base)
 
     for (int j=0; j < len; j+=4096) {
         get_md5sum(ptr + j, 4096, md5_v);
-        qemu_log("md5 for dma addr 0x%lx %d is %s\n", base, j, md5_v);
+        // qemu_log("md5 for dma addr 0x%lx %d is %s\n", base, j, md5_v);
     }
 }
 

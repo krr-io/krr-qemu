@@ -3289,8 +3289,11 @@ int kvm_remove_hypercall(CPUState *cpu, target_ulong addr)
 static void do_kvm_cpu_start_record(CPUState *cpu, run_on_cpu_data arg)
 {
     int r = 0;
+    struct rr_record_data data = {
+        .shm_base_addr = rr_get_shm_addr()
+    };
 
-    r = kvm_vcpu_ioctl(cpu, KVM_START_RECORD);
+    r = kvm_vcpu_ioctl(cpu, KVM_START_RECORD, &data);
 
     if (r) {
         printf("failed to start record %d\n", r);
@@ -3470,7 +3473,7 @@ int kvm_end_record(void) {
         rr_finish_mem_log();
 
     rr_set_record(0);
-    rr_get_vcpu_events();
+    // rr_get_vcpu_events();
     rr_post_record();
 
 

@@ -43,10 +43,6 @@ typedef struct {
 } lapic_log;
 
 typedef struct {
-    unsigned long value;
-} rr_io_input;
-
-typedef struct {
     unsigned long src_addr;
     unsigned long dest_addr;
     unsigned long len;
@@ -55,12 +51,18 @@ typedef struct {
 } rr_cfu;
 
 typedef struct {
+    unsigned long value;
+} rr_io_input;
+
+typedef struct {
+    unsigned int vector;
+    unsigned long ecx;
+} rr_interrupt;
+
+typedef struct {
     unsigned long val;
 } rr_gfu;
 
-typedef struct {
-    lapic_log lapic;
-} rr_interrupt;
 
 typedef struct {
     int exception_index;
@@ -129,5 +131,34 @@ void rr_finish_mem_log(void);
 void rr_load_mem_logs(void);
 int rr_mem_logs_enabled(void);
 void rr_enable_mem_logs(void);
+
+struct rr_record_data {
+    unsigned long shm_base_addr;
+};
+
+typedef struct rr_event_guest_queue_header_t {
+    unsigned int current_pos;
+    unsigned int total_pos;
+    unsigned int header_size;
+    unsigned int entry_size;
+    unsigned int rr_enabled;
+} rr_event_guest_queue_header;
+
+
+typedef struct rr_event_log_guest_t {
+    int type;
+    int id;
+    union {
+        rr_interrupt interrupt;
+        rr_exception exception;
+        rr_syscall  syscall;
+        rr_io_input io_input;
+        rr_cfu cfu;
+        rr_random rand;
+        rr_gfu gfu;
+    } event;
+    unsigned long inst_cnt;
+    unsigned long rip;
+} rr_event_log_guest;
 
 #endif

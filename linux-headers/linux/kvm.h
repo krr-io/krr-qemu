@@ -1629,7 +1629,7 @@ struct kvm_enc_region {
 /* Available with KVM_CAP_XSAVE2 */
 #define KVM_GET_XSAVE2		  _IOR(KVMIO,  0xcf, struct kvm_xsave)
 
-#define KVM_START_RECORD	_IO(KVMIO, 0xd0)
+#define KVM_START_RECORD	_IOW(KVMIO, 0xd0, struct rr_record_data)
 #define KVM_END_RECORD		_IO(KVMIO, 0xd1)
 #define KVM_START_REPLAY    _IO(KVMIO, 0xd2)
 #define KVM_END_REPLAY    	_IO(KVMIO, 0xd3)

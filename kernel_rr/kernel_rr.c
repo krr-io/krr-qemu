@@ -67,6 +67,7 @@ static void *ivshmem_base_addr = NULL;
 
 static void rr_ivshmem_set_rr_enabled(int enabled);
 static void rr_read_shm_events(void);
+static void rr_reset_ivshmem(void);
 
 void rr_fake_call(void){return;}
 
@@ -811,6 +812,8 @@ void rr_post_record(void)
     rr_save_events();
     rr_dma_post_record();
     rr_memlog_post_record();
+
+    rr_reset_ivshmem();
 }
 
 // void rr_pre_replay(void)
@@ -1264,7 +1267,19 @@ static void rr_ivshmem_set_rr_enabled(int enabled)
 {
     rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
 
+    if (enabled)
+        printf("enabled in ivshmem\n");
+    else
+        printf("disabled in ivshmem\n");
+
     header->rr_enabled = enabled;
+}
+
+static void rr_reset_ivshmem(void)
+{
+    rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
+
+    header->current_pos = 0;
 }
 
 unsigned long rr_get_shm_addr(void)

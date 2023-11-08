@@ -111,19 +111,19 @@ void rr_insert_breakpoints(void)
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
-        bp_ret = kvm_insert_breakpoint(cpu, syscall_addr, 1, GDB_BREAKPOINT_HW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for syscall: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for system call\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, syscall_addr, 1, GDB_BREAKPOINT_HW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for syscall: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for system call\n");
+        // }
 
-        bp_ret = kvm_insert_breakpoint(cpu, pf_excep_addr, 1, GDB_BREAKPOINT_HW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for pf: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for page faults\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, pf_excep_addr, 1, GDB_BREAKPOINT_HW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for pf: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for page faults\n");
+        // }
 
         // bp_ret = kvm_insert_breakpoint(cpu, copy_page_from_iter_addr, 1, GDB_BREAKPOINT_HW);
         // if (bp_ret > 0) {
@@ -160,12 +160,12 @@ void rr_insert_breakpoints(void)
         //     printf("Inserted breakpoints for get_user\n");
         // }
 
-        bp_ret = kvm_insert_breakpoint(cpu, strnlen_user_addr, 1, GDB_BREAKPOINT_HW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for strnlen_user_addr: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for strnlen_user_addr\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, strnlen_user_addr, 1, GDB_BREAKPOINT_HW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for strnlen_user_addr: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for strnlen_user_addr\n");
+        // }
 
         // bp_ret = kvm_insert_breakpoint(cpu, random_bytes_addr_start, 1, GDB_BREAKPOINT_SW);
         // if (bp_ret > 0) {

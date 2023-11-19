@@ -902,6 +902,8 @@ static void ivshmem_common_realize(PCIDevice *dev, Error **errp)
         s->master = s->vm_id == 0 ? ON_OFF_AUTO_ON : ON_OFF_AUTO_OFF;
     }
 
+    s->master = ON_OFF_AUTO_ON;
+
     if (!ivshmem_is_master(s)) {
         error_setg(&s->migration_blocker,
                    "Migration is disabled when using feature 'peer mode' in device 'ivshmem'");

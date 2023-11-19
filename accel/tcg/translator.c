@@ -61,11 +61,11 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
 {
     uint32_t cflags = tb_cflags(tb);
     bool plugin_enabled;
-    X86CPU *x86_cpu;
-    CPUArchState *env;
+    // X86CPU *x86_cpu;
+    // CPUArchState *env;
 
-    x86_cpu = X86_CPU(cpu);
-    env = &x86_cpu->env;
+    // x86_cpu = X86_CPU(cpu);
+    // env = &x86_cpu->env;
 
     /* Initialize DisasContext */
     db->tb = tb;
@@ -86,7 +86,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
 // retry:
         rr_event_log *log = rr_get_next_event();
         int next_event = log->type;
-        uint64_t inst_cnt = log->inst_cnt;
+        // uint64_t inst_cnt = log->inst_cnt;
 
         switch(next_event) {
             case EVENT_TYPE_SYSCALL:
@@ -96,22 +96,20 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
                 break;
             case EVENT_TYPE_INTERRUPT:
                 tb->jump_next_event = EVENT_TYPE_INTERRUPT;
-                cpu->rr_executed_inst = inst_cnt;
-                env->eip = rr_get_next_event_rip();
+                // env->eip = rr_get_next_event_rip();
                 break;
             case EVENT_TYPE_EXCEPTION:
                 tb->jump_next_event = EVENT_TYPE_EXCEPTION;
-                cpu->rr_executed_inst = inst_cnt;
                 qemu_log("Next event exception\n");
                 break;
             default:
                 qemu_log("Unexpected next event %d, rip=0x%lx\n", next_event, log->rip);
                 printf("Unexpected next event %d, rip=0x%lx\n", next_event, log->rip);
-                exit(1);
-                return;
-                // rr_pop_event_head();
+                // exit(1);
+                // return;
+                // rr_pop_event_head();s
                 // goto retry;
-                // abort();
+                abort();
         }
     }
 

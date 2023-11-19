@@ -40,7 +40,7 @@ target_ulong helper_inb(CPUX86State *env, uint32_t port)
     unsigned long input;
 
     // arch/x86/include/asm/shared/io.h:22
-    if (rr_in_replay() && env->eip != 0xffffffff81023c52 && env->eip != 0xffffffff81023be5) {
+    if (rr_in_replay() && env->eip != 0xffffffff81025656 && env->eip != 0xffffffff810255e5) {
         rr_do_replay_io_input(env_cpu(env), &input);
         return input;
     }
@@ -539,7 +539,7 @@ void helper_vmcall(CPUX86State *env)
 
     switch (nr) {
         case KVM_HC_RR_RANDOM:
-            rr_do_replay_rand(cs);
+            rr_do_replay_rand(cs, 1);
             return;
         case KVM_HC_RR_STRNCPY:
             // Ignore

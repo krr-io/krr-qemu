@@ -12,16 +12,25 @@
 // #include "sysemu/dma.h"
 
 
-#define SYSCALL 0xffffffff81800000
-#define COPY_FROM_ITER 0xffffffff8144af4a
-#define COPY_FROM_USER 0xffffffff814528c0
-// #define STRNCPY_FROM_USER 0xffffffff81455b00
-#define STRNCPY_FROM_USER 0xffffffff814456f0
-#define GET_FROM_USER 0xffffffff816c2220
-#define STRLEN_USER 0xffffffff814458d2
-#define RANDOM_GEN 0xffffffff81533800
-#define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff8144dd68
-#define PF_EXEC 0xffffffff81700a20
+#define STRNCPY_FROM_USER 0xffffffff81464570 // info addr strncpy_from_user
+#define STRNLEN_USER 0xffffffff81464774
+#define RANDOM_GEN 0xffffffff810305b0  // info addr rr_record_random
+#define PF_EXEC  0xffffffff81737750
+#define PF_EXEC_END 0xffffffff817379ea // b fault.c:1580
+#define RR_RECORD_CFU 0xffffffff81030620 // info addr rr_record_cfu
+#define RR_RECORD_GFU 0xffffffff816fd5a4 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff816fd5fd // b getuser.S:147
+#define RR_GFU_NOCHECK8 0xffffffff816fd61e // b getuser.S:162
+
+#define SYSCALL_ENTRY 0xffffffff81800000 // info addr entry_SYSCALL_64
+#define SYSCALL_EXIT 0xffffffff81737f60 // info addr syscall_exit_to_user_mode
+#define PF_ASM_EXC 0xffffffff81800b30  // info addr asm_exc_page_fault
+
+#define IO_IN_START 0xffffffff8148d8fd
+#define IO_IN_END 0xffffffff8148d8db
+
+#define IRQ_ENTRY 0xffffffff81737e80
+#define IRQ_EXIT 0xffffffff81737fd0
 
 #define KVM_HC_RR_DATA_IN           13
 #define KVM_HC_RR_STRNCPY			14
@@ -52,7 +61,7 @@ int get_replayed_event_num(void);
 void rr_replay_interrupt(CPUState *cpu, int *interrupt);
 void rr_do_replay_intno(CPUState *cpu, int *intno);
 void rr_do_replay_cfu(CPUState *cpu);
-void rr_do_replay_rand(CPUState *cpu);
+void rr_do_replay_rand(CPUState *cpu, int hypercall);
 
 uint64_t rr_num_instr_before_next_interrupt(void);
 int rr_is_syscall_ready(CPUState *cpu);
@@ -60,6 +69,8 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input);
 void rr_do_replay_syscall(CPUState *cpu);
 void rr_do_replay_exception(CPUState *cpu);
 void rr_do_replay_exception_end(CPUState *cpu);
+void rr_do_replay_strncpy_from_user(CPUState *cpu);
+void rr_post_replay_exception(CPUState *cpu);
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc);
 void rr_do_replay_gfu(CPUState *cpu);
 
@@ -81,6 +92,9 @@ int rr_is_gdb_stopped(void);
 void sync_dirty_pages(CPUState *cpu);
 void rr_init_dirty_bitmaps(void);
 void rr_store_op(CPUArchState *env, unsigned long addr);
+unsigned long rr_get_inst_cnt(CPUState *cpu);
+void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long inst_cnt);
+void rr_do_replay_strnlen_user(CPUState *cpu);
 
 typedef uint64_t sg_addr;
 
@@ -123,4 +137,6 @@ void inc_replayed_number(void);
 
 void rr_register_ivshmem(RAMBlock *rb);
 unsigned long rr_get_shm_addr(void);
+void rr_ivshmem_set_rr_enabled(int enabled);
+int rr_inc_inst(CPUState *cpu, unsigned long next_pc);
 #endif /* KERNEL_RR_H */

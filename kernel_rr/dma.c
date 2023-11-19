@@ -156,9 +156,8 @@ static void persist_dma_log(rr_dma_entry *log, FILE *fptr) {
 
     fwrite(log, sizeof(rr_dma_entry), 1, fptr);
 
-    qemu_log("Persist log entry\n");
-
     for (i = 0; i < log->len; i++) {
+        qemu_log("Persist log sg: 0x%lx\n", log->sgs[i]->addr);
         log_addr_md5(log->sgs[i]->buf, log->sgs[i]->len, log->sgs[i]->addr);
         persist_dma_buf(log->sgs[i], fptr);
     }
@@ -297,10 +296,10 @@ void rr_dma_pre_replay(int dma_event_num)
         entry_num++;
     }
 
-    if (entry_num != dma_event_num) {
-        printf("DMA entry number %d, dma event number %d, not equal\n", entry_num, dma_event_num);
-        exit(1);
-    }
+    // if (entry_num != dma_event_num) {
+    //     printf("DMA entry number %d, dma event number %d, not equal\n", entry_num, dma_event_num);
+    //     exit(1);
+    // }
 
     printf("dma entry number: %d\n", entry_num);
 }

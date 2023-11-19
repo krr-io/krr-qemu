@@ -12,6 +12,7 @@
 #define EVENT_TYPE_RDTSC     6
 #define EVENT_TYPE_DMA_DONE  7
 #define EVENT_TYPE_GFU       8
+#define EVENT_TYPE_STRNLEN   9
 
 
 enum REGS {

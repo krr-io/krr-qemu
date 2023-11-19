@@ -1105,7 +1105,7 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
     Error *err = NULL;
 
     vm_stop(RUN_STATE_PAUSED);
-
+    rr_ivshmem_set_rr_enabled(1);
     printf("Paused VM, start taking snapshot\n");
     save_snapshot(qdict_get_try_str(qdict, "name"), true, NULL, false, NULL, &err);
 
@@ -1113,6 +1113,7 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
 
     printf("Snapshot taken, start recording...\n");
 
+    rr_insert_breakpoints();
     kvm_start_record();
 
     vm_start();

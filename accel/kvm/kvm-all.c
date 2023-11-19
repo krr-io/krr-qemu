@@ -3445,6 +3445,20 @@ int rr_get_vcpu_events(void)
     return 0;
 }
 
+unsigned long rr_get_inst_cnt(CPUState *cpu)
+{
+    unsigned long res;
+    int r;
+
+    r = kvm_vcpu_ioctl(cpu, KVM_RR_GET_INST_CNT, &res);
+    if (r) {
+        printf("failed to get inst cnt: %d\n", r);
+        return -1;
+    }
+
+    return res;
+}
+
 int kvm_start_record(void)
 {
     CPUState *cpu;

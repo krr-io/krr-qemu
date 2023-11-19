@@ -440,6 +440,7 @@ struct CPUState {
     uint64_t last_pc;
 
     int cause_debug;
+    bool force_interrupt;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

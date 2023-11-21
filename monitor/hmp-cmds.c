@@ -1103,9 +1103,18 @@ void hmp_savevm(Monitor *mon, const QDict *qdict)
 void hmp_rr_record(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
+    int enable_trace;
+    bool autostart = false;
 
-    vm_stop(RUN_STATE_PAUSED);
+    enable_trace = qdict_get_try_int(qdict, "trace", 0);
+
+    if (runstate_is_running()){
+        autostart = true;
+        vm_stop(RUN_STATE_PAUSED);
+    }
+
     rr_ivshmem_set_rr_enabled(1);
+
     printf("Paused VM, start taking snapshot\n");
     save_snapshot(qdict_get_try_str(qdict, "name"), true, NULL, false, NULL, &err);
 
@@ -1113,10 +1122,14 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
 
     printf("Snapshot taken, start recording...\n");
 
-    rr_insert_breakpoints();
+    if (enable_trace) {
+        printf("Trace is enabled, performance will be slow\n");
+        rr_insert_breakpoints();
+    }
     kvm_start_record();
 
-    vm_start();
+    if (autostart)
+        vm_start();
 
     // hmp_handle_error(mon, err);
 }

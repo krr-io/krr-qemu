@@ -26,6 +26,7 @@
 #include "qapi/error.h"
 #include "qemu/guest-random.h"
 #include "helper-tcg.h"
+#include "sysemu/kernel-rr.h"
 
 //#define DEBUG_MULDIV
 
@@ -480,13 +481,17 @@ target_ulong HELPER(rdrand)(CPUX86State *env)
     Error *err = NULL;
     target_ulong ret;
 
-    if (qemu_guest_getrandom(&ret, sizeof(ret), &err) < 0) {
-        qemu_log_mask(LOG_UNIMP, "rdrand: Crypto failure: %s",
-                      error_get_pretty(err));
-        error_free(err);
-        /* Failure clears CF and all other flags, and returns 0.  */
-        env->cc_src = 0;
-        return 0;
+    if (rr_in_replay()) {
+        rr_do_replay_rdseed(&ret);
+    } else {
+        if (qemu_guest_getrandom(&ret, sizeof(ret), &err) < 0) {
+            qemu_log_mask(LOG_UNIMP, "rdrand: Crypto failure: %s",
+                        error_get_pretty(err));
+            error_free(err);
+            /* Failure clears CF and all other flags, and returns 0.  */
+            env->cc_src = 0;
+            return 0;
+        }
     }
 
     /* Success sets CF and clears all others.  */

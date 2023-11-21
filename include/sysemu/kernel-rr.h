@@ -12,25 +12,25 @@
 // #include "sysemu/dma.h"
 
 
-#define STRNCPY_FROM_USER 0xffffffff81464570 // info addr strncpy_from_user
-#define STRNLEN_USER 0xffffffff81464774
+#define STRNCPY_FROM_USER 0xffffffff81464710 // info addr strncpy_from_user
+#define STRNLEN_USER 0xffffffff81464914 // b lib/strnlen_user.c:116
 #define RANDOM_GEN 0xffffffff810305b0  // info addr rr_record_random
-#define PF_EXEC  0xffffffff81737750
-#define PF_EXEC_END 0xffffffff817379ea // b fault.c:1580
+#define PF_EXEC  0xffffffff817f32a0    // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff817f353a // b fault.c:1580
 #define RR_RECORD_CFU 0xffffffff81030620 // info addr rr_record_cfu
-#define RR_RECORD_GFU 0xffffffff816fd5a4 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff816fd5fd // b getuser.S:147
-#define RR_GFU_NOCHECK8 0xffffffff816fd61e // b getuser.S:162
+#define RR_RECORD_GFU 0xffffffff817b8764 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff817b87bd // b getuser.S:147
+#define RR_GFU_NOCHECK8 0xffffffff817b87de // b getuser.S:162
 
 #define SYSCALL_ENTRY 0xffffffff81800000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff81737f60 // info addr syscall_exit_to_user_mode
+#define SYSCALL_EXIT 0xffffffff817f3ab0 // info addr syscall_exit_to_user_mode
 #define PF_ASM_EXC 0xffffffff81800b30  // info addr asm_exc_page_fault
 
 #define IO_IN_START 0xffffffff8148d8fd
 #define IO_IN_END 0xffffffff8148d8db
 
-#define IRQ_ENTRY 0xffffffff81737e80
-#define IRQ_EXIT 0xffffffff81737fd0
+#define IRQ_ENTRY 0xffffffff810580c0 // info addr irq_enter
+#define IRQ_EXIT 0xffffffff810580e0  // info addr irq_exit
 
 #define KVM_HC_RR_DATA_IN           13
 #define KVM_HC_RR_STRNCPY			14
@@ -62,6 +62,7 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt);
 void rr_do_replay_intno(CPUState *cpu, int *intno);
 void rr_do_replay_cfu(CPUState *cpu);
 void rr_do_replay_rand(CPUState *cpu, int hypercall);
+void rr_do_replay_rdseed(unsigned long *val);
 
 uint64_t rr_num_instr_before_next_interrupt(void);
 int rr_is_syscall_ready(CPUState *cpu);

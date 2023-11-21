@@ -45,6 +45,7 @@ static int event_gfu_num = 0;
 static int event_random_num = 0;
 static int event_dma_done = 0;
 static int event_strnlen = 0;
+static int event_rdseed_num = 0;
 
 static int started_replay = 0;
 static int initialized_replay = 0;
@@ -88,7 +89,7 @@ static int get_total_events_num(void)
 {
     return event_interrupt_num + event_syscall_num + event_exception_num + \
            event_cfu_num + event_random_num + event_io_input_num + \
-           event_dma_done + event_gfu_num + event_strnlen;
+           event_dma_done + event_gfu_num + event_strnlen + event_rdseed_num;
 }
 
 static void rr_init_ram_bitmaps(void) {
@@ -137,7 +138,7 @@ static void finish_replay(void)
 }
 
 static void pre_record(void) {
-    printf("Removing existing log files\n");
+    printf("Removing existing log files: %s\n", kernel_rr_log);
     remove(kernel_rr_log);
 
     rr_pre_mem_record();
@@ -507,6 +508,7 @@ void rr_do_replay_strncpy_from_user(CPUState *cpu)
                    node->event.cfu.src_addr, ret, node->event.cfu.len);
             if (ret == -1 && !kernel_user_access_pf) {
                 kernel_user_access_pf = true;
+                printf("Save the strncpy entry for later\n");
                 return;
             } else {
                 abort();
@@ -585,6 +587,12 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
         qemu_log("GFU: val=%lu, rip=0x%lx, inst_cnt: %lu, number=%d\n",
                  event_record->event.gfu.val,
                  event_record->rip, event_record->inst_cnt, event_num);
+        event_gfu_num++;
+        break;
+    case EVENT_TYPE_RDSEED:
+        memcpy(&event_record->event.gfu, &event.event.gfu, sizeof(rr_gfu));
+        qemu_log("RDSEED: val=%lu, number=%d\n",
+                 event_record->event.gfu.val, event_num);
         event_gfu_num++;
         break;
     case EVENT_TYPE_CFU:
@@ -701,6 +709,11 @@ static rr_event_log *rr_event_log_new_from_event_shm(rr_event_log_guest event)
         qemu_log("DMA Done number=%d, inst_cnt=%lu\n", event_num, event_record->inst_cnt);
         event_dma_done++;
         break;
+    case EVENT_TYPE_RDSEED:
+        memcpy(&event_record->event.gfu, &event.event.gfu, sizeof(rr_gfu));
+        qemu_log("RDSEED: val=%lu\n", event_record->event.gfu.val);
+        event_rdseed_num++;
+        break;
     default:
         break;
     }
@@ -727,6 +740,22 @@ void rr_do_replay_rand(CPUState *cpu, int hypercall)
     if (hypercall) {
         buf_addr = rr_event_log_head->event.rand.buf;
         cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+
+        uint8_t data[1024];
+
+        qemu_log("Random: actual buf=0x%lx, len=%lu, recorded buf=0x%lx, len=%lu\n",
+                env->regs[R_EBX], env->regs[R_ECX],
+                rr_event_log_head->event.rand.buf, rr_event_log_head->event.rand.len);
+
+        ret = cpu_memory_rw_debug(cpu, env->regs[R_EBX], data, env->regs[R_ECX], false);
+        if (ret != 0) {
+            qemu_log("Failed to read from random memory\n");
+        } else {
+            if (memcmp(data, rr_event_log_head->event.rand.data, rr_event_log_head->event.rand.len))
+                qemu_log("Random data not equal\n");
+            else
+                qemu_log("Randoms are equal\n");
+        }
     } else {
         buf_addr = env->regs[R_EDI];
     }
@@ -827,9 +856,10 @@ void rr_print_events_stat(void)
     printf("=== Event Stats ===\n");
 
     printf("Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\nRandom: %d\n"
-           "IO Input: %d\nStrnlen: %d\nDMA IO: %d\n",
+           "IO Input: %d\nStrnlen: %d\nDMA IO: %d\nRDSEED: %d\n",
            event_interrupt_num, event_syscall_num, event_exception_num,
-           event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_strnlen, event_dma_done);
+           event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_strnlen,
+           event_dma_done, event_rdseed_num);
 
     total_event_number = get_total_events_num();
 
@@ -1231,6 +1261,24 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     printf("Replayed rdtsc=%lx, replayed event number=%d\n", *tsc, replayed_event_num);
 }
 
+void rr_do_replay_rdseed(unsigned long *val)
+{
+    if (rr_event_log_head->type != EVENT_TYPE_RDSEED) {
+        qemu_log("Expected rdseed, found %d", rr_event_log_head->type);
+        abort();
+        // cpu->cause_debug = true;
+        return;
+    }
+
+    qemu_log("Rplaying rdseed %lu\n", rr_event_log_head->event.gfu.val);
+
+    *val = rr_event_log_head->event.gfu.val;
+    rr_pop_event_head();
+
+    qemu_log("Replayed rdseed=%lu, replayed event number=%d\n", *val, replayed_event_num);
+    printf("Replayed rdseed=%lu, replayed event number=%d\n", *val, replayed_event_num);
+}
+
 void rr_do_replay_intno(CPUState *cpu, int *intno)
 {
     X86CPU *x86_cpu;
@@ -1408,7 +1456,7 @@ int rr_inc_inst(CPUState *cpu, unsigned long next_pc)
         cpu->rr_executed_inst++;
     }
 
-    if ((next_pc == 0xffffffff8148e79b) && env->regs[R_ECX] == 1) {
+    if ((next_pc == 0xffffffff8148e93b) && env->regs[R_ECX] == 1) {
         cpu->rr_executed_inst++;
     }
 

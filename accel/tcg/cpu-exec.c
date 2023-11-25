@@ -50,7 +50,6 @@
 #include "sysemu/kernel-rr.h"
 
 target_ulong raw_copy_from_user = 0xffffffff810b0b05;
-static bool io_in_started = false;
 
 
 // target_ulong cfu_addr1_exec = 0xffffffff810afc12;
@@ -1151,23 +1150,13 @@ int cpu_exec(CPUState *cpu)
                 }
             }
 
-            // if (get_replayed_event_num() >= 2036 && get_replayed_event_num() < 2037) {
-            //     rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-            // }
-
-            if (io_in_started)
-                rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-
             if (should_log_trace()) {
                 qemu_log("\nExecute TB:\n");
                 qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
             }
 
             rr_inc_inst(cpu, tb->pc);
-            // if ()) {
-            // if (tb->pc != cpu->last_pc) {
-            //     cpu->rr_executed_inst++;
-            // }
+
 
             cpu->last_pc = tb->pc;
 

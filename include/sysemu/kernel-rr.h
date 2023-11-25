@@ -14,8 +14,8 @@
 
 #define STRNCPY_FROM_USER 0xffffffff81464710 // info addr strncpy_from_user
 #define STRNLEN_USER 0xffffffff81464914 // b lib/strnlen_user.c:116
-#define RANDOM_GEN 0xffffffff810305b0  // info addr rr_record_random
-#define PF_EXEC  0xffffffff817f32a0    // info addr exc_page_fault
+#define RANDOM_GEN 0xffffffff810305b0 // info addr rr_record_random
+#define PF_EXEC 0xffffffff817f32a0 // info addr exc_page_fault
 #define PF_EXEC_END 0xffffffff817f353a // b fault.c:1580
 #define RR_RECORD_CFU 0xffffffff81030620 // info addr rr_record_cfu
 #define RR_RECORD_GFU 0xffffffff817b8764 // b getuser.S:103
@@ -24,29 +24,15 @@
 
 #define SYSCALL_ENTRY 0xffffffff81800000 // info addr entry_SYSCALL_64
 #define SYSCALL_EXIT 0xffffffff817f3ab0 // info addr syscall_exit_to_user_mode
-#define PF_ASM_EXC 0xffffffff81800b30  // info addr asm_exc_page_fault
-
-#define IO_IN_START 0xffffffff8148d8fd
-#define IO_IN_END 0xffffffff8148d8db
+#define PF_ASM_EXC 0xffffffff81800b30 // info addr asm_exc_page_fault
 
 #define IRQ_ENTRY 0xffffffff810580c0 // info addr irq_enter
-#define IRQ_EXIT 0xffffffff810580e0  // info addr irq_exit
+#define IRQ_EXIT 0xffffffff810580e0 // info addr irq_exit
 
 #define KVM_HC_RR_DATA_IN           13
 #define KVM_HC_RR_STRNCPY			14
 #define KVM_HC_RR_RANDOM			15
 #define KVM_HC_RR_GETUSER			16
-
-
-// #define SYSCALL 0xffffffff81200000
-// #define COPY_FROM_ITER 0xffffffff810afbf1
-// #define COPY_FROM_USER 0xffffffff810b4f7d
-// #define STRNCPY_FROM_USER 0xffffffff810cbc58
-// #define GET_FROM_USER 0xffffffff81118850
-// #define STRLEN_USER 0xffffffff810cbe4a
-// #define RANDOM_GEN 0xffffffff810e1e25
-// #define COPY_PAGE_FROM_ITER_ATOMIC 0xffffffff810b0af1
-// #define PF_EXEC 0xffffffff8111e369
 
 
 int rr_in_replay(void);

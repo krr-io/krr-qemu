@@ -814,14 +814,6 @@ void append_event(rr_event_log event)
 
 static void append_event_shm(rr_event_log_guest event)
 {
-    // if (rr_event_cur != NULL && 
-    //     event.type == EVENT_TYPE_IO_IN && 
-    //     rr_event_cur->type == EVENT_TYPE_IO_IN && 
-    //     event.inst_cnt == rr_event_cur->inst_cnt) {
-    //     qemu_log("Skip repetitive event %d\n", event.type);
-    //     return;
-    // }
-
     rr_event_log *event_record = rr_event_log_new_from_event_shm(event);
     if (rr_event_cur == NULL) {
         rr_event_log_head = event_record;
@@ -1195,16 +1187,6 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
     if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst) {
         qemu_log("Mismatched IO Input, expected inst cnt %lu, found %lu, rip=0x%lx\n",
                rr_event_log_head->inst_cnt, cpu->rr_executed_inst, rr_event_log_head->rip);
-        // if (rr_event_log_head->inst_cnt == cpu->rr_executed_inst || rr_event_log_head->inst_cnt == cpu->rr_executed_inst + 1) {
-        //     cpu->rr_executed_inst = rr_event_log_head->inst_cnt + 1;
-        // } else {
-        //     printf("Mismatched IO Input, expected inst cnt %lu, found %lu, logged rip= 0x%lx, actual rip=0x%lx\n",
-        //         rr_event_log_head->inst_cnt, cpu->rr_executed_inst, rr_event_log_head->rip, env->eip);
-        //     // rr_verify_dirty_mem(cpu);
-        //     // abort();
-        //     cpu->cause_debug = 1;
-        //     return;
-        // }
          cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
     }
 

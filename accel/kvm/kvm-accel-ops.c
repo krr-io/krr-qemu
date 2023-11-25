@@ -80,8 +80,6 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
         bp_addr != SYSCALL_EXIT && \
         bp_addr != PF_ASM_EXC && \
         bp_addr != PF_EXEC_END && \
-        bp_addr != IO_IN_START && \
-        bp_addr != IO_IN_END && \
         bp_addr != STRNCPY_FROM_USER && \
         bp_addr != STRNLEN_USER && \
         bp_addr != RR_RECORD_GFU && \

@@ -38,9 +38,13 @@ void helper_outb(CPUX86State *env, uint32_t port, uint32_t data)
 target_ulong helper_inb(CPUX86State *env, uint32_t port)
 {
     unsigned long input;
+    // KVM (record) does not cuase exit on PIC IMR inb and these two
+    // are not trapped, pass them through.
+    uint32_t PIC_MASTER_IMR = 0x21;
+    uint32_t PIC_SLAVE_IMR = 0xa1;
 
     // arch/x86/include/asm/shared/io.h:22
-    if (rr_in_replay() && env->eip != 0xffffffff8102794f && env->eip != 0xffffffff81027906) {
+    if (rr_in_replay() && port != PIC_MASTER_IMR && port != PIC_SLAVE_IMR) {
         rr_do_replay_io_input(env_cpu(env), &input);
         return input;
     }

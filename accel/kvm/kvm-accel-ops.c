@@ -62,6 +62,11 @@ unsigned long last_removed_addr = 0;
 target_ulong userspace_start = 0x0000000000000000;
 target_ulong userspace_end = 0x00007fffffffffff;
 
+static bool singlestep_started = false;
+static target_ulong singlestep_start = 0xffffffff810296c6;
+static target_ulong singlestep_end = 0xffffffff810296c6; 
+int count_num = 3;
+
 // static int syscall_seq = 0;
 
 static void rr_insert_userspace_int(CPUState *cs);
@@ -84,8 +89,10 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
         bp_addr != STRNLEN_USER && \
         bp_addr != RR_RECORD_GFU && \
         bp_addr != RR_RECORD_CFU && \
-        bp_addr == IRQ_ENTRY && \
-        bp_addr == IRQ_EXIT)
+        bp_addr != IRQ_ENTRY && \
+        bp_addr != IRQ_EXIT && \
+        bp_addr != singlestep_start && \
+        bp_addr != singlestep_end)
         return false;
 
     return true;
@@ -116,6 +123,20 @@ void rr_insert_breakpoints(void)
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
+        // bp_ret = kvm_insert_breakpoint(cpu, singlestep_start, 1, GDB_BREAKPOINT_HW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for syscall: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for system call\n");
+        // }
+
+        // bp_ret = kvm_insert_breakpoint(cpu, singlestep_end, 1, GDB_BREAKPOINT_HW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for syscall: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for system call\n");
+        // }
+
         bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_HW);
         if (bp_ret > 0) {
             printf("failed to insert bp for syscall: %d\n", bp_ret);
@@ -172,6 +193,8 @@ void rr_remove_breakpoints(void)
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
+        kvm_remove_breakpoint(cpu, singlestep_start, 1, GDB_BREAKPOINT_HW);
+        kvm_remove_breakpoint(cpu, singlestep_end, 1, GDB_BREAKPOINT_HW);
         kvm_remove_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_HW);
         kvm_remove_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_HW);
         // kvm_remove_breakpoint(cpu, copy_page_from_iter_addr, 1, GDB_BREAKPOINT_HW);
@@ -205,9 +228,38 @@ __attribute_maybe_unused__ static void rr_insert_userspace_int(CPUState *cs)
 
 __attribute_maybe_unused__ static void handle_bp_points(CPUState *cpu, target_ulong bp_addr)
 {
+    if (!count_num)
+        return;
+
     rr_handle_kernel_entry(cpu, bp_addr, rr_get_inst_cnt(cpu));
+
+    if (bp_addr == singlestep_start) {
+        if (!singlestep_started) {
+            singlestep_started = true;
+            // kvm_remove_breakpoint(cpu, bp_addr, 1, GDB_BREAKPOINT_HW);
+            // last_removed_addr = bp_addr;
+            // printf("singlestep started\n");
+        } else {
+            singlestep_started = false;
+            count_num--;
+
+            if (!count_num)
+                last_removed_addr = 0;
+        }
+
+    }
 }
 
+static void handle_singlestep(CPUState *cpu, target_ulong bp_addr)
+{
+    if (bp_addr == singlestep_end) {
+        count_num--;
+        if (!count_num)
+            last_removed_addr = 0;
+    }
+
+    rr_handle_kernel_entry(cpu, bp_addr, rr_get_inst_cnt(cpu));
+}
 
 __attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
 {
@@ -219,7 +271,15 @@ __attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
     if (!rr_in_record())
         return false;
 
+    if (!rr_is_address_interceptible(bp_addr))
+        return false;
+
     if (cpu->singlestep_enabled != 0) {
+        if (singlestep_started & count_num) {
+            handle_singlestep(cpu, bp_addr);
+            return true;
+        }
+
         if (last_removed_addr == 0) {
             return false;
         }

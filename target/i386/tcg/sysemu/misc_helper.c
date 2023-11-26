@@ -40,7 +40,7 @@ target_ulong helper_inb(CPUX86State *env, uint32_t port)
     unsigned long input;
 
     // arch/x86/include/asm/shared/io.h:22
-    if (rr_in_replay() && env->eip != 0xffffffff81025656 && env->eip != 0xffffffff810255e5) {
+    if (rr_in_replay() && env->eip != 0xffffffff8102794f && env->eip != 0xffffffff81027906) {
         rr_do_replay_io_input(env_cpu(env), &input);
         return input;
     }

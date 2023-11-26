@@ -67,6 +67,9 @@ def fetch_irq_entry():
 def fetch_irq_exit():
     return filter_info_addr("irq_exit")
 
+def fetch_gfu4():
+    return filter_loc_addr("getuser.S:88")
+
 
 handlers = {
     "STRNCPY_FROM_USER": fetch_strncpy_from_user,
@@ -83,6 +86,7 @@ handlers = {
     "PF_ASM_EXC": fetch_pf_asm_exec,
     "IRQ_ENTRY": fetch_irq_entry,
     "IRQ_EXIT": fetch_irq_exit,
+    "RR_GFU4": fetch_gfu4,
 }
 
 

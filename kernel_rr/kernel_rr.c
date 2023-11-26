@@ -1478,7 +1478,14 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
                      env->regs[R_EBP]);
             break;
         case IRQ_ENTRY:
-            qemu_log("check_trace irq entry: %lu\n", inst_cnt);
+            // qemu_log("check_trace irq entry: %lu\n", inst_cnt);
+            qemu_log("check_trace irq entry: %lu. regs: 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx\n",
+                     inst_cnt, env->regs[R_EAX],
+                     env->regs[R_EBX], env->regs[R_ECX],
+                     env->regs[R_EDX], env->regs[R_ESI],
+                     env->regs[R_EDX], env->regs[R_ESI],
+                     env->regs[R_EDI], env->regs[R_ESP],
+                     env->regs[R_EBP]);
             break;
         case IRQ_EXIT:
             qemu_log("check_trace irq exit: %lu\n", inst_cnt);

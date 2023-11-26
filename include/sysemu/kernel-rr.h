@@ -12,22 +12,23 @@
 // #include "sysemu/dma.h"
 
 
-#define STRNCPY_FROM_USER 0xffffffff81464710 // info addr strncpy_from_user
-#define STRNLEN_USER 0xffffffff81464914 // b lib/strnlen_user.c:116
-#define RANDOM_GEN 0xffffffff810305b0 // info addr rr_record_random
-#define PF_EXEC 0xffffffff817f32a0 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff817f353a // b fault.c:1580
-#define RR_RECORD_CFU 0xffffffff81030620 // info addr rr_record_cfu
-#define RR_RECORD_GFU 0xffffffff817b8764 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff817b87bd // b getuser.S:147
-#define RR_GFU_NOCHECK8 0xffffffff817b87de // b getuser.S:162
+#define STRNCPY_FROM_USER 0xffffffff814947e0 // info addr strncpy_from_user
+#define STRNLEN_USER 0xffffffff814949e4 // b lib/strnlen_user.c:116
+#define RANDOM_GEN 0xffffffff810333b0 // info addr rr_record_random
+#define PF_EXEC 0xffffffff81827da0 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff81828040 // b fault.c:1580
+#define RR_RECORD_CFU 0xffffffff81033420 // info addr rr_record_cfu
+#define RR_RECORD_GFU 0xffffffff817eb964 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff817eb9bd // b getuser.S:147
+#define RR_GFU_NOCHECK8 0xffffffff817eb9de // b getuser.S:162
+#define RR_GFU4 0xffffffff817eb933 // b getuser.S:88
 
-#define SYSCALL_ENTRY 0xffffffff81800000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff817f3ab0 // info addr syscall_exit_to_user_mode
-#define PF_ASM_EXC 0xffffffff81800b30 // info addr asm_exc_page_fault
+#define SYSCALL_ENTRY 0xffffffff81a00000 // info addr entry_SYSCALL_64
+#define SYSCALL_EXIT 0xffffffff81828600 // info addr syscall_exit_to_user_mode
+#define PF_ASM_EXC 0xffffffff81a00b40 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff810580c0 // info addr irq_enter
-#define IRQ_EXIT 0xffffffff810580e0 // info addr irq_exit
+#define IRQ_ENTRY 0xffffffff810615a0 // info addr irq_enter
+#define IRQ_EXIT 0xffffffff810615c0 // info addr irq_exit
 
 #define KVM_HC_RR_DATA_IN           13
 #define KVM_HC_RR_STRNCPY			14

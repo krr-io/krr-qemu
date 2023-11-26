@@ -50,7 +50,10 @@
 #include "sysemu/kernel-rr.h"
 
 target_ulong raw_copy_from_user = 0xffffffff810b0b05;
-
+static target_ulong singlestep_start = 0xffffffff810296c6;
+static target_ulong singlestep_end = 0xffffffff810296c6;
+static bool singlestep_started = false;
+static int count_num = 3;
 
 // target_ulong cfu_addr1_exec = 0xffffffff810afc12;
 // target_ulong cfu_addr2_exec = 0xffffffff810b4fb8;
@@ -82,11 +85,11 @@ static int64_t max_advance;
 
 static bool should_log_trace(void)
 {
-    int replayed_num = get_replayed_event_num();
+    // int replayed_num = get_replayed_event_num();
 
-    if (1450 <= replayed_num && replayed_num < 1451) {
-        return true;
-    }
+    // if (1450 <= replayed_num && replayed_num < 1451) {
+    //     return true;
+    // }
     return false;
     // return true;
 }
@@ -1122,6 +1125,7 @@ int cpu_exec(CPUState *cpu)
                 case RR_RECORD_GFU:
                 case RR_GFU_NOCHECK4:
                 case RR_GFU_NOCHECK8:
+                case RR_GFU4:
                     rr_do_replay_gfu(cpu);
                     break;
                 case RANDOM_GEN:
@@ -1148,6 +1152,20 @@ int cpu_exec(CPUState *cpu)
                 default:
                     break;
                 }
+            }
+
+            if (singlestep_started && count_num) {
+                rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+
+                if (tb->pc == singlestep_end) {
+                    singlestep_started = false;
+                    count_num--;
+                }
+            }
+
+            if (!singlestep_started && count_num && tb->pc == singlestep_start) {
+                singlestep_started = true;
+                rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
             }
 
             if (should_log_trace()) {

@@ -2896,6 +2896,11 @@ int kvm_cpu_exec(CPUState *cpu)
 #endif
 
         if (run_ret < 0) {
+            if (run_ret == -199) {
+                ret = EXCP_DEBUG;
+                break;
+            }
+
             if (run_ret == -EINTR || run_ret == -EAGAIN) {
                 DPRINTF("io window exit\n");
                 kvm_eat_signals(cpu);

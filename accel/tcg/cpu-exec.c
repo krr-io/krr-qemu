@@ -83,13 +83,13 @@ typedef struct SyncClocks {
 static int64_t max_delay;
 static int64_t max_advance;
 
-static bool should_log_trace(void)
+static bool should_log_trace(CPUState *cpu)
 {
-    // int replayed_num = get_replayed_event_num();
+    int replayed_num = get_replayed_event_num();
 
-    // if (1450 <= replayed_num && replayed_num < 1451) {
-    //     return true;
-    // }
+    if (472 <= replayed_num && cpu->rr_executed_inst < 291392) {
+        return true;
+    }
     return false;
     // return true;
 }
@@ -913,7 +913,7 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 {
     int32_t insns_left;
 
-    if (should_log_trace()) {
+    if (should_log_trace(cpu)) {
         log_regs(cpu);
         qemu_log("tianre: 0x%lx\n", tb->pc);
         log_tb(cpu, tb);
@@ -1054,7 +1054,7 @@ int cpu_exec(CPUState *cpu)
                 cpu->cflags_next_tb = -1;
             }
 
-            if (should_log_trace() && should_manual_breakpoint(pc) && !breaked) {
+            if (should_log_trace(cpu) && should_manual_breakpoint(pc) && !breaked) {
                 cpu->cause_debug = 1;
                 breaked = true;
             }
@@ -1168,7 +1168,7 @@ int cpu_exec(CPUState *cpu)
                 rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
             }
 
-            if (should_log_trace()) {
+            if (should_log_trace(cpu)) {
                 qemu_log("\nExecute TB:\n");
                 qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
             }

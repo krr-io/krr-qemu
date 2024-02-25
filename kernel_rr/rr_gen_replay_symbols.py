@@ -62,10 +62,10 @@ def fetch_pf_asm_exec():
     return filter_info_addr("asm_exc_page_fault")
 
 def fetch_irq_entry():
-    return filter_info_addr("irq_enter")
+    return filter_info_addr("irqentry_enter")
 
 def fetch_irq_exit():
-    return filter_info_addr("irq_exit")
+    return filter_info_addr("irqentry_exit")
 
 def fetch_gfu4():
     return filter_loc_addr("getuser.S:88")

@@ -92,7 +92,9 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
         bp_addr != IRQ_ENTRY && \
         bp_addr != IRQ_EXIT && \
         bp_addr != singlestep_start && \
-        bp_addr != singlestep_end)
+        bp_addr != singlestep_end && \
+        bp_addr != RR_GFU_NOCHECK4 && \
+        bp_addr != RR_GFU_NOCHECK8)
         return false;
 
     return true;
@@ -108,7 +110,9 @@ static bool rr_is_address_sw(target_ulong bp_addr)
         || bp_addr == RR_RECORD_CFU \
         || bp_addr == RR_RECORD_GFU \
         || bp_addr == IRQ_ENTRY \
-        || bp_addr == IRQ_EXIT)
+        || bp_addr == IRQ_EXIT \
+        || bp_addr == RR_GFU_NOCHECK4 \
+        || bp_addr == RR_GFU_NOCHECK8)
     {
         return true;
     }
@@ -137,26 +141,40 @@ void rr_insert_breakpoints(void)
             printf("Inserted breakpoints for syscall exit\n");
         }
 
-        // bp_ret = kvm_insert_breakpoint(cpu, PF_ASM_EXC, 1, GDB_BREAKPOINT_HW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for pf: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for pf\n");
-        // }
+        bp_ret = kvm_insert_breakpoint(cpu, PF_ASM_EXC, 1, GDB_BREAKPOINT_HW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for pf: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for pf\n");
+        }
 
-        // bp_ret = kvm_insert_breakpoint(cpu, PF_EXEC_END, 1, GDB_BREAKPOINT_HW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for pf end: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for pf end\n");
-        // }
+        bp_ret = kvm_insert_breakpoint(cpu, PF_EXEC_END, 1, GDB_BREAKPOINT_HW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for pf end: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for pf end\n");
+        }
 
-        // bp_ret = kvm_insert_breakpoint(cpu, RR_RECORD_CFU, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for cfu: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for cfu\n");
-        // }
+        bp_ret = kvm_insert_breakpoint(cpu, RR_RECORD_GFU, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for gfu: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for gfu\n");
+        }
+
+        bp_ret = kvm_insert_breakpoint(cpu, RR_GFU_NOCHECK4, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for gfu: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for gfu\n");
+        }
+
+        bp_ret = kvm_insert_breakpoint(cpu, RR_GFU_NOCHECK8, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for gfu: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for gfu\n");
+        }
 
         bp_ret = kvm_insert_breakpoint(cpu, IRQ_ENTRY, 1, GDB_BREAKPOINT_SW);
         if (bp_ret > 0) {
@@ -240,6 +258,8 @@ __attribute_maybe_unused__ static void handle_bp_points(CPUState *cpu, target_ul
 //     rr_handle_kernel_entry(cpu, bp_addr, rr_get_inst_cnt(cpu));
 // }
 
+unsigned long last_lock_start = 0;
+
 __attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
 {
     int bp_type;
@@ -307,6 +327,7 @@ static void *kvm_vcpu_thread_fn(void *arg)
 {
     CPUState *cpu = arg;
     int r;
+    unsigned long inst_cnt;
 
     rcu_register_thread();
 
@@ -328,7 +349,15 @@ static void *kvm_vcpu_thread_fn(void *arg)
             r = kvm_cpu_exec(cpu);
             if (r == EXCP_DEBUG) {
                 if (!handle_on_bp(cpu)) {
-                    // printf("break on addr 0x%llx\n", cpu->kvm_run->debug.arch.pc);
+                    inst_cnt = rr_get_inst_cnt(cpu);
+                    if (inst_cnt != 0) {
+                        if (cpu->kvm_run->debug.arch.pc == 0xffffffff81892d60) {
+                            last_lock_start = inst_cnt;
+                        } else if (cpu->kvm_run->debug.arch.pc == 0xffffffff81892daf) {
+                            printf("diff %lu\n", inst_cnt - last_lock_start);
+                        }
+                        printf("break on addr 0x%llx, %lu\n", cpu->kvm_run->debug.arch.pc, inst_cnt);
+                    }
                     cpu_handle_guest_debug(cpu);
                 }
             }

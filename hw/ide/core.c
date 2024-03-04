@@ -938,7 +938,7 @@ static void ide_dma_cb(void *opaque, int ret)
         if (rr_in_record()) {
             if (s->dma_cmd == IDE_DMA_READ) {
                 rr_end_dma_entry();
-                rr_signal_dma_finish();
+                // rr_signal_dma_finish();
                 // printf("set irq, nsg=%d\n", s->sg.nsg);
             }
         }
@@ -1145,6 +1145,10 @@ static void ide_flush_cb(void *opaque, int ret)
         block_acct_done(blk_get_stats(s->blk), &s->acct);
     }
     s->status = READY_STAT | SEEK_STAT;
+
+    if (rr_in_replay())
+        return;
+
     ide_cmd_done(s);
     ide_set_irq(s->bus);
 }
@@ -2168,7 +2172,8 @@ void ide_exec_cmd(IDEBus *bus, uint32_t val)
         }
 
         ide_cmd_done(s);
-        ide_set_irq(s->bus);
+        if (!rr_in_replay())
+            ide_set_irq(s->bus);
     }
 }
 

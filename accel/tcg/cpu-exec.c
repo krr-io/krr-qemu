@@ -85,11 +85,11 @@ static int64_t max_advance;
 
 static bool should_log_trace(CPUState *cpu)
 {
-    int replayed_num = get_replayed_event_num();
+    // int replayed_num = get_replayed_event_num();
 
-    if (472 <= replayed_num && cpu->rr_executed_inst < 291392) {
-        return true;
-    }
+    // if (388 <= replayed_num && cpu->rr_executed_inst < 630795) {
+    //     return true;
+    // }
     return false;
     // return true;
 }
@@ -1112,7 +1112,7 @@ int cpu_exec(CPUState *cpu)
                 {
                 case RR_RECORD_CFU:
                     rr_do_replay_cfu(cpu);
-                    rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
                 case STRNLEN_USER:
                     rr_do_replay_strnlen_user(cpu);

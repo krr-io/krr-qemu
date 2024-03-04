@@ -313,7 +313,6 @@ void rr_set_record(int record)
         rr_reset_ivshmem();
     }
 
-    // rr_ivshmem_set_rr_enabled(record);
     g_rr_in_record = record;
 }
 
@@ -327,29 +326,59 @@ void rr_set_replay(int replay, unsigned long ram_size)
 
 void accel_start_kernel_replay(void){}
 
+
+static bool try_reorder(rr_event_log *start_node, int target_type, rr_event_log **target_node) {
+    rr_event_log *cur = start_node;
+    bool reordered = false;
+
+    while (cur->next != NULL && cur->next->type != target_type) {
+        cur = cur->next;
+    }
+    reordered = true;
+    if (cur->next != NULL) {
+        *target_node = cur->next;
+        cur->next = cur->next->next;
+    } else {
+        printf("Could not find target event %d\n", target_type);
+        abort();
+    }
+
+    return reordered;
+}
+
 void rr_do_replay_gfu(CPUState *cpu)
 {
     X86CPU *x86_cpu;
     CPUArchState *env;
+    rr_event_log *node, *replay_node;
+    bool reordered = false;
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
 
-    if (rr_event_log_head->type != EVENT_TYPE_GFU) {
-        printf("Expected log get from user, but got %d, ip=0x%lx\n", rr_event_log_head->type, env->eip);
-        // abort();
-        cpu->cause_debug = 1;
-        return;
+    node = rr_event_log_head;
+    replay_node = node;
+
+    if (node->type != EVENT_TYPE_GFU) {
+        if (node->type == EVENT_TYPE_INTERRUPT) {
+            reordered = try_reorder(node, EVENT_TYPE_GFU, &replay_node);
+        } else {
+            printf("Expected log get from user, but got %d, ip=0x%lx\n", rr_event_log_head->type, env->eip);
+            // abort();
+            cpu->cause_debug = 1;   
+            return;
+        }
     }
 
-    printf("Replayed get_user: %lx, event number=%d\n", rr_event_log_head->event.gfu.val, replayed_event_num);
-    qemu_log("Replayed get_user: %lx, event number=%d\n", rr_event_log_head->event.gfu.val, replayed_event_num);
+    printf("Replayed get_user: %lx, event number=%d\n", replay_node->event.gfu.val, replayed_event_num);
+    qemu_log("Replayed get_user: %lx, event number=%d\n", replay_node->event.gfu.val, replayed_event_num);
 
-    env->regs[R_EDX] = rr_event_log_head->event.gfu.val;
+    env->regs[R_EDX] = replay_node->event.gfu.val;
     // env->regs[R_EBX] = rr_event_log_head->event.gfu.val;
 
     // check_inst_matched_and_fix(cpu, rr_event_log_head);
-    rr_pop_event_head();
+    if (!reordered)
+        rr_pop_event_head();
 }
 
 
@@ -999,8 +1028,8 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
                     rr_event_log_head->event.interrupt.vector, rr_event_log_head->inst_cnt,
                     rr_event_log_head->rip, env->eip);
             // abort();
-            exit(1);
-            // cpu->cause_debug = 1;
+            // exit(1);
+            cpu->cause_debug = 1;
         }
   
     }
@@ -1211,9 +1240,10 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     CPUArchState *env;
 
     if (rr_event_log_head->type != EVENT_TYPE_RDTSC) {
+        printf("Expected %d event, found %d", EVENT_TYPE_RDTSC, rr_event_log_head->type);
         qemu_log("Expected %d event, found %d", EVENT_TYPE_RDTSC, rr_event_log_head->type);
-        abort();
-        // cpu->cause_debug = true;
+        // abort();
+        cpu->cause_debug = true;
         return;
     }
   
@@ -1490,10 +1520,12 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
         case IRQ_EXIT:
             qemu_log("check_trace irq exit: %lu\n", inst_cnt);
             break;
-        case RR_RECORD_CFU:
-            qemu_log("check_trace cfu entry: %lu\n", inst_cnt);
-            break;
         case RR_RECORD_GFU:
+        case RR_GFU_NOCHECK4:
+        case RR_GFU_NOCHECK8:
+            qemu_log("check_trace gfu[0x%lx] entry: %lu\n", bp_addr, inst_cnt);
+            break;
+        case RR_RECORD_CFU:
             qemu_log("check_trace cfu entry: %lu\n", inst_cnt);
             break;
         case STRNCPY_FROM_USER:

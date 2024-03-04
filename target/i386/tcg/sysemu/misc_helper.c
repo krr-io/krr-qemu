@@ -29,6 +29,9 @@
 
 #include "sysemu/kernel-rr.h"
 
+static uint32_t PIC_MASTER_IMR = 0x21;
+static uint32_t PIC_SLAVE_IMR = 0xa1;
+
 void helper_outb(CPUX86State *env, uint32_t port, uint32_t data)
 {
     address_space_stb(&address_space_io, port, data,
@@ -40,8 +43,7 @@ target_ulong helper_inb(CPUX86State *env, uint32_t port)
     unsigned long input;
     // KVM (record) does not cuase exit on PIC IMR inb and these two
     // are not trapped, pass them through.
-    uint32_t PIC_MASTER_IMR = 0x21;
-    uint32_t PIC_SLAVE_IMR = 0xa1;
+ 
 
     // arch/x86/include/asm/shared/io.h:22
     if (rr_in_replay() && port != PIC_MASTER_IMR && port != PIC_SLAVE_IMR) {
@@ -73,6 +75,13 @@ void helper_outl(CPUX86State *env, uint32_t port, uint32_t data)
 
 target_ulong helper_inl(CPUX86State *env, uint32_t port)
 {
+    unsigned long input;
+
+    if (rr_in_replay() && port != PIC_MASTER_IMR && port != PIC_SLAVE_IMR) {
+        rr_do_replay_io_input(env_cpu(env), &input);
+        return input;
+    }
+
     return address_space_ldl(&address_space_io, port,
                              cpu_get_mem_attrs(env), NULL);
 }

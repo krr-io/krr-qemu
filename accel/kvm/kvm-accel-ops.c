@@ -350,14 +350,9 @@ static void *kvm_vcpu_thread_fn(void *arg)
             if (r == EXCP_DEBUG) {
                 if (!handle_on_bp(cpu)) {
                     inst_cnt = rr_get_inst_cnt(cpu);
-                    if (inst_cnt != 0) {
-                        if (cpu->kvm_run->debug.arch.pc == 0xffffffff81892d60) {
-                            last_lock_start = inst_cnt;
-                        } else if (cpu->kvm_run->debug.arch.pc == 0xffffffff81892daf) {
-                            printf("diff %lu\n", inst_cnt - last_lock_start);
-                        }
-                        printf("break on addr 0x%llx, %lu\n", cpu->kvm_run->debug.arch.pc, inst_cnt);
-                    }
+                    // if (inst_cnt != 0) {
+                    printf("break on addr 0x%llx, %lu\n", cpu->kvm_run->debug.arch.pc, inst_cnt);
+                    // }
                     cpu_handle_guest_debug(cpu);
                 }
             }

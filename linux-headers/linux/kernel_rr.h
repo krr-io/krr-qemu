@@ -14,7 +14,7 @@
 #define EVENT_TYPE_GFU       8
 #define EVENT_TYPE_STRNLEN   9
 #define EVENT_TYPE_RDSEED    10
-
+#define EVENT_TYPE_RELEASE   11
 
 enum REGS {
     ZERO,
@@ -59,7 +59,10 @@ typedef struct {
 typedef struct {
     unsigned int vector;
     unsigned long ecx;
+    int from;
+    unsigned long spin_count;
 } rr_interrupt;
+
 
 typedef struct {
     unsigned long val;
@@ -71,11 +74,13 @@ typedef struct {
     int error_code;
     unsigned long cr2;
     struct kvm_regs regs;
+    unsigned long spin_count;
 } rr_exception;
 
 typedef struct {
     struct kvm_regs regs;
     unsigned long kernel_gsbase, msr_gsbase, cr3;
+    unsigned long spin_count;
 } rr_syscall;
 
 typedef struct {
@@ -86,6 +91,7 @@ typedef struct {
 
 typedef struct rr_event_log_t{
     int type;
+    int id;
     union {
         rr_interrupt interrupt;
         rr_exception exception;

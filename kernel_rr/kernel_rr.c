@@ -36,6 +36,8 @@ unsigned long g_ram_size = 0;
 rr_event_log *rr_event_log_head = NULL;
 rr_event_log *rr_event_cur = NULL;
 
+rr_event_log* rr_smp_event_log_queues[16];
+
 static int event_syscall_num = 0;
 static int event_exception_num = 0;
 static int event_interrupt_num = 0;
@@ -557,7 +559,26 @@ void rr_do_replay_strncpy_from_user(CPUState *cpu)
     }
 }
 
-static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
+static void
+rr_merge_user_interrupt_of_guest_and_hypervisor(rr_event_log *guest_event, rr_interrupt *guest_interrupt)
+{
+    rr_event_log *vcpu_event_head = rr_smp_event_log_queues[guest_event->id];
+
+    if (vcpu_event_head == NULL) {
+        printf("Could not find corresponding interrupt from hypervisor\n");
+        exit(1);
+    }
+
+    guest_interrupt->vector = vcpu_event_head->event.interrupt.vector;
+    guest_event->inst_cnt = vcpu_event_head->inst_cnt;
+    guest_event->rip = vcpu_event_head->rip;
+    guest_interrupt->ecx = vcpu_event_head->event.interrupt.ecx;
+
+    rr_smp_event_log_queues[guest_event->id] = vcpu_event_head->next;
+}
+
+static rr_event_log *
+rr_event_log_new_from_event(rr_event_log event)
 {
     rr_event_log *event_record;
 
@@ -566,6 +587,8 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
     event_record->type = event.type;
     event_record->inst_cnt = event.inst_cnt;
     event_record->rip = event.rip;
+    event_record->id = event.id;
+    event_record->next = NULL;
 
     int event_num = get_total_events_num() + 1;
 
@@ -575,84 +598,101 @@ static rr_event_log *rr_event_log_new_from_event(rr_event_log event)
         event_record->inst_cnt = event.inst_cnt;
         memcpy(&event_record->event.interrupt, &event.event.interrupt, sizeof(rr_interrupt));
 
-        qemu_log("Interrupt: %d, inst_cnt: %lu, rip=0x%lx, number=%d\n",
+        qemu_log("User-Interrupt: %d, inst_cnt: %lu, rip=0x%lx, from=%d, cpu_id=%d, number=%d\n",
                  event_record->event.interrupt.vector,
-                 event_record->inst_cnt, event_record->rip, event_num);
+                 event_record->inst_cnt, event_record->rip,
+                 event_record->event.interrupt.from, event_record->id, event_num);
         event_interrupt_num++;
         break;
-
-    case EVENT_TYPE_EXCEPTION:
-        memcpy(&event_record->event.exception, &event.event.exception, sizeof(rr_exception));
-
-        qemu_log("PF exception: %d, cr2=0x%lx, error_code=%d, inst_cnt: %lu, number=%d\n",
-               event_record->event.exception.exception_index, event_record->event.exception.cr2,
-               event_record->event.exception.error_code,
-               event_record->inst_cnt, event_num);
-        event_exception_num++;
-        break;
-
-    case EVENT_TYPE_SYSCALL:
-        memcpy(&event_record->event.syscall, &event.event.syscall, sizeof(rr_syscall));
-        qemu_log("Syscall: %llu, gs_kernel=0x%lx, cr3=0x%lx, inst_cnt: %lu, number=%d\n",
-                 event_record->event.syscall.regs.rax, event_record->event.syscall.kernel_gsbase,
-                 event.event.syscall.cr3, event_record->inst_cnt, event_num);
-        event_syscall_num++;
-        break;
-
-     case EVENT_TYPE_IO_IN:
-        memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
-        qemu_log("IO Input: %lx, rip=0x%lx, inst_cnt: %lu, number=%d\n",
-                 event_record->event.io_input.value, event_record->rip, event_record->inst_cnt, event_num);
-        event_io_input_num++;
-        break;
-     case EVENT_TYPE_RDTSC:
-        memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
-        qemu_log("RDTSC: %lx, rip=0x%lx, inst_cnt: %lu, number=%d\n",
-                 event_record->event.io_input.value, event_record->rip, event_record->inst_cnt, event_num);
-        event_io_input_num++;
-        break;
-    case EVENT_TYPE_GFU:
-        memcpy(&event_record->event.gfu, &event.event.gfu, sizeof(rr_gfu));
-        qemu_log("GFU: val=%lu, rip=0x%lx, inst_cnt: %lu, number=%d\n",
-                 event_record->event.gfu.val,
-                 event_record->rip, event_record->inst_cnt, event_num);
-        event_gfu_num++;
-        break;
-    case EVENT_TYPE_RDSEED:
-        memcpy(&event_record->event.gfu, &event.event.gfu, sizeof(rr_gfu));
-        qemu_log("RDSEED: val=%lu, number=%d\n",
-                 event_record->event.gfu.val, event_num);
-        event_gfu_num++;
-        break;
-    case EVENT_TYPE_CFU:
-        memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
-        qemu_log("CFU: src=0x%lx, dest=0x%lx, len=%lu, rip=0x%lx, inst_cnt: %lu, number=%d\n",
-                 event_record->event.cfu.src_addr, event_record->event.cfu.dest_addr,
-                 event_record->event.cfu.len,
-                 event_record->rip, event_record->inst_cnt, event_num);
-        event_cfu_num++;
-        break;
-    case EVENT_TYPE_RANDOM:
-        memcpy(&event_record->event.rand, &event.event.rand, sizeof(rr_random));
-        qemu_log("Random: buf=0x%lx, len=%lu, rip=0x%lx, inst_cnt: %lu, number=%d\n",
-                 event_record->event.rand.buf, event_record->event.rand.len,
-                 event_record->rip, event_record->inst_cnt, event_num);
-        event_random_num++;
-        break;
-    case EVENT_TYPE_STRNLEN:
-        memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
-        qemu_log("Strnlen: len=%lu, number=%d\n", event_record->event.cfu.len, event_num);
-        event_strnlen++;
-        break;
-    case EVENT_TYPE_DMA_DONE:
-        qemu_log("DMA Done number=%d, inst_cnt=%lu\n", event_num, event_record->inst_cnt);
-        event_dma_done++;
-        break;
+    
     default:
-        break;
+        printf("Unexpected normal event type %d that is not shm", event.type);
+        abort();
+        return NULL;
+    // case EVENT_TYPE_EXCEPTION:
+    //     memcpy(&event_record->event.exception, &event.event.exception, sizeof(rr_exception));
+
+    //     qemu_log("PF exception: %d, cr2=0x%lx, error_code=%d, inst_cnt: %lu, number=%d\n",
+    //            event_record->event.exception.exception_index, event_record->event.exception.cr2,
+    //            event_record->event.exception.error_code,
+    //            event_record->inst_cnt, event_num);
+    //     event_exception_num++;
+    //     break;
+
+    // case EVENT_TYPE_SYSCALL:
+    //     memcpy(&event_record->event.syscall, &event.event.syscall, sizeof(rr_syscall));
+    //     qemu_log("Syscall: %llu, gs_kernel=0x%lx, cr3=0x%lx, inst_cnt: %lu, number=%d\n",
+    //              event_record->event.syscall.regs.rax, event_record->event.syscall.kernel_gsbase,
+    //              event.event.syscall.cr3, event_record->inst_cnt, event_num);
+    //     event_syscall_num++;
+    //     break;
+
+    //  case EVENT_TYPE_IO_IN:
+    //     memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
+    //     qemu_log("IO Input: %lx, rip=0x%lx, inst_cnt: %lu, number=%d\n",
+    //              event_record->event.io_input.value, event_record->rip, event_record->inst_cnt, event_num);
+    //     event_io_input_num++;
+    //     break;
+    //  case EVENT_TYPE_RDTSC:
+    //     memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
+    //     qemu_log("RDTSC: %lx, rip=0x%lx, inst_cnt: %lu, number=%d\n",
+    //              event_record->event.io_input.value, event_record->rip, event_record->inst_cnt, event_num);
+    //     event_io_input_num++;
+    //     break;
+    // case EVENT_TYPE_GFU:
+    //     memcpy(&event_record->event.gfu, &event.event.gfu, sizeof(rr_gfu));
+    //     qemu_log("GFU: val=%lu, rip=0x%lx, inst_cnt: %lu, number=%d\n",
+    //              event_record->event.gfu.val,
+    //              event_record->rip, event_record->inst_cnt, event_num);
+    //     event_gfu_num++;
+    //     break;
+    // case EVENT_TYPE_RDSEED:
+    //     memcpy(&event_record->event.gfu, &event.event.gfu, sizeof(rr_gfu));
+    //     qemu_log("RDSEED: val=%lu, number=%d\n",
+    //              event_record->event.gfu.val, event_num);
+    //     event_gfu_num++;
+    //     break;
+    // case EVENT_TYPE_CFU:
+    //     memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
+    //     qemu_log("CFU: src=0x%lx, dest=0x%lx, len=%lu, rip=0x%lx, inst_cnt: %lu, number=%d\n",
+    //              event_record->event.cfu.src_addr, event_record->event.cfu.dest_addr,
+    //              event_record->event.cfu.len,
+    //              event_record->rip, event_record->inst_cnt, event_num);
+    //     event_cfu_num++;
+    //     break;
+    // case EVENT_TYPE_RANDOM:
+    //     memcpy(&event_record->event.rand, &event.event.rand, sizeof(rr_random));
+    //     qemu_log("Random: buf=0x%lx, len=%lu, rip=0x%lx, inst_cnt: %lu, number=%d\n",
+    //              event_record->event.rand.buf, event_record->event.rand.len,
+    //              event_record->rip, event_record->inst_cnt, event_num);
+    //     event_random_num++;
+    //     break;
+    // case EVENT_TYPE_STRNLEN:
+    //     memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
+    //     qemu_log("Strnlen: len=%lu, number=%d\n", event_record->event.cfu.len, event_num);
+    //     event_strnlen++;
+    //     break;
+    // case EVENT_TYPE_DMA_DONE:
+    //     qemu_log("DMA Done number=%d, inst_cnt=%lu\n", event_num, event_record->inst_cnt);
+    //     event_dma_done++;
+    //     break;
     }
 
     return event_record;
+}
+
+static rr_event_log *rr_get_tail(rr_event_log *rr_event)
+{
+    rr_event_log *tmp_event = rr_event;
+
+    if (tmp_event == NULL)
+        return NULL;
+
+    while(tmp_event->next != NULL) {
+        tmp_event = tmp_event->next;
+    }
+
+    return tmp_event;
 }
 
 static rr_event_log *rr_event_log_new_from_event_shm(rr_event_log_guest event)
@@ -664,6 +704,7 @@ static rr_event_log *rr_event_log_new_from_event_shm(rr_event_log_guest event)
     event_record->type = event.type;
     event_record->inst_cnt = event.inst_cnt;
     event_record->rip = event.rip;
+    event_record->id = event.id;
 
     int event_num = get_total_events_num() + 1;
 
@@ -671,67 +712,77 @@ static rr_event_log *rr_event_log_new_from_event_shm(rr_event_log_guest event)
     {
     case EVENT_TYPE_INTERRUPT:
         memcpy(&event_record->event.interrupt, &event.event.interrupt, sizeof(rr_interrupt));
-        qemu_log("Interrupt: %d, inst_cnt: %lu, rip=0x%lx, number=%d\n",
+        if (event_record->event.interrupt.from == 3) {
+            rr_merge_user_interrupt_of_guest_and_hypervisor(event_record, &(event_record->event.interrupt));
+        }
+
+        qemu_log("Interrupt: %d, inst_cnt: %lu, rip=0x%lx, from=%d, cpu_id=%d, spin_count=%lu, number=%d\n",
                  event_record->event.interrupt.vector,
-                 event_record->inst_cnt, event_record->rip, event_num);
+                 event_record->inst_cnt, event_record->rip,
+                 event_record->event.interrupt.from, event_record->id,
+                 event_record->event.interrupt.spin_count, event_num);
+        
         event_interrupt_num++;
         break;
 
     case EVENT_TYPE_EXCEPTION:
         memcpy(&event_record->event.exception, &event.event.exception, sizeof(rr_exception));
 
-        qemu_log("PF exception: %d, cr2=0x%lx, error_code=%d, inst_cnt: %lu, number=%d\n",
+        qemu_log("PF exception: %d, cr2=0x%lx, error_code=%d, inst_cnt: %lu, cpu_id=%d, spin_cnt=%lu, number=%d\n",
                event_record->event.exception.exception_index, event_record->event.exception.cr2,
                event_record->event.exception.error_code,
-               event_record->inst_cnt, event_num);
+               event_record->inst_cnt, event_record->id,
+               event_record->event.exception.spin_count, event_num);
         event_exception_num++;
         break;
 
     case EVENT_TYPE_SYSCALL:
         memcpy(&event_record->event.syscall, &event.event.syscall, sizeof(rr_syscall));
-        qemu_log("Syscall: %llu, gs_kernel=0x%lx, cr3=0x%lx, inst_cnt: %lu, number=%d\n",
+        qemu_log("Syscall: %llu, gs_kernel=0x%lx, cr3=0x%lx, inst_cnt: %lu, cpu_id=%d, spin_cnt=%lu, number=%d\n",
                  event_record->event.syscall.regs.rax, event_record->event.syscall.kernel_gsbase,
-                 event.event.syscall.cr3, event_record->inst_cnt, event_num);
+                 event.event.syscall.cr3, event_record->inst_cnt, event_record->id,
+                 event_record->event.syscall.spin_count, event_num);
         event_syscall_num++;
         break;
 
      case EVENT_TYPE_IO_IN:
         memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
-        qemu_log("IO Input: %lx, rip=0x%lx, inst_cnt: %lu, number=%d\n",
-                 event_record->event.io_input.value, event_record->rip, event_record->inst_cnt, event_num);
+        qemu_log("IO Input: %lx, rip=0x%lx, inst_cnt: %lu, cpu_id=%d, number=%d\n",
+                 event_record->event.io_input.value, event_record->rip, event_record->inst_cnt, event_record->id, event_num);
         event_io_input_num++;
         break;
      case EVENT_TYPE_RDTSC:
         memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
-        qemu_log("RDTSC: value=%lx, rip=0x%lx, inst_cnt: %lu, number=%d\n",
-                 event_record->event.io_input.value, event_record->rip, event_record->inst_cnt, event_num);
+        qemu_log("RDTSC: value=%lx, rip=0x%lx, inst_cnt: %lu, cpu_id=%d, number=%d\n",
+                 event_record->event.io_input.value, event_record->rip, event_record->inst_cnt, event_record->id, event_num);
         event_io_input_num++;
         break;
     case EVENT_TYPE_GFU:
         memcpy(&event_record->event.gfu, &event.event.gfu, sizeof(rr_gfu));
-        qemu_log("GFU: val=%lu, rip=0x%lx, inst_cnt: %lu, number=%d\n",
+        qemu_log("GFU: val=%lu, rip=0x%lx, inst_cnt: %lu, cpu_id=%d, number=%d\n",
                  event_record->event.gfu.val,
-                 event_record->rip, event_record->inst_cnt, event_num);
+                 event_record->rip, event_record->inst_cnt, event_record->id, event_num);
         event_gfu_num++;
         break;
     case EVENT_TYPE_CFU:
         memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
-        qemu_log("CFU: src=0x%lx, dest=0x%lx, len=%lu, rip=0x%lx, inst_cnt: %lu, number=%d\n",
+        qemu_log("CFU: src=0x%lx, dest=0x%lx, len=%lu, rip=0x%lx, inst_cnt: %lu, cpu_id=%d, number=%d\n",
                  event_record->event.cfu.src_addr, event_record->event.cfu.dest_addr,
                  event_record->event.cfu.len,
-                 event_record->rip, event_record->inst_cnt, event_num);
+                 event_record->rip, event_record->inst_cnt, event_record->id, event_num);
         event_cfu_num++;
         break;
     case EVENT_TYPE_RANDOM:
         memcpy(&event_record->event.rand, &event.event.rand, sizeof(rr_random));
-        qemu_log("Random: buf=0x%lx, len=%lu, rip=0x%lx, inst_cnt: %lu, number=%d\n",
+        qemu_log("Random: buf=0x%lx, len=%lu, rip=0x%lx, inst_cnt: %lu, cpu_id=%d, number=%d\n",
                  event_record->event.rand.buf, event_record->event.rand.len,
-                 event_record->rip, event_record->inst_cnt, event_num);
+                 event_record->rip, event_record->inst_cnt, event_record->id, event_num);
         event_random_num++;
         break;
     case EVENT_TYPE_STRNLEN:
         memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
-        qemu_log("Strnlen: len=%lu, number=%d\n", event_record->event.cfu.len, event_num);
+        qemu_log("Strnlen: len=%lu, cpu_id=%d, number=%d\n",
+                 event_record->event.cfu.len, event_record->id, event_num);
         event_strnlen++;
         break;
     case EVENT_TYPE_DMA_DONE:
@@ -743,6 +794,8 @@ static rr_event_log *rr_event_log_new_from_event_shm(rr_event_log_guest event)
         qemu_log("RDSEED: val=%lu\n", event_record->event.gfu.val);
         event_rdseed_num++;
         break;
+    case EVENT_TYPE_RELEASE:
+        qemu_log("Lock Released: cpu_id=%d\n", event.id);
     default:
         break;
     }
@@ -827,18 +880,14 @@ int rr_is_syscall_ready(CPUState *cpu)
 
 void append_event(rr_event_log event)
 {
-
     rr_event_log *event_record = rr_event_log_new_from_event(event);
-
-    if (rr_event_cur == NULL) {
-        rr_event_log_head = event_record;
-        rr_event_cur = event_record;
+    rr_event_log *tmp_event_cur = rr_get_tail(rr_smp_event_log_queues[event_record->id]);
+    
+    if (tmp_event_cur == NULL) {
+        rr_smp_event_log_queues[event_record->id] = event_record;
     } else {
-        rr_event_cur->next = event_record;
-        rr_event_cur = rr_event_cur->next;
+        tmp_event_cur->next = event_record;
     }
-
-    rr_event_cur->next = NULL;
 }
 
 static void append_event_shm(rr_event_log_guest event)
@@ -946,6 +995,12 @@ void rr_finish_mem_log(void)
 
 void rr_post_record(void)
 {
+    for (int i=0; i < 16; i++) {
+        rr_smp_event_log_queues[i] = NULL;
+    }
+
+    rr_get_vcpu_events();
+
     rr_read_shm_events();
     rr_save_events();
     rr_dma_post_record();

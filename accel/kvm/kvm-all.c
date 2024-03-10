@@ -209,6 +209,7 @@ static QemuMutex kml_slots_lock;
 #define kvm_slots_unlock()  qemu_mutex_unlock(&kml_slots_lock)
 
 static void kvm_slot_init_dirty_bitmap(KVMSlot *mem);
+static void rr_get_vm_events(void);
 
 static inline void kvm_resample_fd_remove(int gsi)
 {
@@ -3291,7 +3292,7 @@ int kvm_remove_hypercall(CPUState *cpu, target_ulong addr)
     return 0;
 }
 
-static void do_kvm_cpu_start_record(CPUState *cpu, run_on_cpu_data arg)
+__attribute_maybe_unused__ static void do_kvm_cpu_start_record(CPUState *cpu, run_on_cpu_data arg)
 {
     int r = 0;
     struct rr_record_data data = {
@@ -3305,7 +3306,8 @@ static void do_kvm_cpu_start_record(CPUState *cpu, run_on_cpu_data arg)
     }
 }
 
-static void do_kvm_cpu_end_record(CPUState *cpu, run_on_cpu_data arg)
+__attribute_maybe_unused__ static void
+do_kvm_cpu_end_record(CPUState *cpu, run_on_cpu_data arg)
 {
     int r = 0;
 
@@ -3339,7 +3341,8 @@ static void do_kvm_cpu_end_replay(CPUState *cpu, run_on_cpu_data arg)
 }
 
 
-static void do_rr_get_vcpu_events(CPUState *cpu, run_on_cpu_data arg)
+__attribute_maybe_unused__ static void
+do_rr_get_vcpu_events(CPUState *cpu, run_on_cpu_data arg)
 {
     struct rr_event_log_t event;
     struct rr_event_info event_info;
@@ -3366,6 +3369,40 @@ static void do_rr_get_vcpu_events(CPUState *cpu, run_on_cpu_data arg)
     }
 
     r = kvm_vcpu_ioctl(cpu, KVM_RR_CLEAR_EVENTS, NULL);
+    if (r) {
+        printf("failed to clear rr events %d\n", r);
+        return;
+    }
+
+    return;
+}
+
+
+static void rr_get_vm_events(void)
+{
+    struct rr_event_log_t event;
+    struct rr_event_info event_info;
+    int r = 0;
+
+    r = kvm_vm_ioctl(kvm_state, KVM_GET_RR_EVENT_NUMBER, &event_info);
+    if (r) {
+        printf("Failed to get event number: %d\n", r);
+        return;
+    }
+
+    printf("event number = %d\n", event_info.event_number);
+
+    for (int i = 0; i < event_info.event_number; i++) {
+        r = kvm_vm_ioctl(kvm_state, KVM_GET_RR_NEXT_EVENT, &event);
+        if (r) {
+            printf("failed to get rr events %d\n", r);
+            return;
+        }
+
+        append_event(event);
+    }
+
+    r = kvm_vm_ioctl(kvm_state, KVM_RR_CLEAR_EVENTS, NULL);
     if (r) {
         printf("failed to clear rr events %d\n", r);
         return;
@@ -3441,11 +3478,7 @@ int rr_get_vcpu_mem_logs(void)
 
 int rr_get_vcpu_events(void)
 {
-    CPUState *cpu;
-
-    CPU_FOREACH(cpu) {
-        run_on_cpu(cpu, do_rr_get_vcpu_events, RUN_ON_CPU_NULL);
-    }
+    rr_get_vm_events();
 
     return 0;
 }
@@ -3466,10 +3499,19 @@ unsigned long rr_get_inst_cnt(CPUState *cpu)
 
 int kvm_start_record(void)
 {
-    CPUState *cpu;
+    int ret;
+    struct rr_record_data data = {
+        .shm_base_addr = rr_get_shm_addr()
+    };
 
-    CPU_FOREACH(cpu) {
-        run_on_cpu(cpu, do_kvm_cpu_start_record, RUN_ON_CPU_NULL);
+    // CPU_FOREACH(cpu) {
+    //     run_on_cpu(cpu, do_kvm_cpu_start_record, RUN_ON_CPU_NULL);
+    // }
+
+    ret = kvm_vm_ioctl(kvm_state, KVM_START_RECORD, &data);
+    if (ret) {
+        printf("Failed to call start record\n");
+        return ret;
     }
 
     rr_set_record(1);
@@ -3481,10 +3523,12 @@ int kvm_start_record(void)
 }
 
 int kvm_end_record(void) {
-    CPUState *cpu;
+    int ret;
 
-    CPU_FOREACH(cpu) {
-        run_on_cpu(cpu, do_kvm_cpu_end_record, RUN_ON_CPU_NULL);
+    ret = kvm_vm_ioctl(kvm_state, KVM_END_RECORD, NULL);
+    if (ret) {
+        printf("Failed to call end record: %d\n", ret);
+        return ret;
     }
 
     rr_remove_breakpoints();
@@ -3492,7 +3536,6 @@ int kvm_end_record(void) {
         rr_finish_mem_log();
 
     rr_set_record(0);
-    // rr_get_vcpu_events();
     rr_post_record();
 
 

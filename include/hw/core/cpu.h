@@ -341,7 +341,8 @@ struct CPUState {
 
     bool unplug;
     bool crash_occurred;
-    bool exit_request;
+    volatile bool exit_request;
+    bool hit_breakpoint;
     bool in_exclusive_context;
     uint32_t cflags_next_tb;
     /* updates protected by BQL */

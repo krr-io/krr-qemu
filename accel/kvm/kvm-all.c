@@ -3365,7 +3365,7 @@ do_rr_get_vcpu_events(CPUState *cpu, run_on_cpu_data arg)
             return;
         }
 
-        append_event(event);
+        append_event(event, 1);
     }
 
     r = kvm_vcpu_ioctl(cpu, KVM_RR_CLEAR_EVENTS, NULL);
@@ -3399,7 +3399,7 @@ static void rr_get_vm_events(void)
             return;
         }
 
-        append_event(event);
+        append_event(event, 1);
     }
 
     r = kvm_vm_ioctl(kvm_state, KVM_RR_CLEAR_EVENTS, NULL);

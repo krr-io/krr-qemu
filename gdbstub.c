@@ -2779,6 +2779,7 @@ void gdb_set_stop_cpu(CPUState *cpu)
 static void gdb_vm_state_change(void *opaque, bool running, RunState state)
 {
     CPUState *cpu = gdbserver_state.c_cpu;
+    __attribute_maybe_unused__ CPUState *rcpu;
     g_autoptr(GString) buf = g_string_new(NULL);
     g_autoptr(GString) tid = g_string_new(NULL);
     const char *type;
@@ -2798,7 +2799,15 @@ static void gdb_vm_state_change(void *opaque, bool running, RunState state)
         return;
     }
 
+    // if (rr_in_replay()) {
+    //     rcpu = replay_get_running_cpu();
+    //     if (rcpu != NULL)
+    //         gdb_append_thread_id(rcpu, tid);
+    //     else
+    //         gdb_append_thread_id(cpu, tid);
+    // } else {
     gdb_append_thread_id(cpu, tid);
+    // }
 
     switch (state) {
     case RUN_STATE_DEBUG:

@@ -140,7 +140,9 @@ static void *mttcg_cpu_thread_fn(void *arg)
                 qemu_mutex_unlock_iothread();
                 cpu_exec_step_atomic(cpu);
                 qemu_mutex_lock_iothread();
+                /* fallthrough */
             default:
+                // printf("exit reason %d[%d]\n", r, cpu->cpu_index);
                 /* Ignore everything else? */
                 break;
             }

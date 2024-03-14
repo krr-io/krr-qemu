@@ -327,7 +327,7 @@ static void *kvm_vcpu_thread_fn(void *arg)
 {
     CPUState *cpu = arg;
     int r;
-    unsigned long inst_cnt;
+    // __attribute_maybe_unused__ unsigned long inst_cnt;
 
     rcu_register_thread();
 
@@ -349,9 +349,9 @@ static void *kvm_vcpu_thread_fn(void *arg)
             r = kvm_cpu_exec(cpu);
             if (r == EXCP_DEBUG) {
                 if (!handle_on_bp(cpu)) {
-                    inst_cnt = rr_get_inst_cnt(cpu);
+                    // inst_cnt = rr_get_inst_cnt(cpu);
                     // if (inst_cnt != 0) {
-                    printf("break on addr 0x%llx, %lu\n", cpu->kvm_run->debug.arch.pc, inst_cnt);
+                    // printf("break on addr 0x%llx, %lu\n", cpu->kvm_run->debug.arch.pc, inst_cnt);
                     // }
                     cpu_handle_guest_debug(cpu);
                 }

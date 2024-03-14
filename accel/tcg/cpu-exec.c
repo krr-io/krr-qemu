@@ -716,6 +716,7 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
         if (*ret == EXCP_DEBUG) {
             cpu_handle_debug_exception(cpu);
         }
+        // printf("Exit exception[%d]\n", cpu->cpu_index);
         cpu->exception_index = -1;
         return true;
     } else {
@@ -790,12 +791,23 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
     }
 
     if (rr_in_replay()) {
-        rr_replay_interrupt(cpu, &interrupt_request);
-        if (interrupt_request != -1) {
-            cpu->interrupt_request = interrupt_request;
-            qatomic_mb_set(&cpu->exit_request, 0);
+        if (cpu->hit_breakpoint) {
+            // printf("Hit breakpoint[%d]\n", cpu->cpu_index);
+            cpu->hit_breakpoint = false;
+            qatomic_set(&cpu->exit_request, 0);
+            if (cpu->exception_index == -1) {
+                cpu->exception_index = EXCP_INTERRUPT;
+            }
+
+            return true;
         } else {
-            interrupt_request = 0;
+            rr_replay_interrupt(cpu, &interrupt_request);
+            if (interrupt_request != -1) {
+                cpu->interrupt_request = interrupt_request;
+                qatomic_mb_set(&cpu->exit_request, 0);
+            } else {
+                interrupt_request = 0;
+            }
         }
         // printf("replayed request %d\n", interrupt_request);
     }
@@ -897,6 +909,7 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
         || (icount_enabled()
             && (cpu->cflags_next_tb == -1 || cpu->cflags_next_tb & CF_USE_ICOUNT)
             && cpu_neg(cpu)->icount_decr.u16.low + cpu->icount_extra == 0)) {
+        // printf("Exit need\n");
         qemu_log("need exit\n");
         qatomic_set(&cpu->exit_request, 0);
         if (cpu->exception_index == -1) {
@@ -915,7 +928,7 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 
     if (should_log_trace(cpu)) {
         log_regs(cpu);
-        qemu_log("tianre: 0x%lx\n", tb->pc);
+        qemu_log("[cpu %d]0x%lx\n", cpu->cpu_index, tb->pc);
         log_tb(cpu, tb);
         // qemu_log("Finished TB execution\n");
     }
@@ -1029,7 +1042,7 @@ int cpu_exec(CPUState *cpu)
         TranslationBlock *last_tb = NULL;
         int tb_exit = 0;
 
-        while (!cpu_handle_interrupt(cpu, &last_tb)) {
+        while (replay_cpu_exec_ready(cpu) && !cpu_handle_interrupt(cpu, &last_tb)) {
             TranslationBlock *tb;
             target_ulong cs_base, pc;
             uint32_t flags, cflags;
@@ -1060,6 +1073,7 @@ int cpu_exec(CPUState *cpu)
             }
 
             if (check_for_breakpoints(cpu, pc, &cflags)) {
+                cause_other_cpu_debug(cpu);
                 break;
             }
 
@@ -1148,6 +1162,9 @@ int cpu_exec(CPUState *cpu)
                 case IRQ_ENTRY:
                 case IRQ_EXIT:
                     rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+                    break;
+                case LOCK_RELEASE:
+                    rr_do_replay_release(cpu);
                     break;
                 default:
                     break;

@@ -87,14 +87,14 @@ bool cpu_work_list_empty(CPUState *cpu)
 bool cpu_thread_is_idle(CPUState *cpu)
 {
     if (cpu->stop || !cpu_work_list_empty(cpu)) {
+        // printf("[%d] not stopped\n", cpu->cpu_index);
         return false;
     }
     if (cpu_is_stopped(cpu)) {
-        // printf("cpu stoped\n");
         return true;
     }
     if (!cpu->halted || cpu_has_work(cpu)) {
-        // printf("cpu not halt and has work\n");
+        // printf("[%d]cpu not halt and has work\n", cpu->cpu_index);
         return false;
     }
     if (cpus_accel->cpu_thread_is_idle) {
@@ -424,9 +424,9 @@ void qemu_wait_io_event(CPUState *cpu)
     bool slept = false;
 
     while (cpu_thread_is_idle(cpu)) {
+        // printf("CPU wait start[%d]\n", cpu->cpu_index);
         // if (rr_in_replay() && replay_should_skip_wait()) break;
         if (rr_in_replay() && !rr_is_gdb_stopped()) break;
-
         if (!slept) {
             slept = true;
             qemu_plugin_vcpu_idle_cb(cpu);

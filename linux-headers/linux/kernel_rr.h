@@ -125,7 +125,7 @@ struct rr_event_info {
 
 // RR functions
 
-void append_event(rr_event_log event);
+void append_event(rr_event_log event, int is_record);
 rr_event_log *rr_event_log_new(void);
 void rr_print_events_stat(void);
 

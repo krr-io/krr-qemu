@@ -12,23 +12,25 @@
 // #include "sysemu/dma.h"
 
 
-#define STRNCPY_FROM_USER 0xffffffff814b9cf0 // info addr strncpy_from_user
-#define STRNLEN_USER 0xffffffff814b9ef4 // b lib/strnlen_user.c:116
-#define RANDOM_GEN 0xffffffff81034f90 // info addr rr_record_random
-#define PF_EXEC 0xffffffff81887cf0 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff81887f90 // b fault.c:1580
-#define RR_RECORD_CFU 0xffffffff81035000 // info addr rr_record_cfu
+#define STRNCPY_FROM_USER 0xffffffff814b9d10 // info addr strncpy_from_user
+#define STRNLEN_USER 0xffffffff814b9f14 // b lib/strnlen_user.c:116
+#define RANDOM_GEN 0xffffffff81035260 // info addr rr_record_random
+#define PF_EXEC 0xffffffff81887bf0 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff81887e90 // b fault.c:1580
+#define RR_RECORD_CFU 0xffffffff810352d0 // info addr rr_record_cfu
 #define RR_RECORD_GFU 0xffffffff81848a24 // b getuser.S:103
 #define RR_GFU_NOCHECK4 0xffffffff81848a7d // b getuser.S:147
 #define RR_GFU_NOCHECK8 0xffffffff81848a9e // b getuser.S:162
 #define RR_GFU4 0xffffffff818489f3 // b getuser.S:88
 
 #define SYSCALL_ENTRY 0xffffffff81a00000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff81888660 // info addr syscall_exit_to_user_mode
+#define SYSCALL_EXIT 0xffffffff81888560 // info addr syscall_exit_to_user_mode
 #define PF_ASM_EXC 0xffffffff81a00b40 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff81888700 // info addr irq_enter
-#define IRQ_EXIT 0xffffffff81888780 // info addr irq_exit
+#define IRQ_ENTRY 0xffffffff81888600 // info addr irq_enter
+#define IRQ_EXIT 0xffffffff81888690 // info addr irq_exit
+
+#define LOCK_RELEASE 0xffffffff81034f35 // info addr rr_record_release
 
 #define KVM_HC_RR_DATA_IN           13
 #define KVM_HC_RR_STRNCPY			14
@@ -83,6 +85,8 @@ void rr_store_op(CPUArchState *env, unsigned long addr);
 unsigned long rr_get_inst_cnt(CPUState *cpu);
 void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long inst_cnt);
 void rr_do_replay_strnlen_user(CPUState *cpu);
+void rr_do_replay_release(CPUState *cpu);
+void cause_other_cpu_debug(CPUState *cpu);
 
 typedef uint64_t sg_addr;
 
@@ -127,4 +131,8 @@ void rr_register_ivshmem(RAMBlock *rb);
 unsigned long rr_get_shm_addr(void);
 void rr_ivshmem_set_rr_enabled(int enabled);
 int rr_inc_inst(CPUState *cpu, unsigned long next_pc);
+int replay_cpu_exec_ready(CPUState *cpu);
+CPUState* replay_get_running_cpu(void);
+void rr_debug(void);
+
 #endif /* KERNEL_RR_H */

@@ -83,14 +83,16 @@ typedef struct SyncClocks {
 static int64_t max_delay;
 static int64_t max_advance;
 
+static bool should_log = false;
+
 static bool should_log_trace(CPUState *cpu)
 {
-    // int replayed_num = get_replayed_event_num();
+    int replayed_num = get_replayed_event_num();
 
-    // if (388 <= replayed_num && cpu->rr_executed_inst < 630795) {
-    //     return true;
-    // }
-    return false;
+    if (18972 < replayed_num && replayed_num < 18974) {
+        return true;
+    }
+    return should_log;
     // return true;
 }
 
@@ -1147,20 +1149,27 @@ int cpu_exec(CPUState *cpu)
                     break;
                 case PF_EXEC:
                     rr_do_replay_exception_end(cpu);
+                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
                 case PF_EXEC_END:
                     rr_post_replay_exception(cpu);
-                    rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+                    break;
+                case RR_HANDLE_SYSCALL:
+                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+                    break;
+                case RR_RECORD_SYSCALL:
+                    sync_syscall_spin_cnt(cpu);
+                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+
                     break;
                 case SYSCALL_ENTRY:
                 case SYSCALL_EXIT:
-                    rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-                    break;
-                case PF_ASM_EXC:
-                    rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-                    break;
-                case IRQ_ENTRY:
-                case IRQ_EXIT:
+                // case IRQ_ENTRY:
+                // case IRQ_EXIT:
+                // case RR_HANDLE_IRQ:
+                // case RR_RECORD_IRQ:
+                // case PF_ASM_EXC:
                     rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
                 case LOCK_RELEASE:

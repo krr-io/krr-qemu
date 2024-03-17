@@ -442,6 +442,7 @@ struct CPUState {
 
     int cause_debug;
     bool force_interrupt;
+    unsigned long last_removed_addr;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

@@ -52,6 +52,7 @@ static int event_dma_done = 0;
 static int event_strnlen = 0;
 static int event_rdseed_num = 0;
 static int event_release = 0;
+static int event_sync_inst = 0;
 
 static int started_replay = 0;
 static int initialized_replay = 0;
@@ -84,6 +85,9 @@ static void rr_reset_ivshmem(void);
 static void finish_replay(void);
 static void rr_log_event(rr_event_log *event_record, int event_num);
 static bool rr_replay_is_entry(rr_event_log *event);
+static void interrupt_check(rr_event_log *event);
+
+static long syscall_spin_cnt = 0;
 
 void rr_fake_call(void){return;}
 
@@ -93,7 +97,8 @@ static void initialize_replay(void) {
     qemu_cond_init(&replay_cond);
 }
 
-void rr_debug(void){
+__attribute_maybe_unused__ void
+rr_debug(void) {
     printf("Wake up\n");
 }
 
@@ -131,7 +136,7 @@ int replay_cpu_exec_ready(CPUState *cpu)
             printf("CPU Exit \n");
             break;
         }
-        rr_debug();
+        printf("CPU %d wake up\n", cpu->cpu_index);
     }
 
     if (rr_event_log_head == NULL) {
@@ -199,20 +204,34 @@ static void rr_init_ram_bitmaps(void) {
 
 static void sync_spin_inst_cnt(CPUState *cpu, rr_event_log *event)
 {
-    unsigned long spin_cnt;
+    long spin_cnt_diff = 0;
 
-    if (event->type == EVENT_TYPE_INTERRUPT)
-        spin_cnt = event->event.interrupt.spin_count;
-    else if (event->type == EVENT_TYPE_SYSCALL)
-        spin_cnt = event->event.syscall.spin_count;
-    else if (event->type == EVENT_TYPE_EXCEPTION)
-        spin_cnt = event->event.syscall.spin_count;
-    else {
-        printf("Unsupported sync event %d\n", event->type);
-        abort();
+    if (event->type == EVENT_TYPE_INTERRUPT) {
+        
+        spin_cnt_diff = event->event.interrupt.spin_count * 3 - 1;
+    }
+    else if (event->type == EVENT_TYPE_EXCEPTION) {
+        spin_cnt_diff = event->event.exception.spin_count * 3 - 1;
     }
 
-    cpu->rr_executed_inst += spin_cnt * 3;
+    if (spin_cnt_diff < 0)
+        spin_cnt_diff = 0;
+
+    cpu->rr_executed_inst += spin_cnt_diff;
+    if (spin_cnt_diff > 0)
+        qemu_log("[CPU %d]Synced inst count to %lu\n", cpu->cpu_index, cpu->rr_executed_inst);
+}
+
+void sync_syscall_spin_cnt(CPUState *cpu)
+{
+    if (syscall_spin_cnt != 0) {
+        cpu->rr_executed_inst += syscall_spin_cnt * 3 - 1;
+    }
+    
+    if (syscall_spin_cnt > 0)
+        qemu_log("Syscall synced inst count to %lu\n", cpu->rr_executed_inst);
+
+    syscall_spin_cnt = 0;
 }
 
 static void finish_replay(void)
@@ -457,8 +476,10 @@ void rr_do_replay_gfu(CPUState *cpu)
         }
     }
 
-    printf("Replayed get_user: %lx, event number=%d\n", replay_node->event.gfu.val, replayed_event_num);
-    qemu_log("Replayed get_user: %lx, event number=%d\n", replay_node->event.gfu.val, replayed_event_num);
+    printf("[CPU %d]Replayed get_user: %lx, event number=%d\n",
+            cpu->cpu_index, replay_node->event.gfu.val, replayed_event_num);
+    qemu_log("[CPU %d]Replayed get_user: %lx, event number=%d\n",
+            cpu->cpu_index, replay_node->event.gfu.val, replayed_event_num);
 
     env->regs[R_EDX] = replay_node->event.gfu.val;
     // env->regs[R_EBX] = rr_event_log_head->event.gfu.val;
@@ -486,8 +507,10 @@ void rr_do_replay_strnlen_user(CPUState *cpu)
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
 
-    printf("Replayed strlen_user: len=%lu, event number=%d\n", node->event.cfu.len, replayed_event_num);
-    qemu_log("Replayed strlen_user: len=%lu, event number=%d\n", node->event.cfu.len, replayed_event_num);
+    printf("[CPU %d]Replayed strlen_user: len=%lu, event number=%d\n",
+            cpu->cpu_index, node->event.cfu.len, replayed_event_num);
+    qemu_log("[CPU %d]Replayed strlen_user: len=%lu, event number=%d\n",
+            cpu->cpu_index, node->event.cfu.len, replayed_event_num);
     env->regs[R_EBX] = node->event.cfu.len;
 
     rr_pop_event_head();
@@ -526,12 +549,14 @@ void rr_do_replay_cfu(CPUState *cpu)
         }
     }
 
-    printf("Replayed CFU[0x%lx]: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
+    printf("[CPU %d]Replayed CFU[0x%lx]: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
+            cpu->cpu_index,
             env->eip,
             node->event.cfu.src_addr,
             node->event.cfu.dest_addr,
             node->event.cfu.len, replayed_event_num);
-    qemu_log("Replayed CFU[0x%lx]: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
+    qemu_log("[CPU %d]Replayed CFU[0x%lx]: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
+                cpu->cpu_index,
                 env->eip,
                 node->event.cfu.src_addr,
                 node->event.cfu.dest_addr,
@@ -603,12 +628,14 @@ void rr_do_replay_strncpy_from_user(CPUState *cpu)
         }
     }
 
-    printf("Replayed strncpy[0x%lx]: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
+    printf("[CPU %d]Replayed strncpy[0x%lx]: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
+            cpu->cpu_index,
             env->eip,
             node->event.cfu.src_addr,
             node->event.cfu.dest_addr,
             node->event.cfu.len, replayed_event_num);
-    qemu_log("Replayed strncpy[0x%lx]: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
+    qemu_log("[CPU %d]Replayed strncpy[0x%lx]: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
+                cpu->cpu_index,
                 env->eip,
                 node->event.cfu.src_addr,
                 node->event.cfu.dest_addr,
@@ -644,14 +671,36 @@ void rr_do_replay_strncpy_from_user(CPUState *cpu)
     }
 }
 
+void rr_do_replay_sync_inst(CPUState *cpu)
+{
+
+    qemu_mutex_lock(&replay_queue_mutex);
+    if (rr_event_log_head->type != EVENT_TYPE_INST_SYNC) {
+        printf("[CPU %d]Unexpected %d expected inst sync\n", cpu->cpu_index, rr_event_log_head->type);
+        cpu->cause_debug = true;
+        goto finish;
+    }
+    cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+
+    printf("[CPU %d]Replayed inst sync to %lu\n", cpu->cpu_index, rr_event_log_head->inst_cnt); 
+    qemu_log("[CPU %d]Replayed inst sync to %lu\n", cpu->cpu_index, rr_event_log_head->inst_cnt);
+
+    rr_pop_event_head();
+
+finish:
+    qemu_mutex_unlock(&replay_queue_mutex);
+}
+
 static void
 rr_merge_user_interrupt_of_guest_and_hypervisor(rr_event_log *guest_event, rr_interrupt *guest_interrupt)
 {
     rr_event_log *vcpu_event_head = rr_smp_event_log_queues[guest_event->id];
 
     if (vcpu_event_head == NULL) {
-        printf("Could not find corresponding interrupt from hypervisor: cpu_id=%d\n", guest_event->id);
-        exit(1);
+        printf("Could not find corresponding interrupt from hypervisor: cpu_id=%d, spin_count=%lu\n",
+               guest_event->id, guest_event->event.interrupt.spin_count);
+        // exit(1);
+        return;
     }
 
     guest_interrupt->vector = vcpu_event_head->event.interrupt.vector;
@@ -697,6 +746,8 @@ rr_event_log_new_from_event(rr_event_log event, int record_mode)
         qemu_log("%s event\n", interrupt_title_name);
         if (!record_mode)
             event_interrupt_num++;
+        else
+            interrupt_check(event_record);
         break;
 
     case EVENT_TYPE_EXCEPTION:
@@ -742,6 +793,9 @@ rr_event_log_new_from_event(rr_event_log event, int record_mode)
         break;
     case EVENT_TYPE_RELEASE:
         event_release++;
+        break;
+    case EVENT_TYPE_INST_SYNC:
+        event_sync_inst++;
         break;
     default:
         break;
@@ -827,6 +881,10 @@ static void rr_log_event(rr_event_log *event_record, int event_num) {
             break;
         case EVENT_TYPE_RELEASE:
             qemu_log("Lock Released: cpu_id=%d\n", event_record->id);
+            break;
+        case EVENT_TYPE_INST_SYNC:
+            qemu_log("Sync Instructions: cpu_id=%d, inst_cnt=%lu\n", event_record->id, event_record->inst_cnt);
+            break;
         default:
             break;
     }
@@ -867,6 +925,7 @@ static rr_event_log *rr_event_log_new_from_event_shm(rr_event_log_guest event)
             qemu_log("Merged user interrupt\n");
         }
 
+        interrupt_check(event_record);
         event_interrupt_num++;
         break;
 
@@ -913,6 +972,9 @@ static rr_event_log *rr_event_log_new_from_event_shm(rr_event_log_guest event)
         break;
     case EVENT_TYPE_RELEASE:
         event_release++;
+        break;
+    case EVENT_TYPE_INST_SYNC:
+        event_sync_inst++;
         break;
     default:
         break;
@@ -1021,6 +1083,18 @@ void append_event(rr_event_log event, int is_record)
 
 }
 
+static void interrupt_check(rr_event_log *event)
+{
+    if (rr_event_cur != NULL) {
+        if (rr_event_cur->type == EVENT_TYPE_INTERRUPT \
+            && event->type == EVENT_TYPE_INTERRUPT \
+            && event->id != rr_event_cur->id) {
+            printf("Interrupts %d %d from different CPUs are next\n",
+                   rr_event_cur->event.interrupt.vector, event->event.interrupt.vector);
+        }
+    }
+}
+
 static void append_event_shm(rr_event_log_guest event)
 {
     rr_event_log *event_record = rr_event_log_new_from_event_shm(event);
@@ -1057,10 +1131,10 @@ void rr_print_events_stat(void)
     printf("=== Event Stats ===\n");
 
     printf("Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\nRandom: %d\n"
-           "IO Input: %d\nStrnlen: %d\nDMA IO: %d\nRDSEED: %d\n",
+           "IO Input: %d\nStrnlen: %d\nDMA IO: %d\nRDSEED: %d\nInst Sync: %d\n",
            event_interrupt_num, event_syscall_num, event_exception_num,
            event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_strnlen,
-           event_dma_done, event_rdseed_num);
+           event_dma_done, event_rdseed_num, event_sync_inst);
 
     total_event_number = get_total_events_num();
 
@@ -1239,9 +1313,6 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
     env = &x86_cpu->env;
 
     if (cpu->cpu_index != rr_event_log_head->id) {
-        if (cpu->cpu_index == 0) {
-            qemu_log("interrupt pe mask: %ld\n", env->cr[0] & CR0_PE_MASK);
-        }
         goto finish;
     } 
 
@@ -1344,8 +1415,12 @@ void rr_do_replay_exception(CPUState *cpu)
 
     // printf("Exception error code %d\n", rr_event_log_head->event.exception.error_code);
     printf("Ready to replay exception: %d\n", cpu->exception_index);
+    qemu_log("Ready to replay exception: %d\n", cpu->exception_index);
     env->error_code = rr_event_log_head->event.exception.error_code;
     env->cr[2] = rr_event_log_head->event.exception.cr2;
+
+    sync_spin_inst_cnt(cpu, rr_event_log_head);
+
 
     // printf("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
     //        rr_event_log_head->event.exception.exception_index,
@@ -1399,13 +1474,13 @@ void rr_do_replay_exception_end(CPUState *cpu)
         printf("Expected PF address: 0x%lx\n", env->cr[2]);
     }
 
-    printf("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
-           rr_event_log_head->event.exception.exception_index,
+    printf("[CPU %d]Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
+           cpu->cpu_index, rr_event_log_head->event.exception.exception_index,
            rr_event_log_head->event.exception.cr2,
            rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code, replayed_event_num);
 
-    qemu_log("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
-            rr_event_log_head->event.exception.exception_index,
+    qemu_log("[CPU %d]Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
+            cpu->cpu_index, rr_event_log_head->event.exception.exception_index,
             rr_event_log_head->event.exception.cr2,
             rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code, replayed_event_num);
 
@@ -1475,6 +1550,10 @@ void rr_do_replay_syscall(CPUState *cpu)
             env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
     printf("Replayed syscall=%lu, inst_cnt=%lu, replayed event number=%d\n",
            env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
+    
+    // sync_spin_inst_cnt(cpu, rr_event_log_head);
+
+    syscall_spin_cnt = rr_event_log_head->event.syscall.spin_count;
 
     qemu_log("[mem_trace] Syscall: %lu\n", env->regs[R_EAX]);
 
@@ -1562,8 +1641,10 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     *tsc = rr_event_log_head->event.io_input.value;
     rr_pop_event_head();
 
-    qemu_log("Replayed rdtsc=%lx, replayed event number=%d\n", *tsc, replayed_event_num);
-    printf("Replayed rdtsc=%lx, replayed event number=%d\n", *tsc, replayed_event_num);
+    qemu_log("[CPU %d]Replayed rdtsc=%lx, replayed event number=%d\n",
+            cpu->cpu_index, *tsc, replayed_event_num);
+    printf("[CPU %d]Replayed rdtsc=%lx, replayed event number=%d\n",
+           cpu->cpu_index, *tsc, replayed_event_num);
 
 finish:
     qemu_mutex_unlock(&replay_queue_mutex);
@@ -1575,7 +1656,8 @@ void rr_do_replay_release(CPUState *cpu)
     qemu_mutex_lock(&replay_queue_mutex);
 
     if (rr_event_log_head->type != EVENT_TYPE_RELEASE) {
-        printf("Unexpected %d, expected lock release\n", rr_event_log_head->type);
+        printf("Unexpected %d, expected lock release, inst_cnt=%lu\n",
+               rr_event_log_head->type, cpu->rr_executed_inst);
         cpu->cause_debug = true;
         goto finish;
         // abort();
@@ -1583,8 +1665,10 @@ void rr_do_replay_release(CPUState *cpu)
 
     rr_pop_event_head();
 
-    qemu_log("Replayed release, replayed event number=%d\n", replayed_event_num);
-    printf("Replayed release, replayed event number=%d\n", replayed_event_num);
+    qemu_log("[CPU %d]Replayed release, replayed event number=%d\n",
+             cpu->cpu_index, replayed_event_num);
+    printf("[CPU %d]Replayed release, replayed event number=%d\n",
+            cpu->cpu_index, replayed_event_num);
 
     if (rr_event_log_head != NULL) {
         current_owner = rr_event_log_head->id;
@@ -1820,12 +1904,12 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
 
     // printf("Step: 0x%lx Inst: %lu, ECX=%lu\n", env->eip, inst_cnt, env->regs[R_ECX]);
 
-    qemu_log("Step: 0x%lx Inst: %lu ECX: %lu\n", env->eip, inst_cnt, env->regs[R_ECX]);
+    // qemu_log("Step: 0x%lx Inst: %lu ECX: %lu\n", env->eip, inst_cnt, env->regs[R_ECX]);
 
     switch (bp_addr) {
         case SYSCALL_ENTRY:
-            qemu_log("check_trace syscall entry[%ld]: %lu. regs: 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx\n",
-                     env->regs[R_EAX], inst_cnt,
+            qemu_log("[CPU-%d]check_trace syscall entry[%ld]: %lu. regs: 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx\n",
+                     cpu->cpu_index, env->regs[R_EAX], inst_cnt,
                      env->regs[R_EBX], env->regs[R_ECX],
                      env->regs[R_EDX], env->regs[R_ESI],
                      env->regs[R_EDX], env->regs[R_ESI],
@@ -1834,8 +1918,8 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
             break;
         case SYSCALL_EXIT:
             // qemu_log("check_trace syscall exit: %lu\n", inst_cnt);
-            qemu_log("check_trace syscall exit: %lu. regs: 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx\n",
-                     inst_cnt, env->regs[R_EAX],
+            qemu_log("[CPU-%d]check_trace syscall exit: %lu. regs: 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx\n",
+                     cpu->cpu_index, inst_cnt, env->regs[R_EAX],
                      env->regs[R_EBX], env->regs[R_ECX],
                      env->regs[R_EDX], env->regs[R_ESI],
                      env->regs[R_EDX], env->regs[R_ESI],
@@ -1844,8 +1928,8 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
             break;
         case IRQ_ENTRY:
             // qemu_log("check_trace irq entry: %lu\n", inst_cnt);
-            qemu_log("check_trace irq entry: %lu. regs: 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx\n",
-                     inst_cnt, env->regs[R_EAX],
+            qemu_log("[CPU-%d]check_trace irq entry: %lu. regs: 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx\n",
+                     cpu->cpu_index, inst_cnt, env->regs[R_EAX],
                      env->regs[R_EBX], env->regs[R_ECX],
                      env->regs[R_EDX], env->regs[R_ESI],
                      env->regs[R_EDX], env->regs[R_ESI],
@@ -1853,27 +1937,39 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
                      env->regs[R_EBP]);
             break;
         case IRQ_EXIT:
-            qemu_log("check_trace irq exit: %lu\n", inst_cnt);
+            qemu_log("[CPU-%d]check_trace irq exit: %lu\n", cpu->cpu_index, inst_cnt);
             break;
         case RR_RECORD_GFU:
         case RR_GFU_NOCHECK4:
         case RR_GFU_NOCHECK8:
-            qemu_log("check_trace gfu[0x%lx] entry: %lu\n", bp_addr, inst_cnt);
+            qemu_log("[CPU-%d]check_trace gfu[0x%lx] entry: %lu\n", cpu->cpu_index, bp_addr, inst_cnt);
             break;
         case RR_RECORD_CFU:
-            qemu_log("check_trace cfu entry: %lu\n", inst_cnt);
+            qemu_log("[CPU-%d]check_trace cfu entry: %lu\n", cpu->cpu_index, inst_cnt);
             break;
         case STRNCPY_FROM_USER:
-            qemu_log("check_trace strncpy entry: %lu\n", inst_cnt);
+            qemu_log("[CPU-%d]check_trace strncpy entry: %lu\n", cpu->cpu_index, inst_cnt);
             break;
         case STRNLEN_USER:
             qemu_log("check_trace strnlen entry: %lu\n", inst_cnt);
             break;
         case PF_ASM_EXC:
-            qemu_log("check_trace pf entry[0x%lx]: %lu\n", env->cr[2], inst_cnt);
+            qemu_log("[CPU-%d]check_trace pf entry[0x%lx]: %lu\n", cpu->cpu_index, env->cr[2], inst_cnt);
             break;
         case PF_EXEC_END:
-            qemu_log("check_trace pf exit: %lu\n", inst_cnt);
+            qemu_log("[CPU-%d]check_trace pf exit: %lu\n", cpu->cpu_index, inst_cnt);
+            break;
+        case RR_HANDLE_SYSCALL:
+            qemu_log("[CPU-%d]check_trace handle_syscall: %lu\n", cpu->cpu_index, inst_cnt);
+            break;
+        case RR_RECORD_SYSCALL:
+            qemu_log("[CPU-%d]check_trace record_syscall: %lu\n", cpu->cpu_index, inst_cnt);
+            break;
+        case RR_HANDLE_IRQ:
+            qemu_log("[CPU-%d]check_trace handle_irq: %lu\n", cpu->cpu_index, inst_cnt);
+            break;
+        case RR_RECORD_IRQ:
+            qemu_log("[CPU-%d]check_trace record_irq: %lu\n", cpu->cpu_index, inst_cnt);
             break;
     }
 }

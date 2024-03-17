@@ -70,6 +70,11 @@ def fetch_irq_exit():
 def fetch_gfu4():
     return filter_loc_addr("getuser.S:88")
 
+def fetch_record_syscall():
+    return filter_info_addr("rr_record_syscall")
+
+def fetch_handle_syscall():
+    return filter_info_addr("rr_handle_syscall")
 
 handlers = {
     "STRNCPY_FROM_USER": fetch_strncpy_from_user,
@@ -87,6 +92,8 @@ handlers = {
     "IRQ_ENTRY": fetch_irq_entry,
     "IRQ_EXIT": fetch_irq_exit,
     "RR_GFU4": fetch_gfu4,
+    "RR_RECORD_SYSCALL": fetch_record_syscall,
+    "RR_HANDLE_SYSCALL": fetch_handle_syscall
 }
 
 

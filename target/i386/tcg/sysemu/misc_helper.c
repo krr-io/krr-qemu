@@ -551,6 +551,9 @@ void helper_vmcall(CPUX86State *env)
     nr = env->regs[R_EAX];
 
     switch (nr) {
+        case 20:
+            rr_do_replay_sync_inst(cs);
+            break;
         case KVM_HC_RR_RANDOM:
             rr_do_replay_rand(cs, 1);
             return;

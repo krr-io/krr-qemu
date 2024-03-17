@@ -14,10 +14,10 @@
 
 #define STRNCPY_FROM_USER 0xffffffff814b9d10 // info addr strncpy_from_user
 #define STRNLEN_USER 0xffffffff814b9f14 // b lib/strnlen_user.c:116
-#define RANDOM_GEN 0xffffffff81035260 // info addr rr_record_random
+#define RANDOM_GEN 0xffffffff810352b0 // info addr rr_record_random
 #define PF_EXEC 0xffffffff81887bf0 // info addr exc_page_fault
 #define PF_EXEC_END 0xffffffff81887e90 // b fault.c:1580
-#define RR_RECORD_CFU 0xffffffff810352d0 // info addr rr_record_cfu
+#define RR_RECORD_CFU 0xffffffff81035320 // info addr rr_record_cfu
 #define RR_RECORD_GFU 0xffffffff81848a24 // b getuser.S:103
 #define RR_GFU_NOCHECK4 0xffffffff81848a7d // b getuser.S:147
 #define RR_GFU_NOCHECK8 0xffffffff81848a9e // b getuser.S:162
@@ -27,10 +27,16 @@
 #define SYSCALL_EXIT 0xffffffff81888560 // info addr syscall_exit_to_user_mode
 #define PF_ASM_EXC 0xffffffff81a00b40 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff81888600 // info addr irq_enter
-#define IRQ_EXIT 0xffffffff81888690 // info addr irq_exit
+#define IRQ_ENTRY 0xffffffff81888600 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff81888690 // info addr irqentry_exit
 
-#define LOCK_RELEASE 0xffffffff81034f35 // info addr rr_record_release
+#define LOCK_RELEASE 0xffffffff81034f45 // info addr rr_record_release
+#define RR_RECORD_SYSCALL 0xffffffff81034f91 // info addr rr_record_syscall
+#define RR_HANDLE_SYSCALL 0xffffffff81034f60
+#define RR_HANDLE_IRQ 0xffffffff81035210
+#define RR_RECORD_IRQ 0xffffffff8103523f
+#define RR_RECORD_EXCP 0xffffffff810350d1
+
 
 #define KVM_HC_RR_DATA_IN           13
 #define KVM_HC_RR_STRNCPY			14
@@ -86,7 +92,9 @@ unsigned long rr_get_inst_cnt(CPUState *cpu);
 void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long inst_cnt);
 void rr_do_replay_strnlen_user(CPUState *cpu);
 void rr_do_replay_release(CPUState *cpu);
+void rr_do_replay_sync_inst(CPUState *cpu);
 void cause_other_cpu_debug(CPUState *cpu);
+void sync_syscall_spin_cnt(CPUState *cpu);
 
 typedef uint64_t sg_addr;
 

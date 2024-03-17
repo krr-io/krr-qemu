@@ -28,60 +28,10 @@
 #include "kvm-cpus.h"
 #include "sysemu/kernel-rr.h"
 
-// target_ulong syscall_addr = 0xffffffff81200000;
-// target_ulong pf_excep_addr = 0xffffffff8111e369;
-// target_ulong copy_from_iter_addr = 0xffffffff810afc14;
-// target_ulong copy_from_user_addr = 0xffffffff810b4fb8; 
-// target_ulong copy_page_from_iter_addr = 0xffffffff810b0b16;
-// target_ulong strncpy_addr = 0xffffffff810cbd51; // call   0xffffffff811183e0 <copy_user_enhanced_fast_string>
-// target_ulong get_user_addr = 0xffffffff81118850;
-// target_ulong strnlen_user_addr = 0xffffffff810cbe4a;
-// target_ulong random_bytes_addr = 0xffffffff810e1e25;
-// target_ulong last_removed_addr = 0;
-
-
-const unsigned long syscall_addr = 0xffffffff81800000; // info addr entry_SYSCALL_64
-const unsigned long pf_excep_addr = 0xffffffff81741960; // info addr exc_page_fault
-const unsigned long copy_from_iter_addr = 0xffffffff8144af0d; // lib/iov_iter.c:186
-const unsigned long copy_from_user_addr = 0xffffffff814528e7; // lib/usercopy.c:21
-const unsigned long copy_page_from_iter_addr = 0xffffffff8144dd7e;
-const unsigned long strncpy_addr = 0xffffffff81483732; // lib/strncpy_from_user.c:141
-const unsigned long get_user_addr = 0xffffffff816c2220; // arch/x86/lib/getuser.S:103
-const unsigned long strnlen_user_addr = 0xffffffff8146bb66; // lib/strnlen_user.c:115
-
-// const unsigned long random_bytes_addr_start = 0xffffffff81533620; // b _get_random_bytes
-// const unsigned long random_bytes_addr_end = 0xffffffff815337c0; // b drivers/char/random.c:382
-
-const unsigned long random_bytes_addr_start = 0xffffffff81533660; // b _get_random_bytes
-const unsigned long random_bytes_addr_end = 0xffffffff81533800; // b drivers/char/random.c:382
-
-const unsigned long uaccess_begin = 0xffffffff811e084c;
-
-unsigned long last_removed_addr = 0;
-
-target_ulong userspace_start = 0x0000000000000000;
-target_ulong userspace_end = 0x00007fffffffffff;
-
-static bool singlestep_started = false;
-static target_ulong singlestep_start = 0xffffffff810296c6;
-static target_ulong singlestep_end = 0xffffffff810296c6; 
-int count_num = 3;
-
-// static int syscall_seq = 0;
-
-static void rr_insert_userspace_int(CPUState *cs);
 
 static bool rr_is_address_interceptible(target_ulong bp_addr)
 {
-    if (bp_addr != SYSCALL_ENTRY && bp_addr != pf_excep_addr && \
-        bp_addr != copy_from_iter_addr && bp_addr != copy_from_user_addr && \
-        bp_addr != strncpy_addr && \
-        bp_addr != get_user_addr && \
-        bp_addr != strnlen_user_addr && \
-        bp_addr != random_bytes_addr_start && \
-        bp_addr != random_bytes_addr_end && \
-        bp_addr != copy_page_from_iter_addr && \
-        bp_addr != uaccess_begin && \
+    if (bp_addr != SYSCALL_ENTRY && \
         bp_addr != SYSCALL_EXIT && \
         bp_addr != PF_ASM_EXC && \
         bp_addr != PF_EXEC_END && \
@@ -91,10 +41,12 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
         bp_addr != RR_RECORD_CFU && \
         bp_addr != IRQ_ENTRY && \
         bp_addr != IRQ_EXIT && \
-        bp_addr != singlestep_start && \
-        bp_addr != singlestep_end && \
         bp_addr != RR_GFU_NOCHECK4 && \
-        bp_addr != RR_GFU_NOCHECK8)
+        bp_addr != RR_GFU_NOCHECK8 && \
+        bp_addr != RR_HANDLE_SYSCALL && \
+        bp_addr != RR_RECORD_SYSCALL && \
+        bp_addr != RR_HANDLE_IRQ && \
+        bp_addr != RR_RECORD_IRQ)
         return false;
 
     return true;
@@ -102,15 +54,12 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
 
 static bool rr_is_address_sw(target_ulong bp_addr)
 {
-    if (bp_addr == strncpy_addr \
-        || bp_addr == get_user_addr \
-        || bp_addr == random_bytes_addr_start \
-        || bp_addr == random_bytes_addr_end \
-        || bp_addr == copy_from_iter_addr \
-        || bp_addr == RR_RECORD_CFU \
-        || bp_addr == RR_RECORD_GFU \
+    if (bp_addr == SYSCALL_ENTRY \
+        || bp_addr == SYSCALL_EXIT \
         || bp_addr == IRQ_ENTRY \
         || bp_addr == IRQ_EXIT \
+        || bp_addr == RR_RECORD_CFU \
+        || bp_addr == RR_RECORD_GFU \
         || bp_addr == RR_GFU_NOCHECK4 \
         || bp_addr == RR_GFU_NOCHECK8)
     {
@@ -127,53 +76,18 @@ void rr_insert_breakpoints(void)
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
-        bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_HW);
+        bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_SW);
         if (bp_ret > 0) {
             printf("failed to insert bp for syscall: %d\n", bp_ret);
         } else {
             printf("Inserted breakpoints for system call\n");
         }
 
-        bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_HW);
+        bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_SW);
         if (bp_ret > 0) {
             printf("failed to insert bp for pf: %d\n", bp_ret);
         } else {
             printf("Inserted breakpoints for syscall exit\n");
-        }
-
-        bp_ret = kvm_insert_breakpoint(cpu, PF_ASM_EXC, 1, GDB_BREAKPOINT_HW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for pf: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for pf\n");
-        }
-
-        bp_ret = kvm_insert_breakpoint(cpu, PF_EXEC_END, 1, GDB_BREAKPOINT_HW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for pf end: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for pf end\n");
-        }
-
-        bp_ret = kvm_insert_breakpoint(cpu, RR_RECORD_GFU, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for gfu: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for gfu\n");
-        }
-
-        bp_ret = kvm_insert_breakpoint(cpu, RR_GFU_NOCHECK4, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for gfu: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for gfu\n");
-        }
-
-        bp_ret = kvm_insert_breakpoint(cpu, RR_GFU_NOCHECK8, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for gfu: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for gfu\n");
         }
 
         bp_ret = kvm_insert_breakpoint(cpu, IRQ_ENTRY, 1, GDB_BREAKPOINT_SW);
@@ -189,6 +103,41 @@ void rr_insert_breakpoints(void)
         } else {
             printf("Inserted breakpoints for irq exit\n");
         }
+
+        // bp_ret = kvm_insert_breakpoint(cpu, PF_ASM_EXC, 1, GDB_BREAKPOINT_HW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for pf: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for pf\n");
+        // }
+
+        // bp_ret = kvm_insert_breakpoint(cpu, PF_EXEC_END, 1, GDB_BREAKPOINT_HW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for pf end: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for pf end\n");
+        // }
+
+        // bp_ret = kvm_insert_breakpoint(cpu, RR_RECORD_GFU, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for gfu: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for gfu\n");
+        // }
+
+        // bp_ret = kvm_insert_breakpoint(cpu, RR_GFU_NOCHECK4, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for gfu: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for gfu\n");
+        // }
+
+        // bp_ret = kvm_insert_breakpoint(cpu, RR_GFU_NOCHECK8, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for gfu: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for gfu\n");
+        // }
     }
 }
 
@@ -197,107 +146,64 @@ void rr_remove_breakpoints(void)
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
-        kvm_remove_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_HW);
-        kvm_remove_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_HW);
-        kvm_remove_breakpoint(cpu, RR_RECORD_CFU, 1, GDB_BREAKPOINT_SW);
+        kvm_remove_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_SW);
+        kvm_remove_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_SW);
         kvm_remove_breakpoint(cpu, IRQ_ENTRY, 1, GDB_BREAKPOINT_SW);
         kvm_remove_breakpoint(cpu, IRQ_EXIT, 1, GDB_BREAKPOINT_SW);
-        kvm_remove_breakpoint(cpu, PF_ASM_EXC, 1, GDB_BREAKPOINT_HW);
-        kvm_remove_breakpoint(cpu, PF_EXEC_END, 1, GDB_BREAKPOINT_HW);
+        // kvm_remove_breakpoint(cpu, PF_ASM_EXC, 1, GDB_BREAKPOINT_HW);
+        // kvm_remove_breakpoint(cpu, PF_EXEC_END, 1, GDB_BREAKPOINT_HW);
         // kvm_remove_breakpoint(cpu, uaccess_begin, 1, GDB_BREAKPOINT_SW);
     }
 }
 
-__attribute_maybe_unused__ static void rr_insert_userspace_int(CPUState *cs)
-{
-    int bp_ret;
 
-    target_ulong len = (userspace_end - userspace_start) / sizeof(uint8_t);
-
-    bp_ret = kvm_insert_sw_breakpoint_no_save(cs, userspace_start, len);
-    if (bp_ret > 0) {
-        printf("failed to insert bp: %d\n", bp_ret);
-        // break;
-    } else {
-        printf("inserted for user space\n");
-    }
-
-    return;
-}
-
-
-__attribute_maybe_unused__ static void handle_bp_points(CPUState *cpu, target_ulong bp_addr)
+__attribute_maybe_unused__ static void
+handle_bp_points(CPUState *cpu, target_ulong bp_addr)
 {
     rr_handle_kernel_entry(cpu, bp_addr, rr_get_inst_cnt(cpu));
-
-    if (bp_addr == singlestep_start) {
-        if (!singlestep_started) {
-            singlestep_started = true;
-            // kvm_remove_breakpoint(cpu, bp_addr, 1, GDB_BREAKPOINT_HW);
-            // last_removed_addr = bp_addr;
-            // printf("singlestep started\n");
-        } else {
-            singlestep_started = false;
-            count_num--;
-
-            if (!count_num)
-                last_removed_addr = 0;
-        }
-
-    }
 }
 
-// static void handle_singlestep(CPUState *cpu, target_ulong bp_addr)
-// {
-//     if (bp_addr == singlestep_end) {
-//         count_num--;
-//         if (!count_num)
-//             last_removed_addr = 0;
-//     }
-
-//     rr_handle_kernel_entry(cpu, bp_addr, rr_get_inst_cnt(cpu));
-// }
 
 unsigned long last_lock_start = 0;
 
-__attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
+__attribute_maybe_unused__ static bool
+handle_on_bp(CPUState *cpu)
 {
     int bp_type;
     target_ulong bp_addr;
+    int ret;
 
     bp_addr = cpu->kvm_run->debug.arch.pc;
 
     if (!rr_in_record())
         return false;
 
-    if (cpu->singlestep_enabled != 0) {
-        // if (singlestep_started & count_num) {
-        //     handle_singlestep(cpu, bp_addr);
-        //     return true;
-        // }
+    if (rr_is_address_interceptible(bp_addr)) {
+        handle_bp_points(cpu, bp_addr);
+        return false;
+    }
 
-        if (last_removed_addr == 0) {
+    if (cpu->singlestep_enabled != 0) {
+        if (cpu->last_removed_addr == 0) {
             return false;
         }
 
         bp_type = GDB_BREAKPOINT_HW;
 
-        if (rr_is_address_sw(last_removed_addr)) {
+        if (rr_is_address_sw(cpu->last_removed_addr)) {
             bp_type = GDB_BREAKPOINT_SW;
         }
 
-        if (last_removed_addr > 0) {
-            if (kvm_insert_breakpoint(cpu, last_removed_addr, 1, bp_type) > 0) {
+        if (cpu->last_removed_addr > 0) {
+            if (kvm_insert_breakpoint(cpu, cpu->last_removed_addr, 1, bp_type) != 0) {
                 printf("failed to insert bp\n");
                 abort();
             }
         }
 
-        // handle_bp_points(cpu, bp_addr);
-
         cpu_single_step(cpu, 0);
 
-        last_removed_addr = 0;
+        cpu->last_removed_addr = 0;
     } else {
         
         bp_type = GDB_BREAKPOINT_HW;
@@ -311,13 +217,18 @@ __attribute_maybe_unused__ static bool handle_on_bp(CPUState *cpu)
         if (rr_is_address_sw(bp_addr)) {
             bp_type = GDB_BREAKPOINT_SW;
         }
+
+        // printf("bptype for %lx=%d\n", bp_addr, bp_type);
+
         cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
-        if (kvm_remove_breakpoint(cpu, bp_addr, 1, bp_type) > 0) {
-            printf("failed to remove bp\n");
+
+        ret = kvm_remove_breakpoint(cpu, bp_addr, 1, bp_type);
+        if (ret != 0) {
+            printf("failed to remove bp 0x%lx: %d\n", bp_addr, ret);
             abort();
         }
 
-        last_removed_addr = bp_addr;
+        cpu->last_removed_addr = bp_addr;
     }
 
     return true;
@@ -349,10 +260,6 @@ static void *kvm_vcpu_thread_fn(void *arg)
             r = kvm_cpu_exec(cpu);
             if (r == EXCP_DEBUG) {
                 if (!handle_on_bp(cpu)) {
-                    // inst_cnt = rr_get_inst_cnt(cpu);
-                    // if (inst_cnt != 0) {
-                    // printf("break on addr 0x%llx, %lu\n", cpu->kvm_run->debug.arch.pc, inst_cnt);
-                    // }
                     cpu_handle_guest_debug(cpu);
                 }
             }

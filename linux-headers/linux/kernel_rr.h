@@ -15,6 +15,7 @@
 #define EVENT_TYPE_STRNLEN   9
 #define EVENT_TYPE_RDSEED    10
 #define EVENT_TYPE_RELEASE   11
+#define EVENT_TYPE_INST_SYNC 12
 
 enum REGS {
     ZERO,

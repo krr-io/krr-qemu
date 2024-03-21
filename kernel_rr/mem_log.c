@@ -1,7 +1,5 @@
 #define OPENSSL_API_COMPAT 0x10100000L
 
-#include <openssl/md5.h>
-
 #include "qemu/osdep.h"
 #include "qemu-common.h"
 #include "exec/log.h"
@@ -82,35 +80,6 @@ int get_md5sum(void* buffer,
                unsigned long buffersize,
                char* checksum)
 {
-
-    MD5_CTX ctx;
-    int rc,i;
-    unsigned char digest[MD5_DIGEST_LENGTH];
-
-    rc = MD5_Init(&ctx);
-    if(rc != 1) {
-        printf("error in get_md5sum : MD5_Init\n");
-        return 1;
-    }
-
-    rc =  MD5_Update(&ctx, buffer, sizeof(sg_addr) * buffersize);
-    if(rc != 1) {
-        printf("error in get_md5sum : MD5_Update\n");
-        return 1;
-    }
-
-    rc = MD5_Final(digest,&ctx);
-    if(rc != 1) {
-        printf("error in get_md5sum : MD5_Final\n");
-        return 1;
-    }
-
-    for (i = 0; i < MD5_DIGEST_LENGTH; i++) {
-        snprintf(&(checksum[i*2]), 16*2, "%02x", (unsigned int)digest[i]);
-    }
-
-    checksum[2*MD5_DIGEST_LENGTH+1] = '\0';
-
     return 0;
 }
 
@@ -205,27 +174,6 @@ static void rr_pop_mem_log_head(void)
 
 static void rr_check_gpa(rr_mem_log *log)
 {
-    char out[MD5_DIGEST_LENGTH * 2 + 2];
-    int res;
-    uint8_t *buf[TARGET_PAGE_SIZE];
-
-    res = address_space_read(&address_space_memory, log->gpa, MEMTXATTRS_UNSPECIFIED, buf, TARGET_PAGE_SIZE);
-
-    if (res != MEMTX_OK) {
-        printf("failed to read from addr 0x%lx\n", log->gpa);
-    } else {
-        get_md5sum(buf, TARGET_PAGE_SIZE, out);
-
-        if(strcmp(log->md5, out) != 0) {
-            unpassed_check++;
-            qemu_log("gpa 0x%lx is not consistent, expected: %s, actual: %s, rip=0x%lx\n",
-                     log->gpa, log->md5, out, log->rip);
-        } else {
-            qemu_log("gpa 0x%lx passed\n", log->gpa);
-        }
-
-        total_check++;
-    }
 }
 
 void rr_verify_dirty_mem(CPUState *cpu)

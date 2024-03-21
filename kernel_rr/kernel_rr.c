@@ -1656,14 +1656,14 @@ void rr_do_replay_release(CPUState *cpu)
     qemu_mutex_lock(&replay_queue_mutex);
 
     if (rr_event_log_head->type != EVENT_TYPE_RELEASE) {
-        printf("Unexpected %d, expected lock release, inst_cnt=%lu\n",
-               rr_event_log_head->type, cpu->rr_executed_inst);
-        cpu->cause_debug = true;
-        goto finish;
+        // printf("Unexpected %d, expected lock release, inst_cnt=%lu\n",
+        //        rr_event_log_head->type, cpu->rr_executed_inst);
+        // cpu->cause_debug = true;
+        // goto finish;
         // abort();
+    } else {
+        rr_pop_event_head();
     }
-
-    rr_pop_event_head();
 
     qemu_log("[CPU %d]Replayed release, replayed event number=%d\n",
              cpu->cpu_index, replayed_event_num);
@@ -1676,7 +1676,7 @@ void rr_do_replay_release(CPUState *cpu)
 
     qemu_cond_broadcast(&replay_cond);
 
-finish:
+// finish:
     qemu_mutex_unlock(&replay_queue_mutex);
 }
 

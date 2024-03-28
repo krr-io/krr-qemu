@@ -80,6 +80,8 @@ static QemuMutex replay_queue_mutex;
 static QemuCond replay_cond;
 volatile int current_owner = -1;
 
+static int exit_record = 0;
+
 static void rr_read_shm_events(void);
 static void rr_reset_ivshmem(void);
 static void finish_replay(void);
@@ -90,6 +92,12 @@ static void interrupt_check(rr_event_log *event);
 static long syscall_spin_cnt = 0;
 
 void rr_fake_call(void){return;}
+
+
+void rr_enable_exit_record(void)
+{
+    exit_record = 1;
+}
 
 
 static void initialize_replay(void) {
@@ -1254,20 +1262,29 @@ void rr_get_result(void)
     int ret;
     CPUState *cpu;
     char buffer[1024];
+    remove("rr-result.txt");
+    FILE *f = fopen("rr-result.txt", "w");
 
     result_buffer = rr_get_result_buffer();
     printf("Result buffer 0x%lx\n", result_buffer);
 
     CPU_FOREACH(cpu) {
         ret = cpu_memory_rw_debug(cpu, result_buffer, &buffer, 1024, false);
+        printf("Buffer: %s\n", buffer);
+
+        fprintf(f, "%s", buffer);
+
         if (ret == 0) {
             qemu_log("%s\n", buffer);
             break;
         }
     }
 
+    fclose(f);
+
     if (!rr_in_record()) {
-        exit(10);
+        if (exit_record)
+            exit(10);
     }
 }
 
@@ -1292,7 +1309,8 @@ void rr_post_record(void)
 
     rr_reset_ivshmem();
 
-    exit(10);
+    if (exit_record)
+        exit(10);
 }
 
 // void rr_pre_replay(void)

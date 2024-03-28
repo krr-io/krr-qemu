@@ -92,6 +92,8 @@ unsigned long rr_get_inst_cnt(CPUState *cpu);
 unsigned long rr_get_result_buffer(void);
 void rr_get_result(void);
 void rr_enable_exit_record(void);
+void rr_enable_ignore_record(void);
+int rr_get_ignore_record(void);
 
 void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long inst_cnt);
 void rr_do_replay_strnlen_user(CPUState *cpu);

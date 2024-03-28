@@ -81,6 +81,7 @@ static QemuCond replay_cond;
 volatile int current_owner = -1;
 
 static int exit_record = 0;
+static int ignore_record = 0;
 
 static void rr_read_shm_events(void);
 static void rr_reset_ivshmem(void);
@@ -99,6 +100,15 @@ void rr_enable_exit_record(void)
     exit_record = 1;
 }
 
+
+void rr_enable_ignore_record(void)
+{
+    ignore_record = 1;
+}
+
+int rr_get_ignore_record(void) {
+    return ignore_record;
+}
 
 static void initialize_replay(void) {
     qemu_mutex_init(&replay_queue_mutex);

@@ -244,6 +244,9 @@ static void start_record(void)
     //     vm_stop(RUN_STATE_PAUSED);
     // }
 
+    if (rr_get_ignore_record())
+        return;
+
     rr_ivshmem_set_rr_enabled(1);
     kvm_start_record();
 

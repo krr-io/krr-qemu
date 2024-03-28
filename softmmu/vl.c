@@ -3681,6 +3681,8 @@ void qemu_init(int argc, char **argv, char **envp)
             case QEMU_OPTION_exit_record:
                 rr_enable_exit_record();
                 break;
+            case QEMU_OPTION_ignore_record:
+                
             default:
                 if (os_parse_cmd_args(popt->index, optarg)) {
                     error_report("Option not supported in this build");

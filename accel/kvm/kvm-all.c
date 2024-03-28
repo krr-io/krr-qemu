@@ -2902,6 +2902,16 @@ int kvm_cpu_exec(CPUState *cpu)
                 break;
             }
 
+            if (run_ret == -100) {
+                ret = EXCP_START_RECORD;
+                break;
+            }
+
+            if (run_ret == -101) {
+                ret = EXCP_END_RECORD;
+                break;
+            }
+
             if (run_ret == -EINTR || run_ret == -EAGAIN) {
                 DPRINTF("io window exit\n");
                 kvm_eat_signals(cpu);
@@ -3496,6 +3506,21 @@ unsigned long rr_get_inst_cnt(CPUState *cpu)
 
     return res;
 }
+
+unsigned long rr_get_result_buffer(void)
+{
+    int r;
+    unsigned long buffer;
+
+    r = kvm_vm_ioctl(kvm_state, KVM_GET_RESULT_BUFFER, &buffer);
+    if (r) {
+        printf("Failed to get event number: %d\n", r);
+        return 0;
+    }
+
+    return buffer;
+}
+
 
 int kvm_start_record(void)
 {

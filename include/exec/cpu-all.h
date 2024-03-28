@@ -32,6 +32,9 @@
 #define EXCP_YIELD      0x10004 /* cpu wants to yield timeslice to another */
 #define EXCP_ATOMIC     0x10005 /* stop-the-world and emulate atomic */
 
+#define EXCP_START_RECORD     0x10006
+#define EXCP_END_RECORD     0x10007
+
 /* some important defines:
  *
  * HOST_WORDS_BIGENDIAN : if defined, the host cpu is big endian and

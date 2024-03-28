@@ -89,6 +89,9 @@ void sync_dirty_pages(CPUState *cpu);
 void rr_init_dirty_bitmaps(void);
 void rr_store_op(CPUArchState *env, unsigned long addr);
 unsigned long rr_get_inst_cnt(CPUState *cpu);
+unsigned long rr_get_result_buffer(void);
+void rr_get_result(void);
+
 void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long inst_cnt);
 void rr_do_replay_strnlen_user(CPUState *cpu);
 void rr_do_replay_release(CPUState *cpu);

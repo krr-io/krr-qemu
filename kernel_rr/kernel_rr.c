@@ -1243,8 +1243,31 @@ static void rr_record_settle_events(void)
         if (rr_smp_event_log_queues[i] != NULL) {
             printf("Orphan event from kvm!\n");
             rr_log_event(rr_smp_event_log_queues[i], 0);
-            exit(1);
+            // exit(1);
         }
+    }
+}
+
+void rr_get_result(void)
+{
+    unsigned long result_buffer = 0;
+    int ret;
+    CPUState *cpu;
+    char buffer[1024];
+
+    result_buffer = rr_get_result_buffer();
+    printf("Result buffer 0x%lx\n", result_buffer);
+
+    CPU_FOREACH(cpu) {
+        ret = cpu_memory_rw_debug(cpu, result_buffer, &buffer, 1024, false);
+        if (ret == 0) {
+            qemu_log("%s\n", buffer);
+            break;
+        }
+    }
+
+    if (!rr_in_record()) {
+        exit(10);
     }
 }
 
@@ -1264,7 +1287,12 @@ void rr_post_record(void)
     rr_dma_post_record();
     rr_memlog_post_record();
 
+    printf("Getting result\n");
+    rr_get_result();
+
     rr_reset_ivshmem();
+
+    exit(10);
 }
 
 // void rr_pre_replay(void)
@@ -1850,8 +1878,8 @@ void rr_register_ivshmem(RAMBlock *rb)
     ivshmem_base_addr = rb->host;
 
     rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
-    printf("Host addr for shared memory: %p\nHeader info:\ntotal_pos=%u\nrr_endabled=%u\n",
-           ivshmem_base_addr, header->total_pos, header->rr_enabled);
+    printf("Host addr for shared memory: %p\nHeader info:\ntotal_pos=%u\nrr_endabled=%u, entry_size=%lu\n",
+           ivshmem_base_addr, header->total_pos, header->rr_enabled, sizeof(rr_event_log));
 }
 
 void rr_ivshmem_set_rr_enabled(int enabled)

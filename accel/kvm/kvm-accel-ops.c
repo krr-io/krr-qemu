@@ -234,6 +234,31 @@ handle_on_bp(CPUState *cpu)
     return true;
 }
 
+
+static void start_record(void)
+{
+    // bool autostart = false;
+
+    // if (runstate_is_running()){
+    //     autostart = true;
+    //     vm_stop(RUN_STATE_PAUSED);
+    // }
+
+    rr_ivshmem_set_rr_enabled(1);
+    kvm_start_record();
+
+    // if (autostart)
+    //     vm_start();
+}
+
+static void end_record(void)
+{
+    if (rr_in_record())
+        kvm_end_record();
+    else
+        rr_get_result();
+}
+
 static void *kvm_vcpu_thread_fn(void *arg)
 {
     CPUState *cpu = arg;
@@ -258,6 +283,17 @@ static void *kvm_vcpu_thread_fn(void *arg)
     do {
         if (cpu_can_run(cpu)) {
             r = kvm_cpu_exec(cpu);
+
+            if (r == EXCP_START_RECORD) {
+                start_record();
+                continue;
+            }
+
+            if (r == EXCP_END_RECORD) {
+                end_record();
+                continue;
+            }
+
             if (r == EXCP_DEBUG) {
                 if (!handle_on_bp(cpu)) {
                     cpu_handle_guest_debug(cpu);

@@ -191,20 +191,30 @@ def test_run(cpu_num):
 
     print("QEMU CMD: {}".format(qemu_base_cmd))
 
-    process = subprocess.Popen(qemu_base_cmd, shell=True)
+    process = subprocess.Popen(
+        qemu_base_cmd,
+        shell=True,
+        close_fds=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
     rc = 0
     cnt = 0
 
     while True:
-        streamdata = process.communicate()[0]
-        if process.returncode > 0:
-            rc = process.returncode
-            break
+        if process.poll() is not None:
+            streamdata = process.communicate()[0]
+
+            if process.returncode == 10:
+                rc = process.returncode
+                break
 
         time.sleep(1)
         cnt += 1
 
         if cnt > 60:
+            print("Timeout kill")
             process.kill()
             return -1
 

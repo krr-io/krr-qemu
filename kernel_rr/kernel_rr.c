@@ -705,8 +705,8 @@ rr_merge_user_interrupt_of_guest_and_hypervisor(rr_event_log *guest_event, rr_in
     rr_event_log *vcpu_event_head = rr_smp_event_log_queues[guest_event->id];
 
     if (vcpu_event_head == NULL) {
-        printf("Could not find corresponding interrupt from hypervisor: cpu_id=%d, spin_count=%lu\n",
-               guest_event->id, guest_event->event.interrupt.spin_count);
+        //printf("Could not find corresponding interrupt from hypervisor: cpu_id=%d, spin_count=%lu\n",
+        //       guest_event->id, guest_event->event.interrupt.spin_count);
         // exit(1);
         return;
     }

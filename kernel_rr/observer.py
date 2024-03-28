@@ -12,8 +12,8 @@ import time
 DATA_DIR = "test_data"
 
 
-REDIS_TP = "redis-tp"
-AVG_LAT = "avg-latency"
+REDIS_TP = "throughput"
+AVG_LAT = "avg_latency"
 THROUGHPUT = "throughput"
 OPSPS = "opsps"
 LATENCY = "latency"
@@ -123,7 +123,7 @@ def generate_values_rocksdb(buffer):
 
 
 def get_data_redis():
-    with open("./rr-result.txt", "r") as f:
+    with open("./rr-result.txt", "r", encoding='ISO-8859-1') as f:
         content = f.read()
         bm = ""
         if "GET" in content:
@@ -140,7 +140,7 @@ def get_data_redis():
                 generate_redis(line, bm, False)
 
 def get_data_rocksdb():
-    with open("./rr-result.txt", "r") as f:
+    with open("./rr-result.txt", "r", encoding='ISO-8859-1') as f:
         lines = f.readlines()
         for line in lines:
             generate_values_rocksdb(line)

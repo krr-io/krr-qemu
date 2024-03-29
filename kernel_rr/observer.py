@@ -60,11 +60,16 @@ def append_file(benchmark, metric, value):
 
     df = pd.read_csv(file)
 
-    cores = str(current_cpu_num)
+    cores = int(current_cpu_num)
 
-    if df.isin([cores, mode]).any().any():
+    print("cores={} mode={}".format(cores, mode))
+
+    condition = (df['cores'] == current_cpu_num) & (df['mode'] == mode)
+
+    print("Modify file {}".format(file))
+    if not df[condition].empty:
         print("Value exists [{} {}], modifying {}".format(current_cpu_num, mode, value))
-        df.loc[(df["cores"] == current_cpu_num) & (df["mode"] == mode), "value"] = float(value)
+        df.loc[condition, "value"] = float(value)
     else:
         row = [cores, mode, value]
         df.loc[len(df)] = row
@@ -278,6 +283,7 @@ args = parser.parse_args()
 
 mode = args.mode
 test_name = args.test
+
 
 print("mode={} test={}".format(mode, test_name))
 for cpu_num in cpu_nums:

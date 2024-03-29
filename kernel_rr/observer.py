@@ -7,6 +7,7 @@ import argparse
 import seaborn as sns
 import matplotlib.pyplot as plt
 import time
+import signal
 
 
 DATA_DIR = "test_data"
@@ -58,9 +59,16 @@ def append_file(benchmark, metric, value):
         init_csv_file(benchmark, metric)
 
     df = pd.read_csv(file)
-    row = [current_cpu_num, mode, value]
 
-    df.loc[len(df)] = row
+    cores = str(current_cpu_num)
+
+    if df.isin([cores, mode]).any().any():
+        print("Value exists [{} {}], modifying {}".format(current_cpu_num, mode, value))
+        df.loc[(df["cores"] == current_cpu_num) & (df["mode"] == mode), "value"] = float(value)
+    else:
+        row = [cores, mode, value]
+        df.loc[len(df)] = row
+
     df.to_csv(file, index=False)
 
 def generate_rocksdb_bp(buffer):
@@ -199,6 +207,7 @@ def test_run(cpu_num):
         stderr=subprocess.PIPE,
         text=True,
     )
+    print("Started process {}".format(process.pid))
     rc = 0
     cnt = 0
 
@@ -213,9 +222,9 @@ def test_run(cpu_num):
         time.sleep(1)
         cnt += 1
 
-        if cnt > 60:
+        if cnt > 100:
             print("Timeout kill")
-            process.kill()
+            os.kill(process.pid, signal.SIGKILL)
             return -1
 
     print("return code {}".format(rc))
@@ -273,14 +282,14 @@ mode = args.mode
 test_name = args.test
 
 print("mode={}".format(mode))
+get_data()
+# for cpu_num in cpu_nums:
+#     while test_run(cpu_num) < 0:
+#         print("Timeout try again")
 
-for cpu_num in cpu_nums:
-    while test_run(cpu_num) < 0:
-        print("Timeout try again")
 
-
-if args.graph == "true":
-    for file in os.listdir(DATA_DIR):
-        if not file.endswith(".csv"):
-            continue
-        generate_graphs("{}/{}".format(DATA_DIR, file))
+# if args.graph == "true":
+#     for file in os.listdir(DATA_DIR):
+#         if not file.endswith(".csv"):
+#             continue
+#         generate_graphs("{}/{}".format(DATA_DIR, file))

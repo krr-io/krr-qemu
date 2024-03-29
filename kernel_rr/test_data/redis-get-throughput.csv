@@ -1,0 +1,11 @@
+cores,mode,value
+1,baseline,25893.32
+2,baseline,42771.6
+4,baseline,47732.7
+8,baseline,46728.97
+16,baseline,47846.89
+1,kernel_rr,14316.39
+2,kernel_rr,10018.03
+4,kernel_rr,11285.41
+8,kernel_rr,9341.43
+16,kernel_rr,9628.35

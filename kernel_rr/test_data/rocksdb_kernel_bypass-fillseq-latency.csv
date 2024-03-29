@@ -1,0 +1,11 @@
+cores,mode,value
+1,baseline,1.474
+2,baseline,1.068
+4,baseline,1.025
+8,baseline,1.017
+16,baseline,1.035
+1,kernel_rr,1.55
+2,kernel_rr,1.205
+4,kernel_rr,1.187
+8,kernel_rr,1.201
+16,kernel_rr,1.315

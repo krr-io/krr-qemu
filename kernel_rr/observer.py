@@ -184,7 +184,7 @@ def test_run(cpu_num):
         if cpu_num == "1":
             kernel_image = os.environ["KRR_UNI_IMG"]
 
-        ivshmem = "-object memory-backend-file,size=32768M,share,mem-path=/dev/shm/ivshmem,id=hostmem -device ivshmem-plain,memdev=hostmem"
+        ivshmem = "-object memory-backend-file,size=65536M,share,mem-path=/dev/shm/ivshmem,id=hostmem -device ivshmem-plain,memdev=hostmem"
     elif mode == "baseline":
         kernel_image = os.environ["BL_IMG"]
 
@@ -219,6 +219,8 @@ def test_run(cpu_num):
     while True:
         if process.poll() is not None:
             if process.returncode == 10:
+                out, err = process.communicate()
+                print("Output: {}".format(out))
                 rc = process.returncode
                 break
 
@@ -228,7 +230,7 @@ def test_run(cpu_num):
         if not psutil.pid_exists(process.pid):
             return -1
 
-        if cnt > 100:
+        if cnt > 260:
             print("Timeout kill")
             os.system("kill -9 $(pgrep qemu)")
             return -1

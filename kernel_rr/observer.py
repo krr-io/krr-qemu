@@ -114,8 +114,8 @@ def generate_rocksdb_bp(buffer):
 
 def generate_redis(buffer, benchmark, latency=False):
     if "throughput" in buffer:
-        item_list = buffer.split()
-        tp = item_list[3]
+        item_list = buffer.split(":")[2].split()
+        tp = item_list[0]
 
         append_file(benchmark, REDIS_TP, tp)
 
@@ -213,8 +213,6 @@ def test_run(cpu_num):
 
     while True:
         if process.poll() is not None:
-            streamdata = process.communicate()[0]
-
             if process.returncode == 10:
                 rc = process.returncode
                 break
@@ -281,15 +279,14 @@ args = parser.parse_args()
 mode = args.mode
 test_name = args.test
 
-print("mode={}".format(mode))
-get_data()
-# for cpu_num in cpu_nums:
-#     while test_run(cpu_num) < 0:
-#         print("Timeout try again")
+print("mode={} test={}".format(mode, test))
+for cpu_num in cpu_nums:
+    while test_run(cpu_num) < 0:
+        print("Timeout try again")
 
 
-# if args.graph == "true":
-#     for file in os.listdir(DATA_DIR):
-#         if not file.endswith(".csv"):
-#             continue
-#         generate_graphs("{}/{}".format(DATA_DIR, file))
+if args.graph == "true":
+    for file in os.listdir(DATA_DIR):
+        if not file.endswith(".csv"):
+            continue
+        generate_graphs("{}/{}".format(DATA_DIR, file))

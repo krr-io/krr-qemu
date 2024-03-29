@@ -64,7 +64,7 @@ def append_file(benchmark, metric, value):
 
     print("cores={} mode={}".format(cores, mode))
 
-    condition = (df['cores'] == current_cpu_num) & (df['mode'] == mode)
+    condition = (df['cores'] == cores) & (df['mode'] == mode)
 
     print("Modify file {}".format(file))
     if not df[condition].empty:
@@ -210,7 +210,6 @@ def test_run(cpu_num):
         close_fds=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
     )
     print("Started process {}".format(process.pid))
     rc = 0
@@ -227,7 +226,7 @@ def test_run(cpu_num):
 
         if cnt > 100:
             print("Timeout kill")
-            os.kill(process.pid, signal.SIGKILL)
+            os.system("kill -9 $(pgrep qemu)")
             return -1
 
     print("return code {}".format(rc))

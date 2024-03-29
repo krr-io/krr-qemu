@@ -279,7 +279,7 @@ args = parser.parse_args()
 mode = args.mode
 test_name = args.test
 
-print("mode={} test={}".format(mode, test))
+print("mode={} test={}".format(mode, test_name))
 for cpu_num in cpu_nums:
     while test_run(cpu_num) < 0:
         print("Timeout try again")

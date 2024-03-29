@@ -4280,7 +4280,7 @@ SRST
     Start right away with a saved state (``loadvm`` in monitor)
 ERST
 
-DEF("exit-record", HAS_ARG, QEMU_OPTION_ignore_record, \
+DEF("ignore-record", HAS_ARG, QEMU_OPTION_ignore_record, \
     "-ignore-record [tag|id]\n" \
     "                start right away with a saved state (loadvm in monitor)\n",
     QEMU_ARCH_ALL)

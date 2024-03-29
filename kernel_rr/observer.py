@@ -8,6 +8,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import time
 import signal
+import psutil
 
 
 DATA_DIR = "test_data"
@@ -223,6 +224,9 @@ def test_run(cpu_num):
 
         time.sleep(1)
         cnt += 1
+
+        if not psutil.pid_exists(process.pid):
+            return -1
 
         if cnt > 100:
             print("Timeout kill")

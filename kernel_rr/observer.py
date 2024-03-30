@@ -14,7 +14,7 @@ import psutil
 DATA_DIR = "test_data"
 
 
-REDIS_TP = "throughput"
+REDIS_TP = "redisthroughput"
 AVG_LAT = "avg_latency"
 THROUGHPUT = "throughput"
 OPSPS = "opsps"
@@ -50,7 +50,7 @@ def get_file_name(benchmark, metric):
 
 def init_csv_file(benchmark, metric):
     with open(get_file_name(benchmark, metric), 'w') as f:
-        f.write("cores,mode,value")
+        f.write("cores,mode,value,count")
 
 
 def append_file(benchmark, metric, value):
@@ -69,10 +69,22 @@ def append_file(benchmark, metric, value):
 
     print("Modify file {}".format(file))
     if not df[condition].empty:
-        print("Value exists [{} {}], modifying {}".format(current_cpu_num, mode, value))
-        df.loc[condition, "value"] = float(value)
+        existing_value = df.loc[condition, "value"]
+        count = df.loc[condition, "count"]
+        total = count * existing_value
+        count += 1
+
+        new_value = (total + float(value)) / count
+        print(
+            "Value exists [{} {}, {}], modifying to {}".format(
+                current_cpu_num, mode, existing_value, new_value
+            )
+        )
+
+        df.loc[condition, "value"] = new_value
+        df.loc[condition, "count"] = count
     else:
-        row = [cores, mode, value]
+        row = [cores, mode, value, 1]
         df.loc[len(df)] = row
 
     df.to_csv(file, index=False)
@@ -254,7 +266,11 @@ def generate_graphs(path):
         THROUGHPUT: "Throughput (MB/s)",
         OPSPS: "Throughput (ops/s)",
         LATENCY: "Latency (micros/op)",
+        REDIS_TP: "Throughput (req/s)",
+        AVG_LAT: "Average Latency (ms)"
     }
+
+    print("Generating graph for {}".format(file_name))
 
     df = pd.read_csv(path)
 
@@ -268,10 +284,10 @@ def generate_graphs(path):
     plt.xlabel('CPU Number')
     plt.ylabel(metric2y[metric])
     ax.get_legend().remove()
-    plt.title('{}({})'.format(test_name, test), fontsize=12)
+    # plt.title('{}({})'.format(test_name, test), fontsize=12)
     plt.legend(title='Mode', loc='best')
     plt.tight_layout()
-    plt.savefig('{}/{}.png'.format(DATA_DIR, file_name), dpi=600)
+    plt.savefig('{}/{}.pdf'.format(DATA_DIR, file_name), format="pdf", dpi=600)
     plt.clf()
     plt.close('all')
 
@@ -284,20 +300,27 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--mode", default="kernel_rr")
 parser.add_argument("--graph", default="false")
 parser.add_argument("--test", default=ROCKS_DB_BP_TEST_NAME)
+parser.add_argument("--graphtest", default="all")
+parser.add_argument("--parseonly", default="false")
+parser.add_argument("--startfrom", default="1")
 args = parser.parse_args()
 
 mode = args.mode
 test_name = args.test
+graph_test = args.graphtest
 
+if args.parseonly == "true":
+    get_data()
+else:
+    print("mode={} test={}".format(mode, test_name))
+    for cpu_num in cpu_nums[cpu_nums.index(args.startfrom):]:
+        while test_run(cpu_num) < 0:
+            print("Timeout try again")
 
-print("mode={} test={}".format(mode, test_name))
-for cpu_num in cpu_nums:
-    while test_run(cpu_num) < 0:
-        print("Timeout try again")
+    if args.graph == "true":
+        for file in os.listdir(DATA_DIR):
+            if not file.endswith(".csv"):
+                continue
 
-
-if args.graph == "true":
-    for file in os.listdir(DATA_DIR):
-        if not file.endswith(".csv"):
-            continue
-        generate_graphs("{}/{}".format(DATA_DIR, file))
+            if graph_test == "all" or graph_test in file:
+                generate_graphs("{}/{}".format(DATA_DIR, file))

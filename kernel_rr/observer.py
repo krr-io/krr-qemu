@@ -42,6 +42,7 @@ benchmarks = {
 
 cpu_nums = ["1", "2", "4", "8", "16"]
 current_cpu_num = 1
+replace_old = False
 
 
 def get_file_name(benchmark, metric):
@@ -71,10 +72,15 @@ def append_file(benchmark, metric, value):
     if not df[condition].empty:
         existing_value = df.loc[condition, "value"]
         count = df.loc[condition, "count"]
-        total = count * existing_value
-        count += 1
 
-        new_value = (total + float(value)) / count
+        if replace_old:
+            new_value = value
+            count = 1
+        else:
+            total = count * existing_value
+            count += 1
+            new_value = (total + float(value)) / count
+
         print(
             "Value exists [{} {}, {}], modifying to {}".format(
                 current_cpu_num, mode, existing_value, new_value
@@ -307,14 +313,18 @@ parser.add_argument("--test", default=ROCKS_DB_BP_TEST_NAME)
 parser.add_argument("--graphtest", default="all")
 parser.add_argument("--parseonly", default="false")
 parser.add_argument("--startfrom", default="1")
-parser.add_argument("--graphonly", default="true")
+parser.add_argument("--graphonly", default="false")
 parser.add_argument("--cpus", default=",".join(cpu_nums))
+parser.add_argument("--replace", default="false")
 args = parser.parse_args()
 
 mode = args.mode
 test_name = args.test
 graph_test = args.graphtest
 cpu_nums = args.cpus.split(",")
+
+if args.replace == "true":
+    replace_old = True
 
 if args.parseonly == "true":
     get_data()

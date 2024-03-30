@@ -289,7 +289,9 @@ def generate_graphs(path):
     # plt.title('{}({})'.format(test_name, test), fontsize=12)
     plt.legend(title='Mode', loc='best')
     plt.tight_layout()
-    plt.savefig('{}/{}.pdf'.format(DATA_DIR, file_name), format="pdf", dpi=600)
+    # plt.savefig('{}/{}.pdf'.format(DATA_DIR, file_name), format="pdf", dpi=600)
+    plt.savefig('{}/{}.png'.format(DATA_DIR, file_name), dpi=600)
+
     plt.clf()
     plt.close('all')
 
@@ -305,21 +307,25 @@ parser.add_argument("--test", default=ROCKS_DB_BP_TEST_NAME)
 parser.add_argument("--graphtest", default="all")
 parser.add_argument("--parseonly", default="false")
 parser.add_argument("--startfrom", default="1")
+parser.add_argument("--graphonly", default="true")
+parser.add_argument("--cpus", default=",".join(cpu_nums))
 args = parser.parse_args()
 
 mode = args.mode
 test_name = args.test
 graph_test = args.graphtest
+cpu_nums = args.cpus.split(",")
 
 if args.parseonly == "true":
     get_data()
 else:
-    print("mode={} test={}".format(mode, test_name))
-    for cpu_num in cpu_nums[cpu_nums.index(args.startfrom):]:
-        while test_run(cpu_num) < 0:
-            print("Timeout try again")
+    if args.graphonly != "true":
+        print("mode={} test={}".format(mode, test_name))
+        for cpu_num in cpu_nums[cpu_nums.index(args.startfrom):]:
+            while test_run(cpu_num) < 0:
+                print("Timeout try again")
 
-    if args.graph == "true":
+    if args.graph == "true" or args.graphonly == "true":
         for file in os.listdir(DATA_DIR):
             if not file.endswith(".csv"):
                 continue

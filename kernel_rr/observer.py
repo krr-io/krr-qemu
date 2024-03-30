@@ -217,6 +217,8 @@ def test_run(cpu_num):
 
     print("QEMU CMD: {}".format(qemu_base_cmd))
 
+    os.system("modprobe -r kvm_intel;modprobe -r kvm;modprobe kvm_intel;modprobe kvm")
+
     process = subprocess.Popen(
         qemu_base_cmd,
         shell=True,

@@ -282,21 +282,28 @@ def generate_graphs(path):
 
     df = pd.read_csv(path)
 
+    df.sort_values('cores', inplace=True)
     df['cores'] = df['cores'].astype(str)
 
-    ax = sns.lineplot(x='cores', y='value', hue='mode', data=df)
+    palette = {'kernel_rr': 'orange', 'baseline': 'green'}
+
+    ax = sns.lineplot(x='cores', y='value', hue='mode', data=df, linewidth=3, palette=palette)
+    sns.despine()
+    sns.set(font_scale=5)
     plt.xticks(df['cores'].unique())
 
-    sns.set_theme(style='white', font_scale=1)
+    sns.set_theme(style='whitegrid', font_scale=1.1)
 
-    plt.xlabel('CPU Number')
-    plt.ylabel(metric2y[metric])
+    plt.xlabel('CPU Number', fontsize=18, fontweight='normal')
+    plt.ylabel(metric2y[metric], fontsize=18, fontweight='normal')
     ax.get_legend().remove()
+    sns.set_style("whitegrid")
+
     # plt.title('{}({})'.format(test_name, test), fontsize=12)
     plt.legend(title='Mode', loc='best')
     plt.tight_layout()
-    # plt.savefig('{}/{}.pdf'.format(DATA_DIR, file_name), format="pdf", dpi=600)
-    plt.savefig('{}/{}.png'.format(DATA_DIR, file_name), dpi=600)
+    plt.savefig('{}/{}.pdf'.format(DATA_DIR, file_name), format="pdf", dpi=600)
+    # plt.savefig('{}/{}.png'.format(DATA_DIR, file_name), dpi=600)
 
     plt.clf()
     plt.close('all')

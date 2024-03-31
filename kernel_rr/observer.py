@@ -108,6 +108,9 @@ def generate_rocksdb_bp(buffer):
         fillrandom = "fillrandom" in buffer
         readseq = "readseq" in buffer
         readrandom = "readrandom" in buffer
+
+        readwhilewriting = "readwhilewriting" in buffer
+
         if fillseq or fillrandom:
             tp = item_list[6]
             ops_ps = item_list[4]
@@ -128,6 +131,12 @@ def generate_rocksdb_bp(buffer):
                 bm = "readrandom"
             elif readseq:
                 bm = "readseq"
+
+        elif readwhilewriting:
+            bm = "readwhilewriting"
+            tp = item_list[6]
+            ops_ps = item_list[4]
+            latency = item_list[2]
 
         append_file(bm, OPSPS, ops_ps)
         append_file(bm, LATENCY, latency)
@@ -302,6 +311,7 @@ def generate_graphs(path):
     # plt.title('{}({})'.format(test_name, test), fontsize=12)
     plt.legend(title='Mode', loc='best')
     plt.tight_layout()
+    plt.gca().set_ylim(bottom=0)
     plt.savefig('{}/{}.pdf'.format(DATA_DIR, file_name), format="pdf", dpi=600)
     # plt.savefig('{}/{}.png'.format(DATA_DIR, file_name), dpi=600)
 

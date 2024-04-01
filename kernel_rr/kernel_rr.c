@@ -83,6 +83,8 @@ volatile int current_owner = -1;
 static int exit_record = 0;
 static int ignore_record = 0;
 
+static unsigned long data_copied = 0;
+
 static void rr_read_shm_events(void);
 static void rr_reset_ivshmem(void);
 static void finish_replay(void);
@@ -972,6 +974,7 @@ static rr_event_log *rr_event_log_new_from_event_shm(rr_event_log_guest event)
     case EVENT_TYPE_CFU:
         memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
         event_cfu_num++;
+        data_copied += event_record->event.cfu.len;
         break;
     case EVENT_TYPE_RANDOM:
         memcpy(&event_record->event.rand, &event.event.rand, sizeof(rr_random));
@@ -1149,10 +1152,10 @@ void rr_print_events_stat(void)
     printf("=== Event Stats ===\n");
 
     printf("Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\nRandom: %d\n"
-           "IO Input: %d\nStrnlen: %d\nDMA IO: %d\nRDSEED: %d\nInst Sync: %d\n",
+           "IO Input: %d\nStrnlen: %d\nDMA IO: %d\nRDSEED: %d\nInst Sync: %d, data_copies=%lu\n",
            event_interrupt_num, event_syscall_num, event_exception_num,
            event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_strnlen,
-           event_dma_done, event_rdseed_num, event_sync_inst);
+           event_dma_done, event_rdseed_num, event_sync_inst, data_copied);
 
     total_event_number = get_total_events_num();
 

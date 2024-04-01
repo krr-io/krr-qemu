@@ -22,14 +22,13 @@ LATENCY = "latency"
 
 
 ROCKS_DB_BP_TEST_NAME = "rocksdb_kernel_bypass"
-
 ROCKS_DB_NBP_TEST_NAME = "rocksdb"
 REDIS_TEST_NAME = "redis"
 
 mode = "kernel_rr"
 test_name = REDIS_TEST_NAME
 
-modes = {"kernel_rr": 0, "baseline": 1}
+modes = {"kernel_rr": 0, "baseline": 1, "whole_system_rr": 2}
 
 metrics = {
     ROCKS_DB_BP_TEST_NAME: (THROUGHPUT, OPSPS, LATENCY)
@@ -203,7 +202,7 @@ def test_run(cpu_num):
 
     extra_dev = ""
     disk_image = os.environ["KRR_DISK"]
-    ivshmem = ""
+    ivshmem = "-object memory-backend-file,size=65536M,share,mem-path=/dev/shm/ivshmem,id=hostmem -device ivshmem-plain,memdev=hostmem"
 
     if mode == "kernel_rr":
         kernel_image = os.environ["KRR_SMP_IMG"]
@@ -211,8 +210,7 @@ def test_run(cpu_num):
         if cpu_num == "1":
             kernel_image = os.environ["KRR_UNI_IMG"]
 
-        ivshmem = "-object memory-backend-file,size=65536M,share,mem-path=/dev/shm/ivshmem,id=hostmem -device ivshmem-plain,memdev=hostmem"
-    elif mode == "baseline":
+    elif mode == "baseline" or mode == "whole_system_rr":
         kernel_image = os.environ["BL_IMG"]
 
     if test_name == ROCKS_DB_BP_TEST_NAME:
@@ -232,6 +230,7 @@ def test_run(cpu_num):
 
     print("QEMU CMD: {}".format(qemu_base_cmd))
 
+    os.system("rm -f /dev/shm/ivshmem")
     os.system("modprobe -r kvm_intel;modprobe -r kvm;modprobe kvm_intel;modprobe kvm")
 
     process = subprocess.Popen(
@@ -301,12 +300,11 @@ def generate_graphs(path):
     sns.set(font_scale=5)
     plt.xticks(df['cores'].unique())
 
-    sns.set_theme(style='whitegrid', font_scale=1.1)
+    sns.set_theme(style='white', font_scale=1.1)
 
     plt.xlabel('CPU Number', fontsize=18, fontweight='normal')
     plt.ylabel(metric2y[metric], fontsize=18, fontweight='normal')
     ax.get_legend().remove()
-    sns.set_style("whitegrid")
 
     # plt.title('{}({})'.format(test_name, test), fontsize=12)
     plt.legend(title='Mode', loc='best')

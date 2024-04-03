@@ -1,0 +1,16 @@
+cores,mode,value,count
+1,baseline,771.0,3
+2,baseline,586.0,3
+4,baseline,683.6666666666666,3
+8,baseline,614.3333333333334,3
+16,baseline,564.6666666666666,3
+1,kernel_rr,339.6666666666667,3
+2,kernel_rr,369.3333333333333,3
+4,kernel_rr,283.6666666666667,3
+8,kernel_rr,252.0,3
+16,kernel_rr,251.0,3
+1,whole_system_rr,308.0,1
+2,whole_system_rr,252.0,1
+4,whole_system_rr,307.0,1
+8,whole_system_rr,283.0,1
+16,whole_system_rr,335,1

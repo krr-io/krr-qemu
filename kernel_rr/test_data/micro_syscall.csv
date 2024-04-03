@@ -1,0 +1,13 @@
+test,mode,value,unit
+write_4k,baseline,2556.19,ns
+write_8k,baseline,4618.19,ns
+read_4k,baseline,1488.18,ns
+read_8k,baseline,2634.97,ns
+write_4k,kernel_rr,6075.04,ns
+write_8k,kernel_rr,12312.18,ns
+read_4k,kernel_rr,1942.43,ns
+read_8k,kernel_rr,2960.99,ns
+getpid,baseline,354,ns
+getpid,kernel_rr,496,ns
+write_4k,baseline,2311.19,ns
+write_8k,baseline,4581.87,ns

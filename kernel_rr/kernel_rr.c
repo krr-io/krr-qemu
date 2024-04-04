@@ -1166,10 +1166,9 @@ static void persist_bin(rr_event_log *event, FILE *fptr) {
 	fwrite(event, sizeof(rr_event_log), 1, fptr);
 }
 
+__attribute_maybe_unused__
 static void rr_save_events(void)
 {
-    rr_print_events_stat();
-
 	FILE *fptr = fopen(kernel_rr_log, "a");
 	rr_event_log *cur= rr_event_log_head;
 
@@ -1313,7 +1312,9 @@ void rr_post_record(void)
 
     rr_record_settle_events();
 
-    rr_save_events();
+    rr_print_events_stat();
+
+    // rr_save_events();
     rr_dma_post_record();
     rr_memlog_post_record();
 

@@ -247,11 +247,11 @@ static void start_record(void)
     if (rr_get_ignore_record())
         return;
 
+    pause_all_vcpus();
     rr_ivshmem_set_rr_enabled(1);
     kvm_start_record();
 
-    // if (autostart)
-    //     vm_start();
+    resume_all_vcpus();
 }
 
 static void end_record(void)

@@ -25,8 +25,15 @@
 #include "hw/ide/pci.h"
 #include "hw/ide/internal.h"
 
+#define DEV_IDE 0;
+#define DEV_NVME 1;
+
 const char *kernel_rr_dma_log = "kernel_rr_dma.log";
 static AddressSpace *dma_as = NULL;
+unsigned long total_buf_cnt = 0;
+
+void *nvme_cb_func = NULL;
+static bool kernel_only = true;
 
 
 void rr_register_ide_as(IDEDMA *dma)
@@ -62,7 +69,7 @@ static void log_addr_md5(void *ptr, size_t len, dma_addr_t base)
     }
 }
 
-__attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov)
+__attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb)
 {
     int i;
     __attribute_maybe_unused__ int res;
@@ -70,6 +77,9 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
     // if (entry_cnt > 1) {
     //     return;
     // }
+
+    if (cb == nvme_cb_func && kernel_only)
+        return; 
 
     if (pending_dma_entry == NULL) {
         pending_dma_entry = (rr_dma_entry*)malloc(sizeof(rr_dma_entry));
@@ -100,6 +110,13 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
         sgd->addr = sg->sg[i].base;
         sgd->len = sg->sg[i].len;
 
+        if (cb == nvme_cb_func) {
+            total_buf_cnt += sg->sg[i].len;
+            free(sgd->buf);
+            free(sgd);
+            return;
+        }
+
         pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
 
         assert(sg->sg[i].len == qiov->iov[i].iov_len);
@@ -112,6 +129,9 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
 
 static void append_dma_entry(rr_dma_entry *dma_entry)
 {
+    if (dma_entry == NULL)
+        return;
+
     if (dma_entry_head == NULL) {
         dma_entry_head = dma_entry;
         dma_entry_cur = dma_entry;
@@ -130,6 +150,9 @@ static void append_dma_entry(rr_dma_entry *dma_entry)
 
 __attribute_maybe_unused__ void rr_end_dma_entry(void)
 {
+    if (pending_dma_entry == NULL)
+        return;
+
     pending_dma_entry->replayed_sgs = 0;
 
     append_dma_entry(pending_dma_entry);
@@ -276,6 +299,8 @@ static void do_replay_dma_entry(rr_dma_entry *dma_entry)
 
 void rr_dma_pre_record(void)
 {
+    printf("Reset dma sg buffer\n");
+    total_buf_cnt = 0;
     remove(kernel_rr_dma_log);
 }
 
@@ -307,6 +332,7 @@ void rr_dma_pre_replay(int dma_event_num)
 void rr_dma_post_record(void)
 {
     rr_save_dma_logs();
+    printf("Total dma buf cnt %lu\n", total_buf_cnt);
     return;
 }
 
@@ -355,4 +381,24 @@ void rr_get_dma_ctx(void)
 
         qemu_log("Current RIP=0x%lx\n", env->eip);
     }
+}
+
+void register_nvme_cb(void *func)
+{
+    printf("NVME cb is %p\n", func);
+    nvme_cb_func = func;
+}
+
+__attribute_maybe_unused__
+int skip_record_dma(void *cb_func)
+{
+    if (kernel_only && cb_func == nvme_cb_func)
+        return 1;
+
+    return 0;
+}
+
+void set_kernel_only(int konly)
+{
+    kernel_only = konly;
 }

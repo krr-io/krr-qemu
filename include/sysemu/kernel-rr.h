@@ -140,6 +140,9 @@ int get_md5sum(void* buffer,
 unsigned long get_checksum(sg_addr *buffer, unsigned long buffersize);
 int rr_pop_next_event_type(int event_type);
 void inc_replayed_number(void);
+int skip_record_dma(void *cb_func);
+void register_nvme_cb(void *func);
+void set_kernel_only(int konly);
 
 void rr_register_ivshmem(RAMBlock *rb);
 unsigned long rr_get_shm_addr(void);

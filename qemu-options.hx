@@ -4289,6 +4289,16 @@ SRST
     Start right away with a saved state (``loadvm`` in monitor)
 ERST
 
+DEF("whole-system", HAS_ARG, QEMU_OPTION_whole_system, \
+    "-whole-system [tag|id]\n" \
+    "                start right away with a saved state (loadvm in monitor)\n",
+    QEMU_ARCH_ALL)
+SRST
+``-whole-system 1``
+    Start right away with a saved state (``loadvm`` in monitor)
+ERST
+
+
 #ifndef _WIN32
 DEF("daemonize", 0, QEMU_OPTION_daemonize, \
     "-daemonize      daemonize QEMU after initializing\n", QEMU_ARCH_ALL)

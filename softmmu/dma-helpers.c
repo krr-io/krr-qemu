@@ -104,7 +104,9 @@ static void dma_complete(DMAAIOCB *dbs, int ret)
 
     if (rr_in_record()) {
         if (dbs->dir == DMA_DIRECTION_FROM_DEVICE) {
-            rr_append_dma_sg(dbs->sg, &dbs->iov);
+            // if (!skip_record_dma(dbs->common.cb)) {
+            rr_append_dma_sg(dbs->sg, &dbs->iov, dbs->common.cb);
+            // }
         }
     }
 

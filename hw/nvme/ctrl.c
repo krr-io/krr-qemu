@@ -165,6 +165,7 @@
 #include "nvme.h"
 #include "dif.h"
 #include "trace.h"
+#include "sysemu/kernel-rr.h"
 
 #define NVME_MAX_IOQPAIRS 0xffff
 #define NVME_DB_SIZE  4
@@ -6685,6 +6686,8 @@ static int nvme_init_pci(NvmeCtrl *n, PCIDevice *pci_dev, Error **errp)
     if (n->pmr.dev) {
         nvme_init_pmr(n, pci_dev);
     }
+
+    register_nvme_cb(nvme_rw_cb);
 
     return 0;
 }

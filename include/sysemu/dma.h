@@ -322,7 +322,7 @@ uint64_t dma_aligned_pow2_mask(uint64_t start, uint64_t end,
                                int max_addr_bits);
 
 
-void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov);
+void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb);
 void rr_end_dma_entry(void);
 void rr_dma_post_record(void);
 void rr_dma_pre_record(void);

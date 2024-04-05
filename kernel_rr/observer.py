@@ -201,6 +201,7 @@ def test_run(cpu_num):
     current_cpu_num = cpu_num
 
     extra_dev = ""
+    extra_arg = ""
     disk_image = os.environ["KRR_DISK"]
     ivshmem = "-object memory-backend-file,size=65536M,share,mem-path=/dev/shm/ivshmem,id=hostmem -device ivshmem-plain,memdev=hostmem"
 
@@ -213,6 +214,9 @@ def test_run(cpu_num):
     elif mode == "baseline" or mode == "whole_system_rr":
         kernel_image = os.environ["BL_IMG"]
 
+    if mode == "whole_system_rr":
+        extra_arg = "-whole-system 1"
+
     if test_name == ROCKS_DB_BP_TEST_NAME:
         extra_dev = " -drive file=../build/nvm.img,if=none,id=nvm -device nvme,serial=deadbeef,drive=nvm"
 
@@ -221,11 +225,12 @@ def test_run(cpu_num):
     -accel kvm -smp {cpu_num} -cpu host -no-hpet -m 8G -append \
     "root=/dev/sda rw init=/lib/systemd/systemd tsc=unstable console=ttyS0" \
     -hda {disk_image} \
-    {ivshmem} -vnc :00 -D rec.log {extra_dev} -exit-record 1
+    {ivshmem} -vnc :00 -D rec.log {extra_dev} -exit-record 1 {extra_arg}
     """.format(
         qemu_binary=qemu_binary, kernel_image=kernel_image,
         disk_image=disk_image, cpu_num=cpu_num,
         ivshmem=ivshmem, extra_dev=extra_dev,
+        extra_arg=extra_arg,
     )
 
     print("QEMU CMD: {}".format(qemu_base_cmd))

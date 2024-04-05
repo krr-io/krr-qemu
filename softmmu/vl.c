@@ -3684,6 +3684,10 @@ void qemu_init(int argc, char **argv, char **envp)
             case QEMU_OPTION_ignore_record:
                 rr_enable_ignore_record();
                 break;
+            case QEMU_OPTION_whole_system:
+                printf("Whole system rr Mode\n");
+                set_kernel_only(0);
+                break;
             default:
                 if (os_parse_cmd_args(popt->index, optarg)) {
                     error_report("Option not supported in this build");

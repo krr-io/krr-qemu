@@ -266,9 +266,8 @@ static void finish_replay(void)
 static void pre_record(void) {
     printf("Removing existing log files: %s\n", kernel_rr_log);
     remove(kernel_rr_log);
-
-    rr_pre_mem_record();
     rr_dma_pre_record();
+    rr_pre_mem_record();
 }
 
 __attribute_maybe_unused__ static bool check_inst_matched_and_fix(CPUState *cpu, rr_event_log *event)

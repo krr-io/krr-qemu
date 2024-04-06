@@ -39,6 +39,8 @@ benchmarks = {
     ROCKS_DB_NBP_TEST_NAME: ("fillseq", "fillrandom", "readseq", "readrandom")
 }
 
+benchmark = "fillseq"
+
 cpu_nums = ["1", "2", "4", "8", "16"]
 current_cpu_num = 1
 replace_old = False
@@ -107,6 +109,9 @@ def generate_rocksdb_bp(buffer):
     ops_ps = 0
     latency = 0
     item_list = buffer.split()
+
+    if benchmark not in item_list:
+        return
 
     print("Getting the data")
 
@@ -345,10 +350,12 @@ parser.add_argument("--graphonly", default="false")
 parser.add_argument("--cpus", default=",".join(cpu_nums))
 parser.add_argument("--replace", default="false")
 parser.add_argument("--replacetrial", default=0)
+parser.add_argument("--benchmark", default="fillseq")
 args = parser.parse_args()
 
 mode = args.mode
 test_name = args.test
+benchmark = args.benchmark
 graph_test = args.graphtest
 cpu_nums = args.cpus.split(",")
 replace_trial = int(args.replacetrial)

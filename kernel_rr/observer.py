@@ -4,14 +4,11 @@ import pandas as pd
 import subprocess
 import argparse
 
-import seaborn as sns
-import matplotlib.pyplot as plt
 import time
 import signal
 import psutil
 
-
-DATA_DIR = "test_data"
+import constants
 
 
 REDIS_TP = "redisthroughput"
@@ -20,23 +17,18 @@ THROUGHPUT = "throughput"
 OPSPS = "opsps"
 LATENCY = "latency"
 
-
-ROCKS_DB_BP_TEST_NAME = "rocksdb_kernel_bypass"
-ROCKS_DB_NBP_TEST_NAME = "rocksdb"
-REDIS_TEST_NAME = "redis"
-
 mode = "kernel_rr"
-test_name = ROCKS_DB_NBP_TEST_NAME
+test_name = constants.ROCKS_DB_NBP_TEST_NAME
 
 modes = {"kernel_rr": 0, "baseline": 1, "whole_system_rr": 2}
 
 metrics = {
-    ROCKS_DB_BP_TEST_NAME: (THROUGHPUT, OPSPS, LATENCY)
+    constants.ROCKS_DB_BP_TEST_NAME: (THROUGHPUT, OPSPS, LATENCY)
 }
 
 benchmarks = {
-    ROCKS_DB_BP_TEST_NAME: ("fillseq", "fillrandom", "readseq", "readrandom"),
-    ROCKS_DB_NBP_TEST_NAME: ("fillseq", "fillrandom", "readseq", "readrandom")
+    constants.ROCKS_DB_BP_TEST_NAME: ("fillseq", "fillrandom", "readseq", "readrandom"),
+    constants.ROCKS_DB_NBP_TEST_NAME: ("fillseq", "fillrandom", "readseq", "readrandom")
 }
 
 benchmark = "fillseq"
@@ -66,7 +58,7 @@ def append_file(benchmark, metric, value):
 
     cores = int(current_cpu_num)
 
-    print("cores={} mode={}, value={}".format(cores, mode, value))
+    print("cores={} mode={}, value={}, file={}".format(cores, mode, value, file))
 
     if "trial" not in df.columns:
         df["trial"] = 1
@@ -110,7 +102,7 @@ def generate_rocksdb_bp(buffer):
     latency = 0
     item_list = buffer.split()
 
-    if benchmark not in item_list:
+    if benchmark not in buffer:
         return
 
     print("Getting the data")
@@ -171,7 +163,7 @@ def generate_redis(buffer, benchmark, latency=False):
 
 
 def generate_values_rocksdb(buffer):
-    if test_name in (ROCKS_DB_BP_TEST_NAME, ROCKS_DB_NBP_TEST_NAME):
+    if test_name in (constants.ROCKS_DB_BP_TEST_NAME, constants.ROCKS_DB_NBP_TEST_NAME):
         generate_rocksdb_bp(buffer)
 
 
@@ -199,7 +191,7 @@ def get_data_rocksdb():
             generate_values_rocksdb(line)
 
 def get_data():
-    if test_name in (ROCKS_DB_BP_TEST_NAME, ROCKS_DB_NBP_TEST_NAME):
+    if test_name in (constants.ROCKS_DB_BP_TEST_NAME, constants.ROCKS_DB_NBP_TEST_NAME):
         get_data_rocksdb()
     elif test_name == REDIS_TEST_NAME:
         get_data_redis()
@@ -230,7 +222,7 @@ def test_run(cpu_num):
     if mode == "whole_system_rr":
         extra_arg = "-whole-system 1"
 
-    if test_name == ROCKS_DB_BP_TEST_NAME:
+    if test_name == constants.ROCKS_DB_BP_TEST_NAME:
         extra_dev = " -drive file=../build/nvm.img,if=none,id=nvm -device nvme,serial=deadbeef,drive=nvm"
 
     qemu_base_cmd = """
@@ -278,7 +270,8 @@ def test_run(cpu_num):
 
         if cnt > 260:
             print("Timeout kill")
-            os.system("kill -9 $(pgrep qemu)")
+            os.system("kill $(pgrep qemu)")
+            time.sleep(1)
             return -1
 
     print("return code {}".format(rc))
@@ -288,65 +281,15 @@ def test_run(cpu_num):
     return 0
 
 
-def generate_graphs(path):
-    file_name = path.split("/")[-1].split(".")[0]
-
-    info_list = file_name.split("-")
-    test_name = info_list[0]
-    test = info_list[1]
-    metric = info_list[2]
-
-    metric2y = {
-        THROUGHPUT: "Throughput (MB/s)",
-        OPSPS: "Throughput (ops/s)",
-        LATENCY: "Latency (micros/op)",
-        REDIS_TP: "Throughput (req/s)",
-        AVG_LAT: "Average Latency (ms)"
-    }
-
-    print("Generating graph for {}".format(file_name))
-
-    df = pd.read_csv(path)
-
-    df.sort_values('cores', inplace=True)
-    df['cores'] = df['cores'].astype(str)
-
-    palette = {'kernel_rr': 'orange', 'baseline': 'green', 'whole_system_rr': 'blue'}
-
-    ax = sns.lineplot(x='cores', y='value', hue='mode', data=df, linewidth=3, palette=palette)
-    sns.despine()
-    sns.set(font_scale=5)
-    plt.xticks(df['cores'].unique())
-
-    sns.set_theme(style='white', font_scale=1.1)
-
-    plt.xlabel('CPU Number', fontsize=18, fontweight='normal')
-    plt.ylabel(metric2y[metric], fontsize=18, fontweight='normal')
-    ax.get_legend().remove()
-
-    # plt.title('{}({})'.format(test_name, test), fontsize=12)
-    plt.legend(title='Mode', loc='best')
-    plt.tight_layout()
-    plt.gca().set_ylim(bottom=0)
-    plt.savefig('{}/{}.pdf'.format(DATA_DIR, file_name), format="pdf", dpi=600)
-    # plt.savefig('{}/{}.png'.format(DATA_DIR, file_name), dpi=600)
-
-    plt.clf()
-    plt.close('all')
-
-
 parser = argparse.ArgumentParser(
                     prog='ProgramName',
                     description='What the program does',
                     epilog='Text at the bottom of help')
 
 parser.add_argument("--mode", default="kernel_rr")
-parser.add_argument("--graph", default="false")
-parser.add_argument("--test", default=ROCKS_DB_BP_TEST_NAME)
-parser.add_argument("--graphtest", default="all")
+parser.add_argument("--test", default=constants.ROCKS_DB_BP_TEST_NAME)
 parser.add_argument("--parseonly", default="false")
 parser.add_argument("--startfrom", default="1")
-parser.add_argument("--graphonly", default="false")
 parser.add_argument("--cpus", default=",".join(cpu_nums))
 parser.add_argument("--replace", default="false")
 parser.add_argument("--replacetrial", default=0)
@@ -356,7 +299,6 @@ args = parser.parse_args()
 mode = args.mode
 test_name = args.test
 benchmark = args.benchmark
-graph_test = args.graphtest
 cpu_nums = args.cpus.split(",")
 replace_trial = int(args.replacetrial)
 
@@ -366,16 +308,7 @@ if args.replace == "true":
 if args.parseonly == "true":
     get_data()
 else:
-    if args.graphonly != "true":
-        print("mode={} test={}".format(mode, test_name))
-        for cpu_num in cpu_nums[cpu_nums.index(args.startfrom):]:
-            while test_run(cpu_num) < 0:
-                print("Timeout try again")
-
-    if args.graph == "true" or args.graphonly == "true":
-        for file in os.listdir(DATA_DIR):
-            if not file.endswith(".csv"):
-                continue
-
-            if graph_test == "all" or graph_test in file:
-                generate_graphs("{}/{}".format(DATA_DIR, file))
+    print("mode={} test={}".format(mode, test_name))
+    for cpu_num in cpu_nums[cpu_nums.index(args.startfrom):]:
+        while test_run(cpu_num) < 0:
+            print("Timeout try again")

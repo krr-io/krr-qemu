@@ -26,7 +26,7 @@ ROCKS_DB_NBP_TEST_NAME = "rocksdb"
 REDIS_TEST_NAME = "redis"
 
 mode = "kernel_rr"
-test_name = REDIS_TEST_NAME
+test_name = ROCKS_DB_NBP_TEST_NAME
 
 modes = {"kernel_rr": 0, "baseline": 1, "whole_system_rr": 2}
 
@@ -43,6 +43,7 @@ cpu_nums = ["1", "2", "4", "8", "16"]
 current_cpu_num = 1
 replace_old = False
 
+replace_trial = 0
 
 def get_file_name(benchmark, metric):
     return "test_data/{}-{}-{}.csv".format(test_name, benchmark, metric)
@@ -50,7 +51,7 @@ def get_file_name(benchmark, metric):
 
 def init_csv_file(benchmark, metric):
     with open(get_file_name(benchmark, metric), 'w') as f:
-        f.write("cores,mode,value,count")
+        f.write("cores,mode,value,trial")
 
 
 def append_file(benchmark, metric, value):
@@ -63,36 +64,43 @@ def append_file(benchmark, metric, value):
 
     cores = int(current_cpu_num)
 
-    print("cores={} mode={}".format(cores, mode))
+    print("cores={} mode={}, value={}".format(cores, mode, value))
 
-    condition = (df['cores'] == cores) & (df['mode'] == mode)
+    if "trial" not in df.columns:
+        df["trial"] = 1
 
-    print("Modify file {}".format(file))
-    if not df[condition].empty:
-        existing_value = df.loc[condition, "value"]
-        count = df.loc[condition, "count"]
+    if "count" in df.columns:
+        df.drop("count", axis=1, inplace=True)
 
-        if replace_old:
-            new_value = value
-            count = 1
-        else:
-            total = count * existing_value
-            count += 1
-            new_value = (total + float(value)) / count
+    if replace_trial > 0:
+        condition = (df['cores'] == cores) & (df['mode'] == mode) & (df['trial'] == replace_trial)
 
-        print(
-            "Value exists [{} {}, {}], modifying to {}".format(
-                current_cpu_num, mode, existing_value, new_value
+        if not df[condition].empty:
+            existing_value = df.loc[condition, "value"]
+
+            print(
+                "Value exists [{} {}, {}], modifying to {}".format(
+                    current_cpu_num, mode, existing_value, value
+                )
             )
-        )
-
-        df.loc[condition, "value"] = new_value
-        df.loc[condition, "count"] = count
+            df.loc[condition, "value"] = float(value)  
+        else:
+            row = [cores, mode, value, 1]
+            df.loc[len(df)] = row
     else:
-        row = [cores, mode, value, 1]
+        trial = 1
+        condition = (df['cores'] == cores) & (df['mode'] == mode)
+
+        if 'trial' in df.columns:
+            trial = df.loc[condition, "trial"].max() + 1
+
+        print("adding trial {}".format(trial))
+
+        row = [cores, mode, value, trial]
         df.loc[len(df)] = row
 
     df.to_csv(file, index=False)
+
 
 def generate_rocksdb_bp(buffer):
     tp = 0
@@ -298,7 +306,7 @@ def generate_graphs(path):
     df.sort_values('cores', inplace=True)
     df['cores'] = df['cores'].astype(str)
 
-    palette = {'kernel_rr': 'orange', 'baseline': 'green'}
+    palette = {'kernel_rr': 'orange', 'baseline': 'green', 'whole_system_rr': 'blue'}
 
     ax = sns.lineplot(x='cores', y='value', hue='mode', data=df, linewidth=3, palette=palette)
     sns.despine()
@@ -336,12 +344,14 @@ parser.add_argument("--startfrom", default="1")
 parser.add_argument("--graphonly", default="false")
 parser.add_argument("--cpus", default=",".join(cpu_nums))
 parser.add_argument("--replace", default="false")
+parser.add_argument("--replacetrial", default=0)
 args = parser.parse_args()
 
 mode = args.mode
 test_name = args.test
 graph_test = args.graphtest
 cpu_nums = args.cpus.split(",")
+replace_trial = int(args.replacetrial)
 
 if args.replace == "true":
     replace_old = True

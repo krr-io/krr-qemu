@@ -13,6 +13,13 @@ read_256k,kernel_rr,48565.39,ns
 read_512k,kernel_rr,92313.13,ns
 fork,baseline,82687,ns
 fork,kernel_rr,123349,ns
+fork,whole_system_rr,122554,ns
 write_128k,baseline,39864,ns
 write_256k,baseline,89731.24,ns
 write_512k,baseline,188760.02,ns
+write_128k,whole_system_rr,37670.15,ns
+write_256k,whole_system_rr,75243.92,ns
+write_512k,whole_system_rr,150022.42,ns
+read_128k,whole_system_rr,25419.99
+read_256k,whole_system_rr,45658.32,ns
+read_512k,whole_system_rr,94149.68,ns

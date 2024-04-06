@@ -9,3 +9,8 @@ cores,mode,value,count
 4,kernel_rr,13111451.333333334,3
 8,kernel_rr,24391264.33333333,3
 16,kernel_rr,18131001.0,3
+1,whole_system_rr,3815701.0,1
+2,whole_system_rr,85031.0,1
+4,whole_system_rr,240339.0,1
+8,whole_system_rr,466292.0,1
+16,whole_system_rr,784514,1

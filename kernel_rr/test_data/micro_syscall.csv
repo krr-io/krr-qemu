@@ -9,5 +9,11 @@ read_4k,kernel_rr,1942.43,ns
 read_8k,kernel_rr,2960.99,ns
 getpid,baseline,354,ns
 getpid,kernel_rr,496,ns
+getpid,whole_system_rr,364,ns
 write_4k,baseline,2311.19,ns
 write_8k,baseline,4581.87,ns
+write_4k,whole_system_rr,2486.07,ns
+write_8k,whole_system_rr,4169.24,ns
+read_4k,whole_system_rr,1602.85,ns
+read_8k,whole_system_rr,2638.88,ns
+

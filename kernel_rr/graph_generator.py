@@ -7,9 +7,12 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+graphdir = ""
+
 
 def generate_graphs(path):
     file_name = path.split("/")[-1].split(".")[0]
+    file_dir = "/".join(path.split("/")[:-1])
 
     info_list = file_name.split("-")
     test_name = info_list[0]
@@ -59,8 +62,8 @@ def generate_graphs(path):
     plt.legend(title='Mode', loc='best')
     plt.tight_layout()
     plt.gca().set_ylim(bottom=0)
-    # plt.savefig('{}/{}.pdf'.format(constants.DATA_DIR, file_name), format="pdf", dpi=600)
-    plt.savefig('{}/{}.png'.format(constants.DATA_DIR, file_name), dpi=600)
+    # plt.savefig('{}/{}.pdf'.format(file_dir, file_name), format="pdf", dpi=600)
+    plt.savefig('{}/{}.png'.format(file_dir, file_name), dpi=600)
 
     plt.clf()
     plt.close('all')
@@ -73,14 +76,16 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument("--graphtest", default="all")
 parser.add_argument("--graphonly", default="false")
+parser.add_argument("--graphdir", default=constants.DATA_DIR)
 
 args = parser.parse_args()
 graph_test = args.graphtest
+graphdir = args.graphdir
 
 if __name__ == "__main__":
-    for file in os.listdir(constants.DATA_DIR):
+    for file in os.listdir(graphdir):
         if not file.endswith(".csv"):
             continue
 
         if graph_test == "all" or graph_test in file:
-            generate_graphs("{}/{}".format(constants.DATA_DIR, file))
+            generate_graphs("{}/{}".format(graphdir, file))

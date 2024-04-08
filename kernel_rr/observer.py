@@ -85,12 +85,14 @@ def append_file(benchmark, metric, value):
         trial = 1
         condition = (df['cores'] == cores) & (df['mode'] == mode)
 
-        if 'trial' in df.columns:
-            trial = df.loc[condition, "trial"].max() + 1
-
-        print("adding trial {}".format(trial))
+        if not df[condition].empty:
+            if 'trial' in df.columns:
+                trial = df.loc[condition, "trial"].max() + 1
 
         row = [cores, mode, value, trial]
+
+        print("adding row {}".format(row))
+
         df.loc[len(df)] = row
 
     df.to_csv(file, index=False)

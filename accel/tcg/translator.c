@@ -82,7 +82,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
     tcg_debug_assert(db->is_jmp == DISAS_NEXT);  /* no early exit */
 
     if (rr_in_replay() && db->in_user_mode) {
-        qemu_log("User mode, fetch next event\n");
+        qemu_log("[CPU %d]User mode, fetch next event\n", cpu->cpu_index);
 // retry:
         rr_event_log *log = rr_get_next_event();
         int next_event = log->type;

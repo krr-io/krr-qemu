@@ -87,11 +87,11 @@ static bool should_log = false;
 
 static bool should_log_trace(CPUState *cpu)
 {
-    // int replayed_num = get_replayed_event_num();
+    int replayed_num = get_replayed_event_num();
 
-    // if (18972 < replayed_num && replayed_num < 18974) {
-    //     return true;
-    // }
+    if (760 <= replayed_num && replayed_num < 762) {
+        return true;
+    }
     return should_log;
     // return true;
 }
@@ -929,9 +929,9 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
     int32_t insns_left;
 
     if (should_log_trace(cpu)) {
-        log_regs(cpu);
+        // log_regs(cpu);
         qemu_log("[cpu %d]0x%lx\n", cpu->cpu_index, tb->pc);
-        log_tb(cpu, tb);
+        // log_tb(cpu, tb);
         // qemu_log("Finished TB execution\n");
     }
 
@@ -1195,8 +1195,8 @@ int cpu_exec(CPUState *cpu)
             }
 
             if (should_log_trace(cpu)) {
-                qemu_log("\nExecute TB:\n");
-                qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
+                // qemu_log("\nExecute TB:\n");
+                // qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
             }
 
             rr_inc_inst(cpu, tb->pc);

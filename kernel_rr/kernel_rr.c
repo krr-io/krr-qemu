@@ -145,7 +145,7 @@ int replay_cpu_exec_ready(CPUState *cpu)
             break;
         }
 
-        printf("[%d]Start waiting\n", cpu->cpu_index);
+        qemu_log("[%d]Start waiting\n", cpu->cpu_index);
 
         qemu_cond_wait(&replay_cond, &replay_queue_mutex);
 
@@ -156,7 +156,7 @@ int replay_cpu_exec_ready(CPUState *cpu)
             printf("CPU Exit \n");
             break;
         }
-        printf("CPU %d wake up\n", cpu->cpu_index);
+        qemu_log("CPU %d wake up\n", cpu->cpu_index);
     }
 
     if (rr_event_log_head == NULL) {
@@ -231,7 +231,7 @@ static void sync_spin_inst_cnt(CPUState *cpu, rr_event_log *event)
         spin_cnt_diff = event->event.interrupt.spin_count * 3 - 1;
     }
     else if (event->type == EVENT_TYPE_EXCEPTION) {
-        spin_cnt_diff = event->event.exception.spin_count * 3 - 1;
+        spin_cnt_diff = event->event.exception.spin_count * 3;
     }
 
     if (spin_cnt_diff < 0)
@@ -245,7 +245,7 @@ static void sync_spin_inst_cnt(CPUState *cpu, rr_event_log *event)
 void sync_syscall_spin_cnt(CPUState *cpu)
 {
     if (syscall_spin_cnt != 0) {
-        cpu->rr_executed_inst += syscall_spin_cnt * 3 - 1;
+        cpu->rr_executed_inst += syscall_spin_cnt * 3;
     }
     
     if (syscall_spin_cnt > 0)
@@ -1281,11 +1281,11 @@ void rr_get_result(void)
 
     CPU_FOREACH(cpu) {
         ret = cpu_memory_rw_debug(cpu, result_buffer, &buffer, 1024, false);
-        printf("Buffer: %s\n", buffer);
 
         fprintf(f, "%s", buffer);
 
         if (ret == 0) {
+            printf("Buffer: %s\n", buffer);
             qemu_log("%s\n", buffer);
             break;
         }
@@ -1313,7 +1313,7 @@ void rr_post_record(void)
 
     rr_print_events_stat();
 
-    // rr_save_events();
+    rr_save_events();
     rr_dma_post_record();
     rr_memlog_post_record();
 
@@ -1448,9 +1448,10 @@ void cause_other_cpu_debug(CPUState *cpu)
             other_cpu->stop = false;
             other_cpu->stopped = true;
             smp_wmb();
-            qemu_cond_broadcast(&replay_cond);
         }
     }
+    qemu_log("inform other cpus\n");
+    qemu_cond_broadcast(&replay_cond);
 }
 
 
@@ -1733,6 +1734,7 @@ void rr_do_replay_release(CPUState *cpu)
         current_owner = rr_event_log_head->id;
     }
 
+    qemu_log("inform other cpus2\n");
     qemu_cond_broadcast(&replay_cond);
 
 // finish:

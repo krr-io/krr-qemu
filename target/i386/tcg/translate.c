@@ -8607,7 +8607,7 @@ static void i386_tr_init_disas_context(DisasContextBase *dcbase, CPUState *cpu)
 
     if (rr_in_replay()) {
         if (cpl == 3) {
-            printf("Entered User Mode\n");
+            printf("[cpu %d]Entered User Mode\n", cpu->cpu_index);
             dcbase->in_user_mode = true;
         } else {
             dcbase->in_user_mode = false;

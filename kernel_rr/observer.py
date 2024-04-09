@@ -109,6 +109,8 @@ def generate_rocksdb_bp(buffer):
 
     print("Getting the data")
 
+    buffer = buffer[buffer.find(benchmark):]
+
     try:
         fillseq = "fillseq" in buffer
         fillrandom = "fillrandom" in buffer

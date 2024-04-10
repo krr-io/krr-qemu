@@ -30,10 +30,14 @@
 
 const char *kernel_rr_dma_log = "kernel_rr_dma.log";
 static AddressSpace *dma_as = NULL;
-unsigned long total_buf_cnt = 0;
 
 void *nvme_cb_func = NULL;
 static bool kernel_only = true;
+
+static unsigned long total_buf_cnt = 0;
+static unsigned long total_buf_size = 0;
+static unsigned long total_nvme_cnt = 0;
+static unsigned long total_nvme_size = 0;
 
 
 void rr_register_ide_as(IDEDMA *dma)
@@ -110,8 +114,12 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
         sgd->addr = sg->sg[i].base;
         sgd->len = sg->sg[i].len;
 
+        total_buf_size += sg->sg[i].len;
+        total_buf_cnt++;
+
         if (cb == nvme_cb_func) {
-            total_buf_cnt += sg->sg[i].len;
+            total_nvme_size += sg->sg[i].len;
+            total_nvme_cnt++;
             free(sgd->buf);
             free(sgd);
             return;
@@ -301,6 +309,9 @@ void rr_dma_pre_record(void)
 {
     printf("Reset dma sg buffer\n");
     total_buf_cnt = 0;
+    total_buf_size = 0;
+    total_nvme_cnt = 0;
+    total_nvme_size = 0;
     remove(kernel_rr_dma_log);
 }
 
@@ -332,7 +343,8 @@ void rr_dma_pre_replay(int dma_event_num)
 void rr_dma_post_record(void)
 {
     rr_save_dma_logs();
-    printf("Total dma buf cnt %lu\n", total_buf_cnt);
+    printf("Total dma buf cnt %lu size %lu, total nvme buf cnt %lu size %lu\n",
+           total_buf_cnt, total_buf_size, total_nvme_cnt, total_buf_size);
     return;
 }
 

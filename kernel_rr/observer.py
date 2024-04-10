@@ -1,3 +1,4 @@
+import asyncio
 import os
 import traceback
 import pandas as pd
@@ -9,6 +10,8 @@ import signal
 import psutil
 
 import constants
+
+from qemu.qmp import QMPClient
 
 
 REDIS_TP = "redisthroughput"
@@ -203,6 +206,27 @@ def get_data():
 # init_csv_file()
 
 qemu_binary = "../build/qemu-system-x86_64"
+socket_path = "./test.sock"
+
+
+async def end_record():
+    try:
+        qmp_client = QMPClient('test-rr')
+
+        await qmp_client.connect(socket_path)
+
+        with qmp_client.listener() as listener:
+            res = await qmp_client.execute('rr-end-record')
+            print(res)
+            # if res["status"] == "failed":
+            #     print("end record failed: {}".format(res))
+            # elif res["status"] == "completed":
+            #     print("end record finished")
+
+        await qmp_client.disconnect()
+    except Exception as e:
+        print("Failed to end record {}".format(str(e)))
+
 
 def test_run(cpu_num):
     global current_cpu_num
@@ -234,18 +258,20 @@ def test_run(cpu_num):
     -accel kvm -smp {cpu_num} -cpu host -no-hpet -m 8G -append \
     "root=/dev/sda rw init=/lib/systemd/systemd tsc=unstable console=ttyS0" \
     -hda {disk_image} \
-    {ivshmem} -vnc :00 -D rec.log {extra_dev} -exit-record 1 {extra_arg}
+    {ivshmem} -vnc :00 -D rec.log {extra_dev} -exit-record 1 \
+    -qmp unix:{socket_path},server=on,wait=off {extra_arg}
     """.format(
         qemu_binary=qemu_binary, kernel_image=kernel_image,
         disk_image=disk_image, cpu_num=cpu_num,
         ivshmem=ivshmem, extra_dev=extra_dev,
+        socket_path=socket_path,
         extra_arg=extra_arg,
     )
 
     print("QEMU CMD: {}".format(qemu_base_cmd))
 
-    os.system("rm -f /dev/shm/ivshmem")
-    os.system("modprobe -r kvm_intel;modprobe -r kvm;modprobe kvm_intel;modprobe kvm")
+    # os.system("rm -f /dev/shm/ivshmem")
+    # os.system("modprobe -r kvm_intel;modprobe -r kvm;modprobe kvm_intel;modprobe kvm")
 
     process = subprocess.Popen(
         qemu_base_cmd,
@@ -257,6 +283,7 @@ def test_run(cpu_num):
     print("Started process {}".format(process.pid))
     rc = 0
     cnt = 0
+    time.sleep(1)
 
     while True:
         if process.poll() is not None:
@@ -272,9 +299,11 @@ def test_run(cpu_num):
         if not psutil.pid_exists(process.pid):
             return -1
 
-        if cnt > 260:
-            print("Timeout kill")
-            os.system("kill $(pgrep qemu)")
+        if cnt > 360:
+            print("Timeout and end record")
+            asyncio.run(end_record())
+            # time.sleep(1)
+            # os.system("kill $(pgrep qemu)")
             time.sleep(1)
             return -1
 

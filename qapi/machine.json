@@ -412,6 +412,25 @@
 ##
 { 'command': 'query-kvm', 'returns': 'KvmInfo' }
 
+
+##
+# @rr-end-record:
+#
+# Returns information about KVM acceleration
+#
+# Returns: @KvmInfo
+#
+# Since: 0.14
+#
+# Example:
+#
+# -> { "execute": "rr-end-record" }
+# <- { "return": { "enabled": true, "present": true } }
+#
+##
+{ 'command': 'rr-end-record', 'returns': '' }
+
+
 ##
 # @NumaOptionsType:
 #

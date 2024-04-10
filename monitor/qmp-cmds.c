@@ -44,6 +44,7 @@
 #include "hw/acpi/acpi_dev_interface.h"
 #include "hw/intc/intc.h"
 #include "hw/rdma/rdma.h"
+#include "accel/kvm/kvm-cpus.h"
 
 NameInfo *qmp_query_name(Error **errp)
 {
@@ -100,6 +101,11 @@ void qmp_stop(Error **errp)
 void qmp_system_reset(Error **errp)
 {
     qemu_system_reset_request(SHUTDOWN_CAUSE_HOST_QMP_SYSTEM_RESET);
+}
+
+void qmp_rr_end_record(Error **errp)
+{
+    kvm_end_record();
 }
 
 void qmp_system_powerdown(Error **errp)

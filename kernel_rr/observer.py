@@ -122,26 +122,16 @@ def generate_rocksdb_bp(buffer):
 
         readwhilewriting = "readwhilewriting" in buffer
 
+        bm = benchmark
         if fillseq or fillrandom:
             tp = item_list[6]
             ops_ps = item_list[4]
             latency = item_list[2]
 
-            bm = "unknown"
-            if fillseq:
-                bm = "fillseq"
-            elif fillrandom:
-                bm = "fillrandom"
-            
             append_file(bm, THROUGHPUT, tp)
         elif readseq or readrandom:
             ops_ps = item_list[4]
             latency = item_list[2]
-
-            if readrandom:
-                bm = "readrandom"
-            elif readseq:
-                bm = "readseq"
 
         elif readwhilewriting:
             bm = "readwhilewriting"
@@ -272,6 +262,8 @@ def test_run(cpu_num):
 
     os.system("rm -f /dev/shm/ivshmem")
     os.system("modprobe -r kvm_intel;modprobe -r kvm;modprobe kvm_intel;modprobe kvm")
+    os.system("sync")
+    os.system("echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null")
 
     process = subprocess.Popen(
         qemu_base_cmd,

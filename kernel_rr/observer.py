@@ -146,6 +146,17 @@ def generate_rocksdb_bp(buffer):
         print("{} {}: {}".format(traceback.format_exc(), e, item_list))
 
 
+def generate_kernel_build(buffer):
+    buffer = buffer.replace("'", "")
+    print(buffer)
+    item_list = buffer.split()
+    i = item_list.index("SEC")
+
+    val = float(item_list[i+1])
+
+    append_file(test_name, "time", val)
+
+
 def generate_redis(buffer, benchmark, latency=False):
     if "throughput" in buffer:
         item_list = buffer.split(":")[2].split()
@@ -187,11 +198,19 @@ def get_data_rocksdb():
         for line in lines:
             generate_values_rocksdb(line)
 
+def get_data_kernel_build():
+    with open("./rr-result.txt", "r", encoding='ISO-8859-1') as f:
+        line = f.read()
+        generate_kernel_build(line)
+
 def get_data():
     if test_name in (constants.ROCKS_DB_BP_TEST_NAME, constants.ROCKS_DB_NBP_TEST_NAME):
         get_data_rocksdb()
-    elif test_name == REDIS_TEST_NAME:
+    elif test_name == constants.REDIS_TEST_NAME:
         get_data_redis()
+    elif test_name == constants.KERNEL_BUILD_TEST_NAME:
+        get_data_kernel_build()
+
 
 # init_csv_file()
 
@@ -226,6 +245,10 @@ def test_run(cpu_num):
     extra_dev = ""
     extra_arg = ""
     disk_image = os.environ["KRR_DISK"]
+
+    if test_name == constants.KERNEL_BUILD_TEST_NAME:
+        disk_image = os.environ["KBUILD_DISK"]
+
     ivshmem = "-object memory-backend-file,size=65536M,share,mem-path=/dev/shm/ivshmem,id=hostmem -device ivshmem-plain,memdev=hostmem"
 
     if mode == "kernel_rr":
@@ -238,7 +261,10 @@ def test_run(cpu_num):
         kernel_image = os.environ["BL_IMG"]
 
     if mode == "whole_system_rr":
-        extra_arg = "-whole-system 1"
+        extra_arg += "-whole-system 1 "
+
+    if mode == "baseline":
+        extra_arg += "-ignore-record 1 "
 
     if test_name == constants.ROCKS_DB_BP_TEST_NAME:
         extra_dev = " -drive file=../build/nvm.img,if=none,id=nvm -device nvme,serial=deadbeef,drive=nvm"

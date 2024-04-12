@@ -56,6 +56,7 @@
 #include "hw/intc/intc.h"
 #include "migration/snapshot.h"
 #include "migration/misc.h"
+#include "hw/core/cpu.h"
 
 #include "accel/kvm/kvm-cpus.h"
 
@@ -1105,6 +1106,8 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
     Error *err = NULL;
     int enable_trace;
     bool autostart = false;
+    // CPUState *cs;
+
 
     enable_trace = qdict_get_try_int(qdict, "trace", 0);
 

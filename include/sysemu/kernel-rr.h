@@ -101,6 +101,7 @@ void rr_do_replay_release(CPUState *cpu);
 void rr_do_replay_sync_inst(CPUState *cpu);
 void cause_other_cpu_debug(CPUState *cpu);
 void sync_syscall_spin_cnt(CPUState *cpu);
+void dump_cpus_state(void);
 
 typedef uint64_t sg_addr;
 

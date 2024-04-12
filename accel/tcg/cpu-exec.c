@@ -96,6 +96,7 @@ static bool should_log_trace(CPUState *cpu)
     // return true;
 }
 
+__attribute_maybe_unused__ 
 static bool should_manual_breakpoint(target_ulong pc)
 {
     return false;
@@ -807,8 +808,10 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
             if (interrupt_request != -1) {
                 cpu->interrupt_request = interrupt_request;
                 qatomic_mb_set(&cpu->exit_request, 0);
+                printf("[%d]Get replay int %d\n", cpu->cpu_index, interrupt_request);
             } else {
                 interrupt_request = 0;
+                return false;
             }
         }
         // printf("replayed request %d\n", interrupt_request);
@@ -931,7 +934,7 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
     if (should_log_trace(cpu)) {
         // log_regs(cpu);
         qemu_log("[cpu %d]0x%lx\n", cpu->cpu_index, tb->pc);
-        // log_tb(cpu, tb);
+        log_tb(cpu, tb);
         // qemu_log("Finished TB execution\n");
     }
 
@@ -1069,10 +1072,10 @@ int cpu_exec(CPUState *cpu)
                 cpu->cflags_next_tb = -1;
             }
 
-            if (should_log_trace(cpu) && should_manual_breakpoint(pc) && !breaked) {
-                cpu->cause_debug = 1;
-                breaked = true;
-            }
+            // if (should_log_trace(cpu) && should_manual_breakpoint(pc) && !breaked) {
+            //     cpu->cause_debug = 1;
+            //     breaked = true;
+            // }
 
             if (check_for_breakpoints(cpu, pc, &cflags)) {
                 cause_other_cpu_debug(cpu);

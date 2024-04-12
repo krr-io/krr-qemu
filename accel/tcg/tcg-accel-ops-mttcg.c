@@ -178,7 +178,9 @@ void mttcg_start_vcpu_thread(CPUState *cpu)
 
     cpu->thread = g_new0(QemuThread, 1);
     cpu->halt_cond = g_malloc0(sizeof(QemuCond));
+    cpu->replay_cond = g_malloc0(sizeof(QemuCond));
     qemu_cond_init(cpu->halt_cond);
+    qemu_cond_init(cpu->replay_cond);
 
     /* create a thread per vCPU with TCG (MTTCG) */
     snprintf(thread_name, VCPU_THREAD_NAME_SIZE, "CPU %d/TCG",

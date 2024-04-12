@@ -2764,6 +2764,7 @@ void qmp_x_exit_preconfig(Error **errp)
         if (load_snapshot(kernel_replay_name, NULL, false, NULL, &error_fatal)) {
             // vm_start();
             printf("Loaded snapshot %s\n", kernel_replay_name);
+            // dump_cpus_state();
         }
         // rr_pre_replay();
     }

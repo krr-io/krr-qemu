@@ -26,6 +26,8 @@
 #include "qemu/main-loop.h"
 #include "memory.h"
 
+#include <time.h>
+
 #define MAX_CPU_NUM 16
 
 const char *kernel_rr_log = "kernel_rr.log";
@@ -92,6 +94,10 @@ static void rr_log_event(rr_event_log *event_record, int event_num);
 static bool rr_replay_is_entry(rr_event_log *event);
 static void interrupt_check(rr_event_log *event);
 
+static clock_t replay_start_time;
+__attribute_maybe_unused__ static bool log_trace = false;
+
+
 static long syscall_spin_cnt = 0;
 
 void rr_fake_call(void){return;}
@@ -112,9 +118,34 @@ int rr_get_ignore_record(void) {
     return ignore_record;
 }
 
+__attribute_maybe_unused__
+void dump_cpus_state(void) {
+    CPUState *cs;
+    CPUArchState *env;
+    X86CPU *x86_cpu;
+
+    CPU_FOREACH(cs) {
+        printf("CPU#%d:", cs->cpu_index);
+        x86_cpu = X86_CPU(cs);
+        env = &x86_cpu->env;
+        printf("cr0=%lx\n", env->cr[0]);
+    }
+}
+
 static void initialize_replay(void) {
     qemu_mutex_init(&replay_queue_mutex);
     qemu_cond_init(&replay_cond);
+
+    CPUState *cs;
+
+    CPU_FOREACH(cs) {
+        cs->rr_executed_inst = 0;
+        // qemu_mutex_init(&cs->replay_mutex);
+        // qemu_cond_init(&cs->replay_cond);
+    }
+
+    printf("Initialized replay\n");
+    replay_start_time = clock();
 }
 
 __attribute_maybe_unused__ void
@@ -127,7 +158,7 @@ int replay_cpu_exec_ready(CPUState *cpu)
     int ready = 0;
 
     qemu_mutex_lock(&replay_queue_mutex);
-    
+
     while (1)
     {
         if (rr_event_log_head == NULL) {
@@ -147,15 +178,15 @@ int replay_cpu_exec_ready(CPUState *cpu)
 
         qemu_log("[%d]Start waiting\n", cpu->cpu_index);
 
-        qemu_cond_wait(&replay_cond, &replay_queue_mutex);
+        qemu_cond_wait(cpu->replay_cond, &replay_queue_mutex);
 
-        smp_rmb();
+        // smp_rmb();
 
-        if (qatomic_mb_read(&cpu->exit_request)) {
-            ready = 1;
-            printf("CPU Exit \n");
-            break;
-        }
+        // if (qatomic_mb_read(&cpu->exit_request)) {
+        //     ready = 1;
+        //     printf("[%d]CPU Exit \n");
+        //     break;
+        // }
         qemu_log("CPU %d wake up\n", cpu->cpu_index);
     }
 
@@ -257,6 +288,11 @@ void sync_syscall_spin_cnt(CPUState *cpu)
 static void finish_replay(void)
 {
     printf("Replay finished\n");
+    clock_t end = clock();
+    double cpu_time_used = ((double) (end - replay_start_time)) / CLOCKS_PER_SEC;
+
+     printf("Replay executed in %f seconds\n", cpu_time_used);
+
     rr_print_events_stat();
 
     rr_memlog_post_replay();
@@ -1106,11 +1142,12 @@ void append_event(rr_event_log event, int is_record)
 static void interrupt_check(rr_event_log *event)
 {
     if (rr_event_cur != NULL) {
-        if (rr_event_cur->type == EVENT_TYPE_INTERRUPT \
-            && event->type == EVENT_TYPE_INTERRUPT \
-            && event->id != rr_event_cur->id) {
-            printf("Interrupts %d %d from different CPUs are next\n",
-                   rr_event_cur->event.interrupt.vector, event->event.interrupt.vector);
+        if (event->id != rr_event_cur->id){
+            if (rr_event_cur->type == EVENT_TYPE_IO_IN && event->type == EVENT_TYPE_IO_IN)
+            {
+                printf("Event %lu %lu are suspected interleaved\n",
+                    rr_event_cur->event.io_input.value, event->event.io_input.value);
+            }
         }
     }
 }
@@ -1372,6 +1409,7 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
     env = &x86_cpu->env;
 
     if (cpu->cpu_index != rr_event_log_head->id) {
+        *interrupt = -1;
         goto finish;
     } 
 
@@ -1412,7 +1450,8 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
         if (matched) {
             cpu->rr_executed_inst--;
             *interrupt = CPU_INTERRUPT_HARD;
-            qemu_log("Ready to replay int request\n");
+            qemu_log("Ready to replay int request, cr0=%lx\n", env->cr[0]);
+            // dump_cpus_state();
             cpu->rr_executed_inst++;
 
             goto finish;
@@ -1632,6 +1671,13 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
 
     qemu_mutex_lock(&replay_queue_mutex);
 
+    if (rr_event_log_head->id != cpu->cpu_index) {
+        qemu_log("Unmatched cpu id: current=%d, head=%d\n",
+                 cpu->cpu_index, rr_event_log_head->id);
+        cpu->cause_debug = 1;
+        goto finish;
+    }
+
     if (rr_event_log_head->type != EVENT_TYPE_IO_IN) {
         printf("Expected %d event, found %d, rip=0x%lx, cpu_id=%d\n",
                 EVENT_TYPE_IO_IN, rr_event_log_head->type, env->eip, cpu->cpu_index);
@@ -1713,6 +1759,8 @@ finish:
 
 void rr_do_replay_release(CPUState *cpu)
 {
+    CPUState *cs;
+
     qemu_mutex_lock(&replay_queue_mutex);
 
     if (rr_event_log_head->type != EVENT_TYPE_RELEASE) {
@@ -1734,9 +1782,15 @@ void rr_do_replay_release(CPUState *cpu)
         current_owner = rr_event_log_head->id;
     }
 
-    qemu_log("inform other cpus2\n");
-    qemu_cond_broadcast(&replay_cond);
+    // dump_cpus_state();
 
+    CPU_FOREACH(cs) {
+        qemu_log("inform other cpu %d\n", current_owner);
+
+        if (cs->cpu_index == current_owner) {
+            qemu_cond_signal(cs->replay_cond);
+        }
+    }
 // finish:
     qemu_mutex_unlock(&replay_queue_mutex);
 }
@@ -1789,13 +1843,13 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
         replayed_interrupt_num++;
 
         qemu_log("[CPU %d]Replayed interrupt vector=%d, RIP on replay=0x%lx,"\
-                 "inst_cnt=%lu, cpu_id=%d, replayed event number=%d\n",
+                 "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replayed event number=%d\n",
                  cpu->cpu_index, *intno, env->eip, cpu->rr_executed_inst,
-                 rr_event_log_head->id, replayed_event_num);
+                 rr_event_log_head->id, env->cr[0], replayed_event_num);
         printf("[CPU %d]Replayed interrupt vector=%d, RIP on replay=0x%lx,"\
-                 "inst_cnt=%lu, cpu_id=%d, replayed event number=%d\n",
+                 "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replayed event number=%d\n",
                  cpu->cpu_index, *intno, env->eip, cpu->rr_executed_inst,
-                 rr_event_log_head->id, replayed_event_num);
+                 rr_event_log_head->id, env->cr[0], replayed_event_num);
         return;
     }
 

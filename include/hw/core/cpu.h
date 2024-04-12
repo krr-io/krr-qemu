@@ -443,6 +443,8 @@ struct CPUState {
     int cause_debug;
     bool force_interrupt;
     unsigned long last_removed_addr;
+    QemuMutex replay_mutex;
+    struct QemuCond *replay_cond;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

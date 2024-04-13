@@ -122,6 +122,7 @@ def generate_rocksdb_bp(buffer):
         readwhilewriting = "readwhilewriting" in buffer
         readwhilescanning = "readwhilescanning" in buffer
         seekrandom = "seekrandom" in buffer
+        readrandomwriterandom = "readrandomwriterandom" in buffer
 
         bm = benchmark
         if fillseq or fillrandom:
@@ -145,6 +146,10 @@ def generate_rocksdb_bp(buffer):
             latency = item_list[2]
         elif seekrandom:
             bm = "seekrandom"
+            ops_ps = item_list[4]
+            latency = item_list[2]
+        elif readrandomwriterandom:
+            bm = "readrandomwriterandom"
             ops_ps = item_list[4]
             latency = item_list[2]
 

@@ -300,10 +300,14 @@ static void finish_replay(void)
 }
 
 static void pre_record(void) {
+    FILE* file = fopen("/dev/shm/record", "w");
+
     printf("Removing existing log files: %s\n", kernel_rr_log);
+
     remove(kernel_rr_log);
     rr_dma_pre_record();
     rr_pre_mem_record();
+    fclose(file);
 }
 
 __attribute_maybe_unused__ static bool check_inst_matched_and_fix(CPUState *cpu, rr_event_log *event)
@@ -1298,6 +1302,7 @@ static void rr_record_settle_events(void)
     for (int i = 0; i < MAX_CPU_NUM; i++) {
         if (rr_smp_event_log_queues[i] != NULL) {
             printf("Orphan event from kvm!\n");
+            qemu_log("Orphan event from kvm!\n");
             rr_log_event(rr_smp_event_log_queues[i], 0);
             // exit(1);
         }
@@ -1358,6 +1363,7 @@ void rr_post_record(void)
     rr_get_result();
 
     rr_reset_ivshmem();
+    remove("/dev/shm/record");
 
     if (exit_record)
         exit(10);
@@ -1384,6 +1390,24 @@ rr_replay_is_entry(rr_event_log *event)
     return false;
 }
 
+static unsigned long abs_value(unsigned long a, unsigned long b)
+{
+    if (a > b)
+        return a - b;
+    else
+        return b - a;
+}
+
+static bool is_out_record_phase(CPUState *cpu, rr_event_log *event)
+{
+    if (event->type == EVENT_TYPE_INTERRUPT && event->inst_cnt == 0) {
+        if (total_event_number - replayed_event_num < 5) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 static bool wait_see_next = false;
 
@@ -1403,6 +1427,10 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
 
         *interrupt = -1;
         goto finish;
+    } else {
+        if (is_out_record_phase(cpu, rr_event_log_head)) {
+            finish_replay();
+        }
     }
 
     x86_cpu = X86_CPU(cpu);
@@ -1414,6 +1442,16 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
     } 
 
     if (rr_event_log_head->type == EVENT_TYPE_INTERRUPT) {
+
+        if (env->eip == rr_event_log_head->rip) {
+            if (abs_value(cpu->rr_executed_inst, rr_event_log_head->inst_cnt) < 10) {
+                cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+                qemu_log("temp fixed the cpu number\n");
+                matched = true;
+            }
+        }
+
+
         if (wait_see_next) {
             if (env->eip == cpu->last_pc) {
 
@@ -1448,7 +1486,7 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
         }
 
         if (matched) {
-            cpu->rr_executed_inst--;
+            // cpu->rr_executed_inst--;
             *interrupt = CPU_INTERRUPT_HARD;
             qemu_log("Ready to replay int request, cr0=%lx\n", env->cr[0]);
             // dump_cpus_state();
@@ -1785,9 +1823,8 @@ void rr_do_replay_release(CPUState *cpu)
     // dump_cpus_state();
 
     CPU_FOREACH(cs) {
-        qemu_log("inform other cpu %d\n", current_owner);
-
         if (cs->cpu_index == current_owner) {
+            qemu_log("inform cpu %d\n", current_owner);
             qemu_cond_signal(cs->replay_cond);
         }
     }

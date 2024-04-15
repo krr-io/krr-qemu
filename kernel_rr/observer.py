@@ -288,6 +288,12 @@ def test_run(cpu_num):
     if test_name == constants.ROCKS_DB_BP_TEST_NAME:
         extra_dev = " -drive file=../build/nvm.img,if=none,id=nvm -device nvme,serial=deadbeef,drive=nvm"
 
+    if test_name == constants.ROCKS_DB_NBP_TEST_NAME:
+        extra_dev = " -drive file=../build/nkbypass.img,id=nvm,if=none -device nvme,serial=deadbeef,drive=nvm"
+
+        if mode == "kernel_rr":
+            extra_arg += "-whole-system 1 "
+
     qemu_base_cmd = """
     {qemu_binary} -kernel {kernel_image} \
     -accel kvm -smp {cpu_num} -cpu host -no-hpet -m 8G -append \

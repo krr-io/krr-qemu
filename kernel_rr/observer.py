@@ -164,9 +164,14 @@ def generate_kernel_build(buffer):
     buffer = buffer.replace("'", "")
     print(buffer)
     item_list = buffer.split()
-    i = item_list.index("SEC")
+    i = 0
 
-    val = float(item_list[i+1])
+    for index, item in enumerate(item_list):
+        if "SEC" in item:
+            i = index + 1
+            break
+
+    val = float(item_list[i])
 
     append_file(test_name, "time", val)
 
@@ -304,6 +309,7 @@ def test_run(cpu_num):
     os.system("modprobe -r kvm_intel;modprobe -r kvm;modprobe kvm_intel;modprobe kvm")
     os.system("sync")
     os.system("echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null")
+    os.system("rm -f /dev/shm/record")
 
     process = subprocess.Popen(
         qemu_base_cmd,
@@ -332,10 +338,15 @@ def test_run(cpu_num):
             return -1
 
         if cnt > 360:
+            if os.path.exists("/dev/shm/record"):
+                print("Record started, still wait")
+                cnt = 0
+                continue
+
             print("Timeout and end record")
             asyncio.run(end_record())
-            # time.sleep(1)
-            # os.system("kill $(pgrep qemu)")
+            time.sleep(1)
+            os.system("kill $(pgrep qemu)")
             time.sleep(1)
             return -1
 

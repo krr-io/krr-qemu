@@ -264,9 +264,7 @@ async def end_record():
         print("Failed to end record {}".format(str(e)))
 
 
-def gen_script():
-    global current_cpu_num
-    
+def gen_script(cpu_num):
     current_cpu_num = cpu_num
 
     extra_dev = ""
@@ -321,7 +319,7 @@ def gen_script():
 
 
 def test_run(cpu_num):
-    qemu_base_cmd = gen_script()
+    qemu_base_cmd = gen_script(cpu_num)
 
     print("QEMU CMD: {}".format(qemu_base_cmd))
 
@@ -398,7 +396,7 @@ parser.add_argument("--cpus", default=",".join(cpu_nums))
 parser.add_argument("--replace", default="false")
 parser.add_argument("--replacetrial", default=0)
 parser.add_argument("--benchmark", default="fillseq")
-parser.add_argument("--gen_script_only", default="true")
+parser.add_argument("--gen_script_only", default="false")
 args = parser.parse_args()
 
 mode = args.mode
@@ -410,8 +408,9 @@ replace_trial = int(args.replacetrial)
 if args.replace == "true":
     replace_old = True
 
-if args.gen_script_only == "true"
-    cmd = gen_script()
+
+if args.gen_script_only == "true":
+    cmd = gen_script(args.startfrom)
     print("cmd write to file scrpt.sh")
 
     try:

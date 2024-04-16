@@ -194,8 +194,7 @@ def generate_redis(buffer, benchmark, latency=False):
 
 def generate_values_rocksdb(buffer):
     if test_name in (constants.ROCKS_DB_BP_TEST_NAME, constants.ROCKS_DB_NBP_TEST_NAME):
-        if not generate_rocksdb_bp(buffer):
-            raise Exception("failed to find benchmark result")
+        return generate_rocksdb_bp(buffer):
 
 
 def get_data_redis():
@@ -218,8 +217,13 @@ def get_data_redis():
 def get_data_rocksdb():
     with open("./rr-result.txt", "r", encoding='ISO-8859-1') as f:
         lines = f.readlines()
+        fetched = False
         for line in lines:
-            generate_values_rocksdb(line)
+            if generate_values_rocksdb(line):
+                fetched = True
+        
+        if not fetched:
+            raise Exception("Failed to fetch data")
 
 def get_data_kernel_build():
     with open("./rr-result.txt", "r", encoding='ISO-8859-1') as f:

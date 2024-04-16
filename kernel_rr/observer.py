@@ -194,7 +194,7 @@ def generate_redis(buffer, benchmark, latency=False):
 
 def generate_values_rocksdb(buffer):
     if test_name in (constants.ROCKS_DB_BP_TEST_NAME, constants.ROCKS_DB_NBP_TEST_NAME):
-        return generate_rocksdb_bp(buffer):
+        return generate_rocksdb_bp(buffer)
 
 
 def get_data_redis():
@@ -264,7 +264,7 @@ async def end_record():
         print("Failed to end record {}".format(str(e)))
 
 
-def test_run(cpu_num):
+def gen_script():
     global current_cpu_num
     
     current_cpu_num = cpu_num
@@ -316,6 +316,12 @@ def test_run(cpu_num):
         socket_path=socket_path,
         extra_arg=extra_arg,
     )
+
+    return qemu_base_cmd
+
+
+def test_run(cpu_num):
+    qemu_base_cmd = gen_script()
 
     print("QEMU CMD: {}".format(qemu_base_cmd))
 
@@ -392,6 +398,7 @@ parser.add_argument("--cpus", default=",".join(cpu_nums))
 parser.add_argument("--replace", default="false")
 parser.add_argument("--replacetrial", default=0)
 parser.add_argument("--benchmark", default="fillseq")
+parser.add_argument("--gen_script_only", default="true")
 args = parser.parse_args()
 
 mode = args.mode
@@ -402,6 +409,20 @@ replace_trial = int(args.replacetrial)
 
 if args.replace == "true":
     replace_old = True
+
+if args.gen_script_only == "true"
+    cmd = gen_script()
+    print("cmd write to file scrpt.sh")
+
+    try:
+        os.remove("./script.sh")
+    except:
+        pass
+
+    with open("./script.sh", 'w') as f:
+        f.write(cmd)
+    
+    exit(0)
 
 if args.parseonly == "true":
     get_data()

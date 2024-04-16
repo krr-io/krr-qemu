@@ -156,9 +156,12 @@ def generate_rocksdb_bp(buffer):
         append_file(bm, OPSPS, ops_ps)
         append_file(bm, LATENCY, latency)
 
+        return True
+
     except Exception as e:
         print("{} {}: {}".format(traceback.format_exc(), e, item_list))
-
+        
+    return False
 
 def generate_kernel_build(buffer):
     buffer = buffer.replace("'", "")
@@ -191,7 +194,8 @@ def generate_redis(buffer, benchmark, latency=False):
 
 def generate_values_rocksdb(buffer):
     if test_name in (constants.ROCKS_DB_BP_TEST_NAME, constants.ROCKS_DB_NBP_TEST_NAME):
-        generate_rocksdb_bp(buffer)
+        if not generate_rocksdb_bp(buffer):
+            raise Exception("failed to find benchmark result")
 
 
 def get_data_redis():
@@ -329,6 +333,10 @@ def test_run(cpu_num):
     cnt = 0
     time.sleep(1)
 
+    t = 360
+    if mode == "baseline":
+        t = 1000000
+
     while True:
         if process.poll() is not None:
             if process.returncode == 10:
@@ -343,7 +351,7 @@ def test_run(cpu_num):
         if not psutil.pid_exists(process.pid):
             return -1
 
-        if cnt > 360:
+        if cnt > t:
             if os.path.exists("/dev/shm/record"):
                 print("Record started, still wait")
                 cnt = 0
@@ -358,7 +366,11 @@ def test_run(cpu_num):
 
     print("return code {}".format(rc))
 
-    get_data()
+    try:
+        get_data()
+    except Exception as e:
+        print("{}".format(str(e)))
+        return -1
 
     return 0
 
@@ -393,4 +405,4 @@ else:
     print("mode={} test={}".format(mode, test_name))
     for cpu_num in cpu_nums[cpu_nums.index(args.startfrom):]:
         while test_run(cpu_num) < 0:
-            print("Timeout try again")
+            print("Try again")

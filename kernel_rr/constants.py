@@ -18,3 +18,6 @@ test_name = ROCKS_DB_NBP_TEST_NAME
 
 
 CPU_NUMS = ["1", "2", "4", "8", "16"]
+
+palette = {'kernel_rr': '#cc29df', 'baseline': '#28ca69', 'whole_system_rr': '#2868de'}
+

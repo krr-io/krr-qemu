@@ -1,41 +1,87 @@
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import numpy as np
+
+import constants
 
 
+def add_text_top(ax):
+    for p in ax.patches:
+        # Get information for each bar
+        height = p.get_height() # Height of the bar
+        x = p.get_x() + p.get_width() / 2 # X position
+        # Add text annotation
+        bar_color = p.get_facecolor()
+        label = f'{height:.2f}'.rstrip('0').rstrip('.') if '.' in f'{height:.2f}' else f'{height:.0f}'
+        ax.text(x, height + 60, label, ha='center', fontsize=10, rotation=0, color=bar_color)
 
-def generate_for_microbench():
-    file_name = "micro_smp"
 
-    print("Generating graph for {}".format(file_name))
+def aggregate(modes, df):
+    result_df = pd.DataFrame({"test": [], "mode": [], "value": []})
 
-    path = "{}/{}.csv".format("test_data", file_name)
+    for mode in modes:
+        for benchmark in df.test.unique():
+            df_data = df[(df["test"] == benchmark) & (df["mode"] == mode)]
+            value = df_data["value"].median()
+            row = [benchmark, mode, value]
+            result_df.loc[len(result_df)] = row
 
-    df = pd.read_csv(path)
+    return result_df
 
-    palette = {'kernel_rr': 'orange', 'baseline': 'green', 'whole_system_rr': 'blue'}
 
-    ax = sns.barplot(y='value', x='test', hue='mode', data=df, palette=palette, dodge=True)
+def gen_bar_chart(file_name, result_df, hue, x_col, y_col, x_label, y_label):
+    plt.figure(figsize=(10, 6)) 
+    ax = sns.barplot(
+        y=y_col, x=x_col, hue=hue,
+        data=result_df, palette=constants.palette, dodge=True
+    )
     sns.despine()
 
     ax.tick_params(axis='x', labelsize=14)
     ax.tick_params(axis='y', labelsize=14)
-    
+
+    add_text_top(ax)
+
     sns.set_theme(style='white', font_scale=1.5)
     # plt.title('System call time measurement')
-    plt.ylabel('Time(sec)', fontsize=16)
-    plt.xlabel('System call', fontsize=16)
+    plt.ylabel(y_label, fontsize=16)
+    plt.xlabel(x_label, fontsize=16)
     # plt.yscale('log')
     plt.xticks(rotation=45) # Rotate the x-axis labels for better readability
     # plt.legend(title='Year')
 
     plt.legend(title='Mode', fontsize='x-small', title_fontsize='x-small', loc='best', markerscale=0.8)
     plt.tight_layout()
-    plt.savefig('{}/{}.pdf'.format("test_data", file_name), format="pdf", dpi=600)
-    # plt.savefig('{}/{}.png'.format("test_data", file_name), dpi=600)
+    # plt.savefig('{}/{}.pdf'.format("test_data", file_name), format="pdf", dpi=600)
+    plt.savefig('{}/{}.png'.format("/home/projects/kernel-rr-dev/test_data", file_name), dpi=600)
 
     plt.clf()
     plt.close('all')
+
+
+def generate_for_bypass_compare():
+    file_name = "rocksdb-fillseq-compare"
+
+    path = "{}/{}.csv".format("/home/projects/kernel-rr-dev/test_data", file_name)
+
+    df = pd.read_csv(path)
+
+    gen_bar_chart(file_name, df, "mode", "benchmark", "value", 'Benchmark', "Throughput(ops/s)")
+
+
+def generate_for_microbench():
+    file_name = "micro_syscall_large"
+
+    print("Generating graph for {}".format(file_name))
+
+    path = "{}/{}.csv".format("/home/projects/kernel-rr-dev/test_data", file_name)
+
+    df = pd.read_csv(path)
+
+    result_df = aggregate(constants.palette.keys(), df)
+
+    gen_bar_chart(file_name, result_df, "mode", "test", "value", 'System call', "Time(ns)")
 
 
 def generate_for_smp_microbench():
@@ -47,8 +93,6 @@ def generate_for_smp_microbench():
 
     df = pd.read_csv(path)
 
-    palette = {'kernel_rr': 'orange', 'baseline': 'green', 'whole_system_rr': 'blue'}
-
     tests = ["a", "b", "c", "d"]
 
     for test in tests:
@@ -56,7 +100,7 @@ def generate_for_smp_microbench():
 
         print(test_df.loc[df["mode"]=="kernel_rr"])
 
-        ax = sns.barplot(y='value', x='threads', hue='mode', data=test_df, palette=palette)
+        ax = sns.barplot(y='value', x='threads', hue='mode', data=test_df, palette=constants.palette)
         sns.despine()
 
         ax.tick_params(axis='x', labelsize=14)
@@ -65,15 +109,7 @@ def generate_for_smp_microbench():
 
         ax.get_legend().remove()
 
-        for p in ax.patches:
-            # Get information for each bar
-            height = p.get_height() # Height of the bar
-            x = p.get_x() + p.get_width() / 2 # X position
-            # Add text annotation
-            bar_color = p.get_facecolor()
-            label = f'{height:.2f}'.rstrip('0').rstrip('.') if '.' in f'{height:.2f}' else f'{height:.0f}'
-            ax.text(x, height + 10, label, ha='center', fontsize=10, rotation=90, color=bar_color)
-
+        add_text_top(ax)
         # # plt.title('System call time measurement')
         plt.ylabel('Time(sec)', fontsize=16)
         plt.xlabel('Thread & Core Number', fontsize=16)
@@ -84,11 +120,13 @@ def generate_for_smp_microbench():
         plt.legend(title='Mode', fontsize='x-small', title_fontsize='x-small', loc='best', markerscale=0.8)
         plt.tight_layout()
 
-        plt.savefig('{}/{}-{}.pdf'.format("test_data", file_name, test), format="pdf", dpi=600)
-        # plt.savefig('{}/{}-{}.png'.format("test_data", file_name, test), dpi=600)
+        # plt.savefig('{}/{}-{}.pdf'.format("/home/projects/kernel-rr-dev/test_data", file_name, test), format="pdf", dpi=600)
+        plt.savefig('{}/{}-{}.png'.format("/home/projects/kernel-rr-dev/test_data", file_name, test), dpi=600)
 
         plt.clf()
         plt.close('all')
 
 
-generate_for_smp_microbench()
+generate_for_bypass_compare()
+
+# generate_for_smp_microbench()

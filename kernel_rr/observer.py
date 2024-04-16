@@ -36,7 +36,7 @@ benchmarks = {
 
 benchmark = "fillseq"
 
-cpu_nums = ["1", "2", "4", "8", "16"]
+cpu_nums = ["1", "2", "4", "8"]
 current_cpu_num = 1
 replace_old = False
 
@@ -230,7 +230,11 @@ def get_data_kernel_build():
         line = f.read()
         generate_kernel_build(line)
 
-def get_data():
+def get_data(cpu_num=None):
+    global current_cpu_num
+    if cpu_num:
+        current_cpu_num = cpu_num
+
     if test_name in (constants.ROCKS_DB_BP_TEST_NAME, constants.ROCKS_DB_NBP_TEST_NAME):
         get_data_rocksdb()
     elif test_name == constants.REDIS_TEST_NAME:
@@ -424,7 +428,7 @@ if args.gen_script_only == "true":
     exit(0)
 
 if args.parseonly == "true":
-    get_data()
+    get_data(args.startfrom)
 else:
     print("mode={} test={}".format(mode, test_name))
     for cpu_num in cpu_nums[cpu_nums.index(args.startfrom):]:

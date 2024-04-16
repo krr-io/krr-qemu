@@ -15,7 +15,8 @@ metric2y = {
     constants.OPSPS: "Throughput (ops/s)",
     constants.LATENCY: "Latency (micros/op)",
     constants.REDIS_TP: "Throughput (req/s)",
-    constants.AVG_LAT: "Average Latency (ms)"
+    constants.AVG_LAT: "Average Latency (ms)",
+    "time": "Time (sec)"
 }
 
 
@@ -96,6 +97,15 @@ def plug_single_graph(path):
     plt.close('all')
 
 
+def generate_bypass_graphs(path):
+    file_name = path.split("/")[-1].split(".")[0]
+    file_dir = "/".join(path.split("/")[:-1])
+
+    df = pd.read_csv(path)
+
+
+
+
 def generate_graphs(path):
     file_name = path.split("/")[-1].split(".")[0]
     file_dir = "/".join(path.split("/")[:-1])
@@ -110,10 +120,8 @@ def generate_graphs(path):
     df = pd.read_csv(path)
 
     result_df = pd.DataFrame({"cores": [], "mode": [], "value": []})
-
-    palette = {'kernel_rr': 'orange', 'baseline': 'green', 'whole_system_rr': 'blue'}
     
-    for mode in palette.keys():
+    for mode in constants.palette.keys():
         for core in constants.CPU_NUMS:
             df_data = df[(df["mode"] == mode) & (df["cores"] == int(core))]
 
@@ -126,16 +134,32 @@ def generate_graphs(path):
     result_df.sort_values('cores', inplace=True)
     result_df['cores'] = result_df['cores'].astype(str)
 
-    ax = sns.lineplot(x='cores', y='value', hue='mode', data=result_df, linewidth=3, palette=palette)
+    df['cores'] = df['cores'].astype(str)
+
+    sns.set(style="whitegrid")
+    # with sns.color_palette("Set2"):
+    ax = sns.catplot(
+        x='cores', y='value', hue='mode',
+        data=result_df, palette=constants.palette,
+        kind="point", aspect=1, errwidth=1
+    )
+
+    # ax = sns.lineplot(
+    #     x='cores', y='value', hue='mode',
+    #     data=df, linewidth=3, palette=palette,
+    #     errorbar=lambda x: (x.min(), x.max()),
+    #     err_style="bars", dashes=False
+    # )
     sns.despine()
-    sns.set(font_scale=5)
-    plt.xticks(result_df['cores'].unique())
+    sns.set(font_scale=20)
 
     sns.set_theme(style='white', font_scale=1.1)
 
+    plt.xticks(result_df['cores'].unique(), fontsize=20)
+    plt.yticks(fontsize=15)
     plt.xlabel('CPU Number', fontsize=18, fontweight='normal')
     plt.ylabel(metric2y[metric], fontsize=18, fontweight='normal')
-    ax.get_legend().remove()
+    ax._legend.remove()
 
     plt.legend(title='Mode', loc='best')
     plt.tight_layout()

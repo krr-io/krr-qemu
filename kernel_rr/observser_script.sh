@@ -1,4 +1,4 @@
-!/bin/bash
+#!/bin/bash
 mode=${1}
 test=${2}
 benchmark=${3}
@@ -12,8 +12,10 @@ cmd="KRR_SMP_IMG=/home/silver/bzImage KRR_UNI_IMG=/home/silver/uni-guest/bzImage
   KBUILD_DISK=/home/silver/rootfs-kbuild.qcow2 \
   python3 observer.py --mode=${mode} --test=${test} --benchmark=${benchmark}"
 
-for i in `seq 3 3`;
+for i in `seq 1 5`;
 do
+  rm -f ./script
+
   bash ${cmd} --gen_script_only="true"
 
   bash ./script.sh

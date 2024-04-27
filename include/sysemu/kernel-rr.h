@@ -12,23 +12,23 @@
 // #include "sysemu/dma.h"
 
 
-#define STRNCPY_FROM_USER 0xffffffff814b9d10 // info addr strncpy_from_user
-#define STRNLEN_USER 0xffffffff814b9f14 // b lib/strnlen_user.c:116
-#define RANDOM_GEN 0xffffffff810352d0 // info addr rr_record_random
-#define PF_EXEC 0xffffffff81887bf0 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff81887e90 // b fault.c:1580
-#define RR_RECORD_CFU 0xffffffff81035340 // info addr rr_record_cfu
-#define RR_RECORD_GFU 0xffffffff81848a24 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff81848a7d // b getuser.S:147
-#define RR_GFU_NOCHECK8 0xffffffff81848a9e // b getuser.S:162
-#define RR_GFU4 0xffffffff818489f3 // b getuser.S:88
+#define STRNCPY_FROM_USER 0xffffffff81445f10 // info addr strncpy_from_user
+#define STRNLEN_USER 0xffffffff81446114 // b lib/strnlen_user.c:116
+#define RANDOM_GEN 0xffffffff8102e2b0 // info addr rr_record_random
+#define PF_EXEC 0xffffffff81701e80 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff8170211a // b fault.c:1580
+#define RR_RECORD_CFU 0xffffffff8102e310 // info addr rr_record_cfu
+#define RR_RECORD_GFU 0xffffffff816c87a0 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff816c87dd // b getuser.S:147
+#define RR_GFU_NOCHECK8 0xffffffff816c87ee // b getuser.S:162
+#define RR_GFU4 0xffffffff816c8773 // b getuser.S:88
 
-#define SYSCALL_ENTRY 0xffffffff81a00000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff81888560 // info addr syscall_exit_to_user_mode
-#define PF_ASM_EXC 0xffffffff81a00b40 // info addr asm_exc_page_fault
+#define SYSCALL_ENTRY 0xffffffff81800000 // info addr entry_SYSCALL_64
+#define SYSCALL_EXIT 0xffffffff81702680 // info addr syscall_exit_to_user_mode
+#define PF_ASM_EXC 0xffffffff81800aa0 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff81888600 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff81888690 // info addr irqentry_exit
+#define IRQ_ENTRY 0xffffffff817025b0 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff817026e0 // info addr irqentry_exit
 
 #define LOCK_RELEASE 0xffffffff81034f4a // info addr rr_record_release
 #define RR_RECORD_SYSCALL 0xffffffff81034fb1 // info addr rr_record_syscall

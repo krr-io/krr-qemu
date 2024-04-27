@@ -97,6 +97,7 @@ static void interrupt_check(rr_event_log *event);
 static clock_t replay_start_time;
 __attribute_maybe_unused__ static bool log_trace = false;
 
+static int cpu_cnt = 0;
 
 static long syscall_spin_cnt = 0;
 
@@ -140,6 +141,7 @@ static void initialize_replay(void) {
 
     CPU_FOREACH(cs) {
         cs->rr_executed_inst = 0;
+        cpu_cnt++;
         // qemu_mutex_init(&cs->replay_mutex);
         // qemu_cond_init(&cs->replay_cond);
     }
@@ -257,8 +259,12 @@ static void sync_spin_inst_cnt(CPUState *cpu, rr_event_log *event)
 {
     long spin_cnt_diff = 0;
 
+    if (cpu_cnt == 1) {
+        // Spin cnt sync is only for SMP
+        return;
+    }
+
     if (event->type == EVENT_TYPE_INTERRUPT) {
-        
         spin_cnt_diff = event->event.interrupt.spin_count * 3 - 1;
     }
     else if (event->type == EVENT_TYPE_EXCEPTION) {
@@ -275,6 +281,11 @@ static void sync_spin_inst_cnt(CPUState *cpu, rr_event_log *event)
 
 void sync_syscall_spin_cnt(CPUState *cpu)
 {
+    if (cpu_cnt == 1) {
+        // Spin cnt sync is only for SMP
+        return;
+    }
+
     if (syscall_spin_cnt != 0) {
         cpu->rr_executed_inst += syscall_spin_cnt * 3;
     }
@@ -1187,6 +1198,7 @@ __attribute_maybe_unused__ static rr_event_log_guest *rr_event_log_guest_new(voi
     return event;
 }
 
+__attribute_maybe_unused__
 void rr_print_events_stat(void)
 {
     printf("=== Event Stats ===\n");
@@ -1289,6 +1301,7 @@ try_insert_event(int index)
     }
 }
 
+__attribute_maybe_unused__
 static void rr_record_settle_events(void)
 {
     // for (int i=0; i < MAX_CPU_NUM; i++) {
@@ -1296,14 +1309,21 @@ static void rr_record_settle_events(void)
     //         try_insert_event(i);
     //     }
     // }
-
+    rr_event_log *event = NULL;
     rr_log_all_events();
 
     for (int i = 0; i < MAX_CPU_NUM; i++) {
         if (rr_smp_event_log_queues[i] != NULL) {
             printf("Orphan event from kvm!\n");
             qemu_log("Orphan event from kvm!\n");
-            rr_log_event(rr_smp_event_log_queues[i], 0);
+
+            event = rr_smp_event_log_queues[i];
+
+            while (event != NULL) {
+                rr_log_event(event, 0);
+                event = event->next;
+            }
+
             // exit(1);
         }
     }
@@ -1738,7 +1758,6 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
     // }
 
     *input = rr_event_log_head->event.io_input.value;
-    rr_pop_event_head();
 
     qemu_log("[CPU %d]Replayed io input=0x%lx, inst_cnt=%lu, cpu_id=%d, replayed event number=%d\n",
              cpu->cpu_index, *input, cpu->rr_executed_inst,
@@ -1746,6 +1765,8 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
     printf("[CPU %d]Replayed io input=0x%lx, inst_cnt=%lu, cpu_id=%d, replayed event number=%d\n",
              cpu->cpu_index, *input, cpu->rr_executed_inst,
              rr_event_log_head->id, replayed_event_num);
+
+    rr_pop_event_head();
 
 finish:
     qemu_mutex_unlock(&replay_queue_mutex);
@@ -1986,6 +2007,7 @@ void rr_replay_dma_entry(void)
     rr_replay_next_dma();
 }
 
+__attribute_maybe_unused__
 static void rr_read_shm_events(void)
 {
     rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;

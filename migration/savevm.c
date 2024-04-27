@@ -2796,6 +2796,10 @@ int qemu_load_device_state(QEMUFile *f)
     return 0;
 }
 
+/*
+    This is for record saving snapshot, saving to a local
+    file instead of from a bdrv.
+*/
 void rr_save_snapshot(const char *name, Error **errp)
 {
     Error* err = NULL;
@@ -2815,7 +2819,7 @@ void rr_save_snapshot(const char *name, Error **errp)
     }
 
     snapshot_ret = qemu_save_device_state(snp);
-    // qemu_fclose(snp);
+    qemu_fclose(snp);
 
     if (snapshot_ret < 0 || err != NULL) {
         printf ("snapshot save failed?\n");
@@ -2827,6 +2831,10 @@ void rr_save_snapshot(const char *name, Error **errp)
     return;
 }
 
+/*
+    This is for replay loading snapshot, load from a local
+    file instead of from a bdrv.
+*/
 void rr_load_snapshot(const char *name, Error **errp)
 {
     int snapshot_ret;

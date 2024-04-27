@@ -2761,11 +2761,21 @@ void qmp_x_exit_preconfig(Error **errp)
     if (kernel_replay_name) {
         rr_set_replay(1, ram_size);
 
-        if (load_snapshot(kernel_replay_name, NULL, false, NULL, &error_fatal)) {
+        rr_load_snapshot(kernel_replay_name, &error_fatal);
+        if (error_fatal == NULL) {
             // vm_start();
             printf("Loaded snapshot %s\n", kernel_replay_name);
             // dump_cpus_state();
+        } else {
+            printf("Failed to load snapshot\n");
+            // exit(1);
         }
+
+        // if (load_snapshot(kernel_replay_name, NULL, false, NULL, &error_fatal)) {
+        //     // vm_start();
+        //     printf("Loaded snapshot %s\n", kernel_replay_name);
+        //     // dump_cpus_state();
+        // }
         // rr_pre_replay();
     }
 

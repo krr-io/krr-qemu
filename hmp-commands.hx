@@ -343,6 +343,18 @@ ERST
     },
 
 SRST
+  ``rr_savevm``
+ERST
+
+    {
+        .name       = "rr_savevm",
+        .args_type  = "name:s",
+        .params     = "tag",
+        .help       = "restore a VM snapshot from its tag",
+        .cmd        = hmp_rr_savevm,
+    },
+
+SRST
 ``loadvm`` *tag*
   Set the whole virtual machine to the snapshot identified by the tag
   *tag*.

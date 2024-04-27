@@ -1092,6 +1092,14 @@ void hmp_loadvm(Monitor *mon, const QDict *qdict)
     hmp_handle_error(mon, err);
 }
 
+void hmp_rr_savevm(Monitor *mon, const QDict *qdict)
+{
+    Error *err = NULL;
+
+    rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
+    hmp_handle_error(mon, err);
+}
+
 void hmp_savevm(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
@@ -1119,7 +1127,8 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
     rr_ivshmem_set_rr_enabled(1);
 
     printf("Paused VM, start taking snapshot\n");
-    save_snapshot(qdict_get_try_str(qdict, "name"), true, NULL, false, NULL, &err);
+    rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
+    // save_snapshot(qdict_get_try_str(qdict, "name"), true, NULL, false, NULL, &err);
 
     hmp_handle_error(mon, err);
 

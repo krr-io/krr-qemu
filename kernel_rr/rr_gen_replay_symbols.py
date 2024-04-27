@@ -115,9 +115,13 @@ def generate_symbols():
                 macro = spots[1]
 
                 if macro in handlers:
-                    spots[2] = handlers[macro]()
-                    print("Writing symbol addr {} for macro {}".format(spots[2], macro))
-                    output_lines[index] = ' '.join(spots) + '\n'
+                    try:
+                        spots[2] = handlers[macro]()
+                    except Exception as e:
+                        print("Failed to generate symbol for {}".format(macro))
+                    else:
+                        print("Writing symbol addr {} for macro {}".format(spots[2], macro))
+                        output_lines[index] = ' '.join(spots) + '\n'
 
         generate_done = True
 

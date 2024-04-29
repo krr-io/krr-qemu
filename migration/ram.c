@@ -4334,6 +4334,46 @@ static int ram_resume_prepare(MigrationState *s, void *opaque)
     return 0;
 }
 
+static void iterate_save_pages(RAMState *rs,
+                               RAMBlock *block,
+                               QEMUFile *f)
+{
+    unsigned long page = 0;
+    uint8_t *p;
+
+    while (true) {
+        ram_addr_t offset = page << TARGET_PAGE_BITS;
+        if (offset >= block->used_length) {
+            break;
+        }
+
+        p = block->host + offset;
+        
+        save_normal_page(rs, block, offset, p, false);
+
+        page++;
+    }
+}
+
+static int ram_save_full(QEMUFile *f, void *opaque)
+{
+    RAMBlock *block;
+    RAMState **temp = opaque;
+    RAMState *rs = *temp;
+
+    printf("ram save full\n");
+
+    WITH_RCU_READ_LOCK_GUARD() {
+        RAMBLOCK_FOREACH_NOT_IGNORED(block) {
+            iterate_save_pages(rs, block, f);
+        }
+    }
+
+    printf("ramcounter %ld\n", ram_counters.normal);
+
+    return 0;
+}
+
 static SaveVMHandlers savevm_ram_handlers = {
     .save_setup = ram_save_setup,
     .save_live_iterate = ram_save_iterate,
@@ -4346,6 +4386,7 @@ static SaveVMHandlers savevm_ram_handlers = {
     .load_setup = ram_load_setup,
     .load_cleanup = ram_load_cleanup,
     .resume_prepare = ram_resume_prepare,
+    .save_full = ram_save_full
 };
 
 static void ram_mig_ram_block_resized(RAMBlockNotifier *n, void *host,

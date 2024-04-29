@@ -1227,6 +1227,29 @@ void qemu_savevm_state_setup(QEMUFile *f)
     }
 }
 
+__attribute_maybe_unused__
+void rr_qemu_savevm_state_setup(QEMUFile *f)
+{
+    SaveStateEntry *se;
+    int ret;
+
+    QTAILQ_FOREACH(se, &savevm_state.handlers, entry) {
+        if (!se->ops || !se->ops->save_setup) {
+            continue;
+        }
+
+        save_section_header(f, se, QEMU_VM_SECTION_START);
+
+        ret = se->ops->save_setup(f, se->opaque);
+        save_section_footer(f, se);
+        if (ret < 0) {
+            qemu_file_set_error(f, ret);
+            break;
+        }
+    }
+}
+
+
 int qemu_savevm_state_resume_prepare(MigrationState *s)
 {
     SaveStateEntry *se;
@@ -1263,6 +1286,8 @@ int qemu_savevm_state_iterate(QEMUFile *f, bool postcopy)
     SaveStateEntry *se;
     int ret = 1;
 
+    printf("save_iterate\n");
+
     trace_savevm_state_iterate();
     QTAILQ_FOREACH(se, &savevm_state.handlers, entry) {
         if (!se->ops || !se->ops->save_live_iterate) {
@@ -1291,10 +1316,52 @@ int qemu_savevm_state_iterate(QEMUFile *f, bool postcopy)
         }
         trace_savevm_section_start(se->idstr, se->section_id);
 
+        printf("save_state: %s\n", se->idstr);
+
         save_section_header(f, se, QEMU_VM_SECTION_PART);
 
         ret = se->ops->save_live_iterate(f, se->opaque);
         trace_savevm_section_end(se->idstr, se->section_id, ret);
+        save_section_footer(f, se);
+
+        if (ret < 0) {
+            error_report("failed to save SaveStateEntry with id(name): "
+                         "%d(%s): %d",
+                         se->section_id, se->idstr, ret);
+            qemu_file_set_error(f, ret);
+        }
+        if (ret <= 0) {
+            /* Do not proceed to the next vmstate before this one reported
+               completion of the current stage. This serializes the migration
+               and reduces the probability that a faster changing state is
+               synchronized over and over again. */
+            break;
+        }
+    }
+    return ret;
+}
+
+int qemu_savevm_state_full(QEMUFile *f)
+{
+    SaveStateEntry *se;
+    int ret = 1;
+
+    printf("save full\n");
+
+    trace_savevm_state_iterate();
+    QTAILQ_FOREACH(se, &savevm_state.handlers, entry) {
+        if (!se->ops || !se->ops->save_full) {
+            continue;
+        }
+        if (se->ops->is_active &&
+            !se->ops->is_active(se->opaque)) {
+            continue;
+        }
+
+        save_section_header(f, se, QEMU_VM_SECTION_PART);
+
+        ret = se->ops->save_full(f, se->opaque);
+
         save_section_footer(f, se);
 
         if (ret < 0) {
@@ -1550,9 +1617,24 @@ void qemu_savevm_state_cleanup(void)
     }
 }
 
+__attribute_maybe_unused__
+static int rr_qemu_savevm_state(QEMUFile *f, Error **errp)
+{
+    qemu_mutex_unlock_iothread();
+    qemu_savevm_state_header(f);
+    rr_qemu_savevm_state_setup(f);
+
+    qemu_mutex_lock_iothread();
+    // qemu_mutex_lock_iothread();
+    qemu_savevm_state_full(f);
+
+    return 0;
+}
+
+
 static int qemu_savevm_state(QEMUFile *f, Error **errp)
 {
-    int ret;
+    int ret = 0;
     MigrationState *ms = migrate_get_current();
     MigrationStatus status;
 
@@ -1635,6 +1717,8 @@ int qemu_save_device_state(QEMUFile *f)
         if (se->vmsd && !vmstate_save_needed(se->vmsd, se->opaque)) {
             continue;
         }
+
+        printf("save device %s\n", se->idstr);
 
         save_section_header(f, se, QEMU_VM_SECTION_FULL);
 

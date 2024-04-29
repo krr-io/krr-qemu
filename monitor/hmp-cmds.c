@@ -1096,8 +1096,10 @@ void hmp_rr_savevm(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
 
+    vm_stop(RUN_STATE_PAUSED);
     rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
     hmp_handle_error(mon, err);
+    vm_start();
 }
 
 void hmp_savevm(Monitor *mon, const QDict *qdict)

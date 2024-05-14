@@ -17,6 +17,8 @@
 #define EVENT_TYPE_RELEASE   11
 #define EVENT_TYPE_INST_SYNC 12
 
+#define CFU_BUFFER_SIZE     4096
+
 enum REGS {
     ZERO,
     RR_RAX,
@@ -46,31 +48,39 @@ typedef struct {
 } lapic_log;
 
 typedef struct {
-    unsigned long src_addr;
-    unsigned long dest_addr;
-    unsigned long len;
-    unsigned long rdx;
-    uint8_t data[4096];
-} rr_cfu;
-
-typedef struct {
+    int id;
     unsigned long value;
+    unsigned long inst_cnt;
+    unsigned long rip;
 } rr_io_input;
 
 typedef struct {
-    unsigned int vector;
+    int id;
+    int vector;
     unsigned long ecx;
     int from;
     unsigned long spin_count;
+    unsigned long inst_cnt;
+    unsigned long rip;
 } rr_interrupt;
 
 
 typedef struct {
+    int id;
     unsigned long val;
 } rr_gfu;
 
+typedef struct {
+    int id;
+    unsigned long src_addr;
+    unsigned long dest_addr;
+    unsigned long len;
+    unsigned long rdx;
+    __u8 data[CFU_BUFFER_SIZE];
+} rr_cfu;
 
 typedef struct {
+    int id;
     int exception_index;
     int error_code;
     unsigned long cr2;
@@ -79,15 +89,17 @@ typedef struct {
 } rr_exception;
 
 typedef struct {
+    int id;
     struct kvm_regs regs;
     unsigned long kernel_gsbase, msr_gsbase, cr3;
     unsigned long spin_count;
 } rr_syscall;
 
 typedef struct {
+    int id;
     unsigned long buf;
     unsigned long len;
-    uint8_t data[1024];
+    __u8 data[1024];
 } rr_random;
 
 typedef struct rr_event_log_t{
@@ -103,9 +115,41 @@ typedef struct rr_event_log_t{
         rr_gfu gfu;
     } event;
     struct rr_event_log_t *next;
-    uint64_t inst_cnt;
+    unsigned long inst_cnt;
     unsigned long rip;
 } rr_event_log;
+
+typedef struct rr_event_log_guest_t {
+    int type;
+    int id;
+    union {
+        rr_interrupt interrupt;
+        rr_exception exception;
+        rr_syscall  syscall;
+        rr_io_input io_input;
+        rr_cfu cfu;
+        rr_random rand;
+        rr_gfu gfu;
+    } event;
+    unsigned long inst_cnt;
+    unsigned long rip;
+} rr_event_log_guest;
+
+
+typedef struct rr_event_guest_queue_header_t {
+    unsigned int current_pos;
+    unsigned int total_pos;
+    unsigned int header_size;
+    unsigned int entry_size;
+    unsigned int rr_enabled;
+    unsigned long current_byte;
+    unsigned long total_size;
+} rr_event_guest_queue_header;
+
+typedef struct rr_event_entry_header_t {
+    int type;
+} rr_event_entry_header;
+
 
 typedef struct rr_mem_access_log_t {
     unsigned long gpa;
@@ -144,30 +188,5 @@ void rr_enable_mem_logs(void);
 struct rr_record_data {
     unsigned long shm_base_addr;
 };
-
-typedef struct rr_event_guest_queue_header_t {
-    unsigned int current_pos;
-    unsigned int total_pos;
-    unsigned int header_size;
-    unsigned int entry_size;
-    unsigned int rr_enabled;
-} rr_event_guest_queue_header;
-
-
-typedef struct rr_event_log_guest_t {
-    int type;
-    int id;
-    union {
-        rr_interrupt interrupt;
-        rr_exception exception;
-        rr_syscall  syscall;
-        rr_io_input io_input;
-        rr_cfu cfu;
-        rr_random rand;
-        rr_gfu gfu;
-    } event;
-    unsigned long inst_cnt;
-    unsigned long rip;
-} rr_event_log_guest;
 
 #endif

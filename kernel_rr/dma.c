@@ -208,7 +208,7 @@ static void rr_save_dma_logs(void)
 }
 
 static void rr_load_dma_buf(sg_addr *buf, uint64_t len, FILE *fptr) {
-    printf("load buf for len=%ld\n", len);
+    // printf("load buf for len=%ld\n", len);
 
     if (!fread(buf, sizeof(sg_addr), len, fptr)) {
         printf("Failed to read data\n");
@@ -237,7 +237,7 @@ static void rr_load_dma_logs(void)
 	__attribute_maybe_unused__ FILE *fptr = fopen(kernel_rr_dma_log, "r");
 
     rr_dma_entry loaded_node;
-    int i;
+    // int i;
 
 	while(fread(&loaded_node, sizeof(rr_dma_entry), 1, fptr)) {
         rr_dma_entry *log = (rr_dma_entry*)malloc(sizeof(rr_dma_entry));
@@ -245,15 +245,15 @@ static void rr_load_dma_logs(void)
         // memcpy(log, &loaded_node, sizeof(rr_dma_entry));
         log->len = loaded_node.len;
 
-        printf("load entry: len=%d\n", log->len);
+        // printf("load entry: len=%d\n", log->len);
 
         rr_load_dma_log(log, fptr);
 
         log->replayed_sgs = 0;
 
-        for (i = 0; i < log->len; i++) {
-            printf("log: sg_addr=0x%lx, sg_len=%ld\n", log->sgs[i]->addr, log->sgs[i]->len);
-        }
+        // for (i = 0; i < log->len; i++) {
+        //     printf("log: sg_addr=0x%lx, sg_len=%ld\n", log->sgs[i]->addr, log->sgs[i]->len);
+        // }
 
 		append_dma_entry(log);
 	}

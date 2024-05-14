@@ -101,6 +101,30 @@ static int cpu_cnt = 0;
 
 static long syscall_spin_cnt = 0;
 
+
+/*
+This is only called in device mmio context to see if the mmio
+is made by kernel.
+*/
+void check_kernel_access(void)
+{
+    CPUState *cpu;
+    CPUArchState *env;
+    X86CPU *x86_cpu;
+
+    CPU_FOREACH(cpu) {
+        kvm_arch_get_registers(cpu);
+        x86_cpu = X86_CPU(cpu);
+        env = &x86_cpu->env;
+
+        if (env->eip > 0xBFFFFFFFFFFF) {
+            printf("Kernel access to device on 0x%lx\n", env->eip);
+        }
+    }
+}
+
+
+
 void rr_fake_call(void){return;}
 
 

@@ -1286,7 +1286,7 @@ int qemu_savevm_state_iterate(QEMUFile *f, bool postcopy)
     SaveStateEntry *se;
     int ret = 1;
 
-    printf("save_iterate\n");
+    // printf("save_iterate\n");
 
     trace_savevm_state_iterate();
     QTAILQ_FOREACH(se, &savevm_state.handlers, entry) {
@@ -1315,8 +1315,6 @@ int qemu_savevm_state_iterate(QEMUFile *f, bool postcopy)
             return 0;
         }
         trace_savevm_section_start(se->idstr, se->section_id);
-
-        printf("save_state: %s\n", se->idstr);
 
         save_section_header(f, se, QEMU_VM_SECTION_PART);
 

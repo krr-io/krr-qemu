@@ -94,7 +94,7 @@ static bool should_log_trace(CPUState *cpu)
 
     // int replayed_num = get_replayed_event_num();
 
-    // if (12298 <= replayed_num && replayed_num < 12300) {
+    // if (17104 <= replayed_num && replayed_num < 17105) {
     //     return true;
     // }
     // return should_log;
@@ -937,7 +937,7 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
     int32_t insns_left;
 
     if (should_log_trace(cpu)) {
-        // log_regs(cpu);
+        log_regs(cpu);
         qemu_log("[cpu %d]0x%lx, inst_cnt=%lu\n", cpu->cpu_index, tb->pc, cpu->rr_executed_inst);
         log_tb(cpu, tb);
         // qemu_log("Finished TB execution\n");

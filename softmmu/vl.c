@@ -1925,6 +1925,7 @@ static void qemu_apply_machine_options(QDict *qdict)
         error_setg(&blocker, QERR_REPLAY_NOT_SUPPORTED, "smp");
         replay_add_blocker(blocker);
     }
+    set_cpu_num(current_machine->smp.cpus);
 }
 
 static void qemu_create_early_backends(void)

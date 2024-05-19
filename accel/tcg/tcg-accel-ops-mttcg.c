@@ -106,7 +106,6 @@ static void *mttcg_cpu_thread_fn(void *arg)
     // else
     //     cpu->exit_request = 0;
 
-    // sleep(1);
     cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
 
     do {

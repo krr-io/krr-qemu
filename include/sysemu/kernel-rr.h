@@ -12,27 +12,27 @@
 // #include "sysemu/dma.h"
 
 
-#define STRNCPY_FROM_USER 0xffffffff81446010 // info addr strncpy_from_user
-#define STRNLEN_USER 0xffffffff81446214 // b lib/strnlen_user.c:116
+#define STRNCPY_FROM_USER 0xffffffff81494ac0 // info addr strncpy_from_user
+#define STRNLEN_USER 0xffffffff81494cc4 // b lib/strnlen_user.c:116
 #define RANDOM_GEN 0xffffffff8102e320 // info addr rr_record_random
-#define PF_EXEC 0xffffffff81701e90 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff8170212a // b fault.c:1580
-#define RR_RECORD_CFU 0xffffffff8102e390 // info addr rr_record_cfu
-#define RR_RECORD_GFU 0xffffffff816c87a0 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff816c87dd // b getuser.S:147
-#define RR_GFU_NOCHECK8 0xffffffff816c87ee // b getuser.S:162
-#define RR_GFU4 0xffffffff816c8773 // b getuser.S:88
+#define PF_EXEC 0xffffffff8176f270 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff8176f510 // b fault.c:1580
+#define RR_RECORD_CFU 0xffffffff81033890 // info addr rr_record_cfu
+#define RR_RECORD_GFU 0xffffffff817337a4 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff817337fd // b getuser.S:147
+#define RR_GFU_NOCHECK8 0xffffffff8173381e // b getuser.S:162
+#define RR_GFU4 0xffffffff81733773 // b getuser.S:88
 
 #define SYSCALL_ENTRY 0xffffffff81800000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff81702690 // info addr syscall_exit_to_user_mode
-#define PF_ASM_EXC 0xffffffff81800aa0 // info addr asm_exc_page_fault
+#define SYSCALL_EXIT 0xffffffff8176fae0 // info addr syscall_exit_to_user_mode
+#define PF_ASM_EXC 0xffffffff81800b40 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff817025c0 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff817026f0 // info addr irqentry_exit
+#define IRQ_ENTRY 0xffffffff8176f9e0 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff8176fb50 // info addr irqentry_exit
 
-#define LOCK_RELEASE 0 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff81701ac0 // info addr rr_record_syscall
-#define RR_HANDLE_SYSCALL 0xffffffff810312f0
+#define LOCK_RELEASE 0xffffffff810334d5 // info addr rr_record_release
+#define RR_RECORD_SYSCALL 0xffffffff8103352e // info addr rr_record_syscall
+#define RR_HANDLE_SYSCALL 0xffffffff81033500
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f
 #define RR_RECORD_EXCP 0xffffffff810350d1
@@ -153,5 +153,6 @@ int replay_cpu_exec_ready(CPUState *cpu);
 CPUState* replay_get_running_cpu(void);
 void rr_debug(void);
 void check_kernel_access(void);
+void set_cpu_num(int n);
 
 #endif /* KERNEL_RR_H */

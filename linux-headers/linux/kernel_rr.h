@@ -99,7 +99,7 @@ typedef struct {
     int id;
     unsigned long buf;
     unsigned long len;
-    __u8 data[1024];
+    unsigned char data[1024];
 } rr_random;
 
 typedef struct rr_event_log_t{

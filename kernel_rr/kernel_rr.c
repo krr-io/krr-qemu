@@ -159,20 +159,26 @@ void dump_cpus_state(void) {
     }
 }
 
+void set_cpu_num(int n)
+{
+    cpu_cnt = n;
+}
+
 static void initialize_replay(void) {
     qemu_mutex_init(&replay_queue_mutex);
     qemu_cond_init(&replay_cond);
 
-    CPUState *cs;
+    // CPUState *cs;
 
-    CPU_FOREACH(cs) {
-        cs->rr_executed_inst = 0;
-        cpu_cnt++;
-        // qemu_mutex_init(&cs->replay_mutex);
-        // qemu_cond_init(&cs->replay_cond);
-    }
+    // CPU_FOREACH(cs) {
+    //     cs->rr_executed_inst = 0;
+    //     cpu_cnt++;
+    //     printf("found cpu %d\n", cs->cpu_index);
+    //     // qemu_mutex_init(&cs->replay_mutex);
+    //     // qemu_cond_init(&cs->replay_cond);
+    // }
 
-    printf("Initialized replay\n");
+    printf("Initialized replay, cpu number=%d\n", cpu_cnt);
     replay_start_time = clock();
 }
 
@@ -198,7 +204,8 @@ int replay_cpu_exec_ready(CPUState *cpu)
             break;
         }
 
-        if (rr_event_log_head->id == cpu->cpu_index) {
+        // Nobody is holding the lock and next event is mine
+        if (current_owner == -1 && rr_event_log_head->id == cpu->cpu_index) {
             ready = 1;
             current_owner = cpu->cpu_index;
             break;
@@ -294,6 +301,7 @@ static void sync_spin_inst_cnt(CPUState *cpu, rr_event_log *event)
         spin_cnt_diff = event->event.interrupt.spin_count * 3 - 1;
     }
     else if (event->type == EVENT_TYPE_EXCEPTION) {
+        qemu_log("spin_cnt_diff=%ld\n", spin_cnt_diff);
         spin_cnt_diff = event->event.exception.spin_count * 3;
     }
 
@@ -1132,7 +1140,7 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
 
         memcpy(&event_record->event.interrupt, in, copied_size);
         if (event_record->event.interrupt.from == 3) {
-
+            printf("merging interrupt: %d\n", event_num);
             rr_merge_user_interrupt_of_guest_and_hypervisor(&(event_record->event.interrupt));
             qemu_log("Merged user interrupt\n");
         }
@@ -1901,10 +1909,10 @@ void rr_do_replay_syscall(CPUState *cpu)
 
     cpu->rr_executed_inst--;
 
-    qemu_log("Replayed syscall=%lu, inst_cnt=%lu, replayed event number=%d\n",
-            env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
-    printf("Replayed syscall=%lu, inst_cnt=%lu, replayed event number=%d\n",
-           env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
+    qemu_log("[%d]Replayed syscall=%lu, inst_cnt=%lu, replayed event number=%d\n",
+            cpu->cpu_index, env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
+    printf("[%d]Replayed syscall=%lu, inst_cnt=%lu, replayed event number=%d\n",
+           cpu->cpu_index, env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
     
     // sync_spin_inst_cnt(cpu, rr_event_log_head);
 
@@ -2037,6 +2045,7 @@ void rr_do_replay_release(CPUState *cpu)
 
     if (rr_event_log_head != NULL) {
         current_owner = rr_event_log_head->id;
+        qemu_log("Next owner %d\n", current_owner);
     }
 
     // dump_cpus_state();
@@ -2242,7 +2251,6 @@ static void rr_read_shm_events(void)
     memcpy(queue_header, header, sizeof(rr_event_guest_queue_header));
 
     while(bytes < header->current_byte && pos < header->current_pos) {
-        // printf("pos[%d]", pos);
         addr += bytes;
         bytes = record_event(addr);
         pos++;

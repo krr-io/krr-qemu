@@ -93,6 +93,7 @@ static void finish_replay(void);
 static void rr_log_event(rr_event_log *event_record, int event_num);
 static bool rr_replay_is_entry(rr_event_log *event);
 static void interrupt_check(rr_event_log *event);
+static void rr_read_shm_events_info(void);
 
 static clock_t replay_start_time;
 __attribute_maybe_unused__ static bool log_trace = false;
@@ -1575,6 +1576,8 @@ void rr_post_record(void)
 
     rr_get_vcpu_events();
 
+    rr_read_shm_events_info();
+
     rr_read_shm_events();
 
     rr_record_settle_events();
@@ -2238,6 +2241,15 @@ static int record_event(void *event_addr)
     return copied + sizeof(rr_event_entry_header);
 }
 
+static void rr_read_shm_events_info(void)
+{
+    rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
+    unsigned long total_bytes = header->rotated_bytes + header->current_byte;
+
+    printf("current pos %u, rotated_bytes %lu, current_bytes %lu, total_bytes %lu\n",
+           header->current_pos, header->rotated_bytes, header->current_byte, total_bytes);
+}
+
 __attribute_maybe_unused__
 static void rr_read_shm_events(void)
 {
@@ -2245,7 +2257,6 @@ static void rr_read_shm_events(void)
     void *addr = ivshmem_base_addr + header->header_size;
     unsigned long bytes = 0;
     int pos = 0;
-    printf("total event number %d, bytes %lu\n", header->current_pos, header->current_byte);
 
     queue_header = (rr_event_guest_queue_header*)malloc(sizeof(rr_event_guest_queue_header));
     memcpy(queue_header, header, sizeof(rr_event_guest_queue_header));

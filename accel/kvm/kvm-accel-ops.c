@@ -46,7 +46,9 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
         bp_addr != RR_HANDLE_SYSCALL && \
         bp_addr != RR_RECORD_SYSCALL && \
         bp_addr != RR_HANDLE_IRQ && \
-        bp_addr != RR_RECORD_IRQ)
+        bp_addr != RR_RECORD_IRQ && \
+        bp_addr != E1000_CLEAN && \
+        bp_addr != E1000_CLEAN_MID)
         return false;
 
     return true;
@@ -61,7 +63,9 @@ static bool rr_is_address_sw(target_ulong bp_addr)
         || bp_addr == RR_RECORD_CFU \
         || bp_addr == RR_RECORD_GFU \
         || bp_addr == RR_GFU_NOCHECK4 \
-        || bp_addr == RR_GFU_NOCHECK8)
+        || bp_addr == RR_GFU_NOCHECK8 \
+        || bp_addr == E1000_CLEAN \
+        || bp_addr == E1000_CLEAN_MID)
     {
         return true;
     }
@@ -104,12 +108,18 @@ void rr_insert_breakpoints(void)
             printf("Inserted breakpoints for irq exit\n");
         }
 
-        // bp_ret = kvm_insert_breakpoint(cpu, PF_ASM_EXC, 1, GDB_BREAKPOINT_HW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for pf: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for pf\n");
-        // }
+        bp_ret = kvm_insert_breakpoint(cpu, E1000_CLEAN, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for e1000 clean: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for e1000 clean\n");
+        }
+        bp_ret = kvm_insert_breakpoint(cpu, E1000_CLEAN_MID, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for e1000 clean mid\n");
+        }
 
         // bp_ret = kvm_insert_breakpoint(cpu, PF_EXEC_END, 1, GDB_BREAKPOINT_HW);
         // if (bp_ret > 0) {
@@ -150,6 +160,8 @@ void rr_remove_breakpoints(void)
         kvm_remove_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_SW);
         kvm_remove_breakpoint(cpu, IRQ_ENTRY, 1, GDB_BREAKPOINT_SW);
         kvm_remove_breakpoint(cpu, IRQ_EXIT, 1, GDB_BREAKPOINT_SW);
+        kvm_remove_breakpoint(cpu, E1000_CLEAN, 1, GDB_BREAKPOINT_SW);
+        kvm_remove_breakpoint(cpu, E1000_CLEAN_MID, 1, GDB_BREAKPOINT_SW);
         // kvm_remove_breakpoint(cpu, PF_ASM_EXC, 1, GDB_BREAKPOINT_HW);
         // kvm_remove_breakpoint(cpu, PF_EXEC_END, 1, GDB_BREAKPOINT_HW);
         // kvm_remove_breakpoint(cpu, uaccess_begin, 1, GDB_BREAKPOINT_SW);
@@ -177,11 +189,6 @@ handle_on_bp(CPUState *cpu)
 
     if (!rr_in_record())
         return false;
-
-    if (rr_is_address_interceptible(bp_addr)) {
-        handle_bp_points(cpu, bp_addr);
-        return false;
-    }
 
     if (cpu->singlestep_enabled != 0) {
         if (cpu->last_removed_addr == 0) {
@@ -299,6 +306,7 @@ static void *kvm_vcpu_thread_fn(void *arg)
 
             if (r == EXCP_DEBUG) {
                 if (!handle_on_bp(cpu)) {
+                    handle_bp_points(cpu, cpu->kvm_run->debug.arch.pc);
                     cpu_handle_guest_debug(cpu);
                 }
             }

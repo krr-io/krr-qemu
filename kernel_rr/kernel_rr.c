@@ -25,6 +25,7 @@
 #include "migration/migration.h"
 #include "qemu/main-loop.h"
 #include "memory.h"
+#include "cpu.h"
 
 #include <time.h>
 
@@ -94,6 +95,7 @@ static void rr_log_event(rr_event_log *event_record, int event_num);
 static bool rr_replay_is_entry(rr_event_log *event);
 static void interrupt_check(rr_event_log *event);
 static void rr_read_shm_events_info(void);
+static void pre_replay_dma_buf(rr_interrupt intr);
 
 static clock_t replay_start_time;
 __attribute_maybe_unused__ static bool log_trace = false;
@@ -352,6 +354,7 @@ static void pre_record(void) {
 
     remove(kernel_rr_log);
     rr_dma_pre_record();
+    rr_network_dma_pre_record();
     rr_pre_mem_record();
     fclose(file);
 }
@@ -892,7 +895,12 @@ rr_event_log_new_from_event(rr_event_log event, int record_mode)
         memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
         event_strnlen++;
         break;
+    case EVENT_TYPE_MMIO:
+        memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
+        event_io_input_num++;
+        break;
     case EVENT_TYPE_DMA_DONE:
+        memcpy(&event_record->event.dma_done, &event.event.dma_done, sizeof(rr_dma_done));
         event_dma_done++;
         break;
     case EVENT_TYPE_RELEASE:
@@ -927,9 +935,9 @@ static void rr_log_event(rr_event_log *event_record, int event_num) {
     {
         case EVENT_TYPE_INTERRUPT:
             rr_interrupt rr_in = event_record->event.interrupt;
-            qemu_log("Interrupt: %d, inst_cnt: %lu, rip=0x%lx, from=%d, cpu_id=%d, spin_count=%lu, number=%d\n",
+            qemu_log("Interrupt: %d, inst_cnt: %lu, rip=0x%lx, from=%d, cpu_id=%d, spin_count=%lu, inj_buf_flag=%d, number=%d\n",
                     rr_in.vector, rr_in.inst_cnt, rr_in.rip,
-                    rr_in.from, rr_in.id, rr_in.spin_count, event_num);
+                    rr_in.from, rr_in.id, rr_in.spin_count, rr_in.inject_buf_flag, event_num);
             break;
 
         case EVENT_TYPE_EXCEPTION:
@@ -976,9 +984,6 @@ static void rr_log_event(rr_event_log *event_record, int event_num) {
             qemu_log("Strnlen: len=%lu, number=%d\n",
                     event_record->event.cfu.len, event_num);
             break;
-        case EVENT_TYPE_DMA_DONE:
-            qemu_log("DMA Done number=%d, inst_cnt=%lu\n", event_num, event_record->inst_cnt);
-            break;
         case EVENT_TYPE_RDSEED:
             qemu_log("RDSEED: val=%lu\n", event_record->event.gfu.val);
             break;
@@ -987,6 +992,16 @@ static void rr_log_event(rr_event_log *event_record, int event_num) {
             break;
         case EVENT_TYPE_INST_SYNC:
             qemu_log("Sync Instructions: cpu_id=%d, inst_cnt=%lu\n", event_record->id, event_record->inst_cnt);
+            break;
+        case EVENT_TYPE_DMA_DONE:
+            qemu_log("DMA Done: inst_cnt=%lu\n", event_record->event.dma_done.inst_cnt);
+            break;
+        case EVENT_TYPE_MMIO:
+            qemu_log("MMIO: cpu_id=%d, val=%lu, rip=0x%lx, inst_cnt=%lu\n",
+                     event_record->id,
+                     event_record->event.io_input.value,
+                     event_record->event.io_input.rip,
+                     event_record->event.io_input.inst_cnt);
             break;
         default:
             break;
@@ -1197,6 +1212,11 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
         memcpy(&event_record->event.gfu, event, sizeof(rr_gfu));
         event_rdseed_num++;
         break;
+    case EVENT_TYPE_MMIO:
+        copied_size = sizeof(rr_io_input);
+        memcpy(&event_record->event.io_input, event, sizeof(rr_io_input));
+        event_io_input_num++;
+        break;
     case EVENT_TYPE_RELEASE:
         copied_size = sizeof(rr_event_log_guest);
         event_g = (rr_event_log_guest *)event;
@@ -1210,6 +1230,11 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
         event_record->inst_cnt = event_g->inst_cnt;
         event_record->id = event_g->id;
         event_sync_inst++;
+        break;
+    case EVENT_TYPE_DMA_DONE:
+        copied_size = sizeof(rr_dma_done);
+        memcpy(&event_record->event.dma_done, event, sizeof(rr_dma_done));
+        event_dma_done++;
         break;
     default:
         printf("Unrecognized event %d\n", type);
@@ -1312,6 +1337,12 @@ static void persist_event(rr_event_log *event, FILE *fptr)
     case EVENT_TYPE_RDSEED:
         fwrite(&event->event.gfu, sizeof(rr_gfu), 1, fptr);
         break;
+    case EVENT_TYPE_MMIO:
+        fwrite(&event->event.io_input, sizeof(rr_io_input), 1, fptr);
+        break;
+    case EVENT_TYPE_DMA_DONE:
+        fwrite(&event->event.dma_done, sizeof(rr_dma_done), 1, fptr);
+        break;
     case EVENT_TYPE_RELEASE:
     case EVENT_TYPE_INST_SYNC:
         fwrite(event, sizeof(rr_event_log), 1, fptr);
@@ -1384,12 +1415,24 @@ static void load_event(rr_event_log *event, int type, FILE *fptr)
         
         event->id = event->event.gfu.id;
         break;
+    case EVENT_TYPE_MMIO:
+        if (!fread(&event->event.io_input, sizeof(rr_io_input), 1, fptr))
+            goto error;
+
+        event->id = 0;
+        break;
     case EVENT_TYPE_RELEASE:
     case EVENT_TYPE_INST_SYNC:
         if (!fread(event, sizeof(rr_event_log), 1, fptr))
             goto error;
 
         break;
+    case EVENT_TYPE_DMA_DONE:
+        if (!fread(&event->event.dma_done, sizeof(rr_dma_done), 1, fptr))
+            goto error;
+
+        break;
+
     default:
         printf("Unrecognized event %d\n", event->type);
         abort();
@@ -1508,6 +1551,21 @@ try_insert_event(int index)
     }
 }
 
+void try_replay_dma(CPUState *cs)
+{
+    qemu_mutex_lock(&replay_queue_mutex);
+
+    if (rr_event_log_head == NULL) goto finish;
+    if (rr_event_log_head->type != EVENT_TYPE_DMA_DONE) goto finish;
+
+    if (cs->rr_executed_inst >= rr_event_log_head->event.dma_done.inst_cnt - 10) {
+        rr_replay_next_network_dma();
+        rr_pop_event_head();
+    }
+finish:
+    qemu_mutex_unlock(&replay_queue_mutex);
+}
+
 __attribute_maybe_unused__
 static void rr_record_settle_events(void)
 {
@@ -1586,6 +1644,7 @@ void rr_post_record(void)
 
     rr_save_events();
     rr_dma_post_record();
+    rr_network_dma_post_record();
     rr_memlog_post_record();
 
     printf("Getting result\n");
@@ -1674,8 +1733,9 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
 
         if (env->eip == rr_event_log_head->rip) {
             if (abs_value(cpu->rr_executed_inst, rr_event_log_head->inst_cnt) < 10) {
+                qemu_log("temp fixed the cpu number, %lu -> %lu\n",
+                         cpu->rr_executed_inst, rr_event_log_head->inst_cnt);
                 cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
-                qemu_log("temp fixed the cpu number\n");
                 matched = true;
             }
         }
@@ -1718,8 +1778,9 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
             // cpu->rr_executed_inst--;
             *interrupt = CPU_INTERRUPT_HARD;
             qemu_log("Ready to replay int request, cr0=%lx\n", env->cr[0]);
+            // pre_replay_dma_buf(rr_event_log_head->event.interrupt);
             // dump_cpus_state();
-            cpu->rr_executed_inst++;
+            // cpu->rr_executed_inst++;
 
             goto finish;
         }
@@ -1982,6 +2043,57 @@ finish:
     return;
 }
 
+void rr_do_replay_mmio(unsigned long *input)
+{
+    CPUState *cpu;
+    CPUArchState *env;
+    X86CPU *x86_cpu;
+    unsigned long inst_cnt = 0;
+
+    qemu_mutex_lock(&replay_queue_mutex);
+
+    if (rr_event_log_head->type != EVENT_TYPE_MMIO) {
+        printf("Expected %d event, found %d\n", EVENT_TYPE_MMIO, rr_event_log_head->type);
+        qemu_log("Expected %d event, found %d\n", EVENT_TYPE_MMIO, rr_event_log_head->type);
+        
+        CPU_FOREACH(cpu) {
+            cpu->cause_debug = 1;
+            x86_cpu = X86_CPU(cpu);
+            env = &x86_cpu->env;
+            printf("fault addr 0x%lx, inst cnt %lu\n", env->eip, cpu->rr_executed_inst);
+        }
+        // cpu->cause_debug = 1;
+        // abort();
+        goto finish;
+        // return;
+    }
+
+    // if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst) {
+    //     qemu_log("Mismatched MMIO Input, expected inst cnt %lu, found %lu, rip=0x%lx\n",
+    //            rr_event_log_head->inst_cnt, cpu->rr_executed_inst, rr_event_log_head->rip);
+    //      cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+    // }
+
+    *input = rr_event_log_head->event.io_input.value;
+
+    CPU_FOREACH(cpu) {
+        x86_cpu = X86_CPU(cpu);
+        env = &x86_cpu->env;
+        inst_cnt = cpu->rr_executed_inst;
+    }
+
+    qemu_log("Replayed mmio input=0x%lx, inst_cnt=%lu, expected_inst_cnt=%lu, replayed event number=%d\n",
+             *input, inst_cnt, rr_event_log_head->event.io_input.inst_cnt, replayed_event_num);
+    printf("Replayed mmio input=0x%lx, inst_cnt=%lu, replayed event number=%d\n",
+            *input, inst_cnt, replayed_event_num);
+
+    rr_pop_event_head();
+
+finish:
+    qemu_mutex_unlock(&replay_queue_mutex);
+    return;
+}
+
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
 {
     X86CPU *x86_cpu;
@@ -1991,7 +2103,8 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
 
     if (rr_event_log_head->type != EVENT_TYPE_RDTSC) {
         printf("Expected %d event, found %d", EVENT_TYPE_RDTSC, rr_event_log_head->type);
-        qemu_log("Expected %d event, found %d", EVENT_TYPE_RDTSC, rr_event_log_head->type);
+        qemu_log("Expected %d event, found %d, inst_cnt=%lu\n",
+                 EVENT_TYPE_RDTSC, rr_event_log_head->type, cpu->rr_executed_inst);
         // abort();
         cpu->cause_debug = true;
         goto finish;
@@ -2085,6 +2198,15 @@ void rr_do_replay_rdseed(unsigned long *val)
     qemu_mutex_unlock(&replay_queue_mutex);
 }
 
+__attribute_maybe_unused__
+static void pre_replay_dma_buf(rr_interrupt intr)
+{
+    if (intr.inject_buf_flag & INJ_DMA_NET_BUF_BIT) {
+        rr_replay_next_network_dma();
+    }
+}
+
+
 void rr_do_replay_intno(CPUState *cpu, int *intno)
 {
     X86CPU *x86_cpu;
@@ -2128,7 +2250,8 @@ uint64_t rr_num_instr_before_next_interrupt(void)
     if (rr_event_log_head == NULL) {
         if (!initialized_replay) {
             rr_load_events();
-            rr_dma_pre_replay(event_dma_done);
+            rr_dma_pre_replay();
+            rr_dma_network_pre_replay();
             initialize_replay();
 
             initialized_replay = 1;
@@ -2162,6 +2285,22 @@ __attribute_maybe_unused__ static void hit_point(CPUArchState *env) {
 
 static void rr_handle_bp(CPUArchState *env)
 {}
+
+unsigned long rr_one_cpu_rip(void)
+{
+    CPUState *cpu;
+    CPUArchState *env;
+    X86CPU *x86_cpu;
+
+    CPU_FOREACH(cpu) {
+        kvm_arch_get_registers(cpu);
+        x86_cpu = X86_CPU(cpu);
+        env = &x86_cpu->env;
+        return env->eip;
+    }
+
+    return 0;
+}
 
 void rr_check_for_breakpoint(unsigned long addr, CPUState *cpu)
 {
@@ -2394,6 +2533,12 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
         case RR_RECORD_IRQ:
             qemu_log("[CPU-%d]check_trace record_irq: %lu\n", cpu->cpu_index, inst_cnt);
             break;
+        case E1000_CLEAN:
+            qemu_log("[CPU-%d]check_trace e1000_clean: %lu\n", cpu->cpu_index, inst_cnt);
+            break;
+        case E1000_CLEAN_MID:
+            qemu_log("[CPU-%d]check_trace e1000_clean_mid: %lu\n", cpu->cpu_index, inst_cnt);
+            break;
     }
 }
 
@@ -2409,4 +2554,33 @@ CPUState* replay_get_running_cpu(void)
     }
 
     return NULL;
+}
+
+
+void append_to_queue(int type, void *opaque)
+{
+    rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
+    rr_event_entry_header entry_header = {
+        .type = type,
+    };
+    int event_size = 0;
+    
+    switch (type)
+    {
+    case EVENT_TYPE_MMIO:
+        event_size = sizeof(rr_io_input);
+        break;
+    default:
+        printf("Unexpected event type %d\n", type);
+        abort();
+        break;
+    }
+
+    memcpy(ivshmem_base_addr + header->current_byte, &entry_header, sizeof(rr_event_entry_header));
+    header->current_byte += sizeof(rr_event_entry_header);
+
+    memcpy(ivshmem_base_addr + header->current_byte, opaque, event_size);
+    header->current_byte += event_size;
+
+    header->current_pos++;
 }

@@ -57,10 +57,8 @@ void rr_register_ide_as(IDEDMA *dma)
     }
 }
 
+static rr_dma_queue *dma_queue = NULL;
 __attribute_maybe_unused__ static rr_dma_entry *pending_dma_entry = NULL;
-
-static rr_dma_entry *dma_entry_head = NULL;
-static rr_dma_entry *dma_entry_cur = NULL;
 __attribute_maybe_unused__ static int entry_cnt = 0;
 
 static void log_addr_md5(void *ptr, size_t len, dma_addr_t base)
@@ -93,7 +91,7 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
 
     for (i = 0; i < sg->nsg; i++) {
         rr_sg_data *sgd = (rr_sg_data*)malloc(sizeof(rr_sg_data));
-        sgd->buf = (sg_addr*)malloc(sizeof(sg_addr) * sg->sg[i].len);
+        sgd->buf = (uint8_t*)malloc(sizeof(uint8_t) * sg->sg[i].len);
 
         // if (sg->sg[i].len > 4096) {
         //     printf("DMA overflow size: %ld\n", sg->sg[i].len);
@@ -103,7 +101,7 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
         res = address_space_read(sg->as,
                                  sg->sg[i].base,
                                  MEMTXATTRS_UNSPECIFIED,
-                                 sgd->buf, sg->sg[i].len * sizeof(sg_addr));
+                                 sgd->buf, sg->sg[i].len * sizeof(dma_data));
         if (res != MEMTX_OK) {
             printf("failed to read from addr %d\n", res);
         } 
@@ -113,6 +111,13 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
 
         sgd->addr = sg->sg[i].base;
         sgd->len = sg->sg[i].len;
+
+        if (pending_dma_entry->len >= SG_NUM) {
+            printf("Error: dma sg number exceeds max\n");
+            free(sgd->buf);
+            free(sgd);
+            return;
+        }
 
         total_buf_size += sg->sg[i].len;
         total_buf_cnt++;
@@ -135,35 +140,15 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
     }
 }
 
-static void append_dma_entry(rr_dma_entry *dma_entry)
-{
-    if (dma_entry == NULL)
-        return;
 
-    if (dma_entry_head == NULL) {
-        dma_entry_head = dma_entry;
-        dma_entry_cur = dma_entry;
-    } else {
-        dma_entry_cur->next = dma_entry;
-        dma_entry_cur = dma_entry_cur->next;
-    }
-
-    // qemu_log("Get logged data:\n");
-    // for (int i=0; i < dma_entry_cur->len; i++) {
-    //     log_addr_md5(dma_entry_cur->sgs[i]->buf, dma_entry_cur->sgs[i]->len, dma_entry_cur->sgs[i]->addr);
-    // }
-
-    dma_entry_cur->next = NULL;
-}
-
-__attribute_maybe_unused__ void rr_end_dma_entry(void)
+void rr_end_dma_entry(void)
 {
     if (pending_dma_entry == NULL)
         return;
 
     pending_dma_entry->replayed_sgs = 0;
 
-    append_dma_entry(pending_dma_entry);
+    dma_enqueue(dma_queue, pending_dma_entry);
     pending_dma_entry = NULL;
 
     entry_cnt++;
@@ -177,7 +162,7 @@ static void persist_dma_buf(rr_sg_data *sg, FILE *fptr) {
     // printf("Save sg addr=0x%lx len=%ld, checksum=%lu\n", sg->addr, sg->len, sg->checksum);
 
     fwrite(sg, sizeof(rr_sg_data), 1, fptr);
-    fwrite(sg->buf, sizeof(sg_addr), sg->len, fptr);
+    fwrite(sg->buf, sizeof(dma_data), sg->len, fptr);
 }
 
 static void persist_dma_log(rr_dma_entry *log, FILE *fptr) {
@@ -194,23 +179,60 @@ static void persist_dma_log(rr_dma_entry *log, FILE *fptr) {
     }
 }
 
-static void rr_save_dma_logs(void)
+void rr_save_dma_logs(const char *log_name, rr_dma_entry *entry_head)
 {
-	FILE *fptr = fopen(kernel_rr_dma_log, "a");
-	rr_dma_entry *cur= dma_entry_head;
+	FILE *fptr = fopen(log_name, "a");
+	rr_dma_entry *cur= entry_head;
+    int logged_entry = 0;
+
+    if (entry_head == NULL) {
+        printf("[%s] No dma entry generated\n", log_name);
+        return;
+    }
 
 	while (cur != NULL) {
 		persist_dma_log(cur, fptr);
         cur = cur->next;
+        logged_entry++;
 	}
 
+    printf("[%s] Logged entry number %d\n", log_name, logged_entry);
 	fclose(fptr);
 }
 
-static void rr_load_dma_buf(sg_addr *buf, uint64_t len, FILE *fptr) {
+void dma_enqueue(rr_dma_queue* q, rr_dma_entry *entry) {
+    // If the queue is empty, then the new node is both front and rear
+    if (q->rear == NULL) {
+        q->front = q->rear = entry;
+        return;
+    }
+
+    // Add the new node at the end of the queue and change rear
+    q->rear->next = entry;
+    q->rear = entry;
+}
+
+rr_dma_entry* dma_dequeue(rr_dma_queue* q) {
+    if (q->front == NULL) {
+        printf("Queue is empty\n");
+        return NULL; // or any other error code
+    }
+
+    rr_dma_entry* temp = q->front;
+    q->front = q->front->next;
+
+    // If the queue is now empty, update the rear pointer to NULL
+    if (q->front == NULL) {
+        q->rear = NULL;
+    }
+
+    return temp;
+}
+
+static void rr_load_dma_buf(dma_data *buf, uint64_t len, FILE *fptr) {
     // printf("load buf for len=%ld\n", len);
 
-    if (!fread(buf, sizeof(sg_addr), len, fptr)) {
+    if (!fread(buf, sizeof(dma_data), len, fptr)) {
         printf("Failed to read data\n");
     }
 }
@@ -223,7 +245,7 @@ static void rr_load_dma_log(rr_dma_entry *log, FILE *fptr) {
         rr_sg_data *sg = (rr_sg_data*)malloc(sizeof(rr_sg_data));        
         memcpy(sg, &loaded_sg, sizeof(rr_sg_data));
 
-        sg->buf = (sg_addr*)malloc(sizeof(sg_addr) * loaded_sg.len);;
+        sg->buf = (dma_data*)malloc(sizeof(dma_data) * loaded_sg.len);;
 
         rr_load_dma_buf(sg->buf, sg->len, fptr);
 
@@ -232,9 +254,9 @@ static void rr_load_dma_log(rr_dma_entry *log, FILE *fptr) {
     }
 }
 
-static void rr_load_dma_logs(void)
+void rr_load_dma_logs(const char *log_file, rr_dma_queue *queue)
 {
-	__attribute_maybe_unused__ FILE *fptr = fopen(kernel_rr_dma_log, "r");
+	__attribute_maybe_unused__ FILE *fptr = fopen(log_file, "r");
 
     rr_dma_entry loaded_node;
     // int i;
@@ -255,11 +277,11 @@ static void rr_load_dma_logs(void)
         //     printf("log: sg_addr=0x%lx, sg_len=%ld\n", log->sgs[i]->addr, log->sgs[i]->len);
         // }
 
-		append_dma_entry(log);
+		dma_enqueue(queue, log);
 	}
 }
 
-static void do_replay_dma_entry(rr_dma_entry *dma_entry)
+void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as)
 {
     int i;
     int res;
@@ -276,7 +298,7 @@ static void do_replay_dma_entry(rr_dma_entry *dma_entry)
 
         printf("Replay dma addr 0x%lx\n", sg->addr);
 
-        mem = dma_memory_map(dma_as,
+        mem = dma_memory_map(as,
                              sg->addr, &len,
                              DMA_DIRECTION_FROM_DEVICE,
                              MEMTXATTRS_UNSPECIFIED);
@@ -284,10 +306,10 @@ static void do_replay_dma_entry(rr_dma_entry *dma_entry)
              printf("failed to map addr 0x%lx\n", sg->addr);
              continue;
         }
-        res = address_space_write(dma_as,
+        res = address_space_write(as,
                                 sg->addr,
                                 MEMTXATTRS_UNSPECIFIED,
-                                sg->buf, sg->len * sizeof(sg_addr));
+                                sg->buf, sg->len * sizeof(dma_data));
 
         if (res != MEMTX_OK) {
             if (res == MEMTX_ACCESS_ERROR) {
@@ -299,10 +321,19 @@ static void do_replay_dma_entry(rr_dma_entry *dma_entry)
             printf("write to dma base=0x%lx, len=%ld\n", sg->addr, sg->len);
         }
 
-        dma_memory_unmap(dma_as, mem,
+        dma_memory_unmap(as, mem,
                          sg->len, DMA_DIRECTION_FROM_DEVICE,
                          sg->len);
     }
+}
+
+void init_dma_queue(rr_dma_queue **queue)
+{
+    assert(*queue == NULL);
+
+    *queue = (rr_dma_queue *)malloc(sizeof(rr_dma_queue));
+    (*queue)->front = NULL;
+    (*queue)->rear = NULL;
 }
 
 void rr_dma_pre_record(void)
@@ -312,18 +343,26 @@ void rr_dma_pre_record(void)
     total_buf_size = 0;
     total_nvme_cnt = 0;
     total_nvme_size = 0;
+    init_dma_queue(&dma_queue);
     remove(kernel_rr_dma_log);
 }
 
-void rr_dma_pre_replay(int dma_event_num)
+void rr_dma_pre_replay(void)
+{
+    rr_dma_pre_replay_common(kernel_rr_dma_log, &dma_queue);
+}
+
+void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **queue)
 {
     int entry_num = 0;
 
-    rr_load_dma_logs();
+    init_dma_queue(queue);
+    rr_dma_queue *q = *queue;
 
-    rr_dma_entry *cur = dma_entry_head;
+    rr_load_dma_logs(load_file, q);
+
+    rr_dma_entry *cur = q->front;
     while (cur != NULL) {
-
         for (int i = 0; i < cur->len; i++) {
             log_addr_md5(cur->sgs[i]->buf, cur->sgs[i]->len, cur->sgs[i]->addr);
         }
@@ -332,17 +371,12 @@ void rr_dma_pre_replay(int dma_event_num)
         entry_num++;
     }
 
-    // if (entry_num != dma_event_num) {
-    //     printf("DMA entry number %d, dma event number %d, not equal\n", entry_num, dma_event_num);
-    //     exit(1);
-    // }
-
     printf("dma entry number: %d\n", entry_num);
 }
 
 void rr_dma_post_record(void)
 {
-    rr_save_dma_logs();
+    rr_save_dma_logs(kernel_rr_dma_log, dma_queue->front);
     printf("Total dma buf cnt %lu size %lu, total nvme buf cnt %lu size %lu\n",
            total_buf_cnt, total_buf_size, total_nvme_cnt, total_nvme_size);
     return;
@@ -350,17 +384,14 @@ void rr_dma_post_record(void)
 
 void rr_replay_next_dma(void)
 {
-    if (dma_entry_head == NULL) {
+    rr_dma_entry *front;
+
+    front = dma_dequeue(dma_queue);
+    if (front == NULL) {
         return;
     }
 
-    do_replay_dma_entry(dma_entry_head);
-    dma_entry_head = dma_entry_head->next;
-
-    if (rr_get_next_event_type() == EVENT_TYPE_DMA_DONE) {
-        rr_pop_event_head();
-        printf("Pop current dma event\n");
-    }
+    do_replay_dma_entry(front, dma_as);
 }
 
 void rr_check_dma_sg(__attribute_maybe_unused__ ScatterGatherEntry sg,

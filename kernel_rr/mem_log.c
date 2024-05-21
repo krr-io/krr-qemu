@@ -64,7 +64,7 @@ static void rr_save_mem_logs(void)
 }
 
 
-unsigned long get_checksum(sg_addr *buffer, unsigned long buffersize)
+unsigned long get_checksum(dma_data *buffer, unsigned long buffersize)
 {
     unsigned long ret = 0;
 

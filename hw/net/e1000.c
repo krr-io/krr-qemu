@@ -24,6 +24,7 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "linux-headers/linux/kernel_rr.h"
 
 #include "qemu/osdep.h"
 #include "hw/pci/pci.h"
@@ -41,6 +42,7 @@
 #include "e1000x_common.h"
 #include "trace.h"
 #include "qom/object.h"
+#include "sysemu/kernel-rr.h"
 
 static const uint8_t bcast[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
@@ -335,6 +337,12 @@ set_interrupt_cause(E1000State *s, int index, uint32_t val)
     }
 
     s->mit_irq_level = (pending_ints != 0);
+
+    // if (s->mit_irq_level) {
+    //     if (rr_in_record())
+    //         rr_end_network_dma_entry();
+    // }
+
     pci_set_irq(d, s->mit_irq_level);
 }
 
@@ -990,6 +998,8 @@ e1000_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
                 }
                 do {
                     iov_copy = MIN(copy_size, iov->iov_len - iov_ofs);
+                    if (rr_in_record())
+                        rr_append_network_dma_sg(iov->iov_base + iov_ofs, iov_copy, ba);
                     pci_dma_write(d, ba, iov->iov_base + iov_ofs, iov_copy);
                     copy_size -= iov_copy;
                     ba += iov_copy;
@@ -1012,6 +1022,12 @@ e1000_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
         } else { // as per intel docs; skip descriptors with null buf addr
             DBGOUT(RX, "Null RX descriptor!!\n");
         }
+        if (rr_in_record()) {
+            rr_append_network_dma_sg(&desc, sizeof(desc), base);
+            rr_end_network_dma_entry();
+            kvm_prep_buf_event();
+        }
+        // printf("Recorded desc, rip=0x%lx\n", rr_one_cpu_rip());
         pci_dma_write(d, base, &desc, sizeof(desc));
 
         if (++s->mac_reg[RDH] * sizeof(desc) >= s->mac_reg[RDLEN])
@@ -1321,6 +1337,10 @@ e1000_mmio_write(void *opaque, hwaddr addr, uint64_t val,
     E1000State *s = opaque;
     unsigned int index = (addr & 0x1ffff) >> 2;
 
+    // if (rr_in_replay()) {
+    //     return;
+    // }
+
     if (index < NWRITEOPS && macreg_writeops[index]) {
         if (!(mac_reg_access[index] & MAC_ACCESS_FLAG_NEEDED)
             || (s->compat_flags & (mac_reg_access[index] >> 2))) {
@@ -1347,6 +1367,7 @@ e1000_mmio_read(void *opaque, hwaddr addr, unsigned size)
 {
     E1000State *s = opaque;
     unsigned int index = (addr & 0x1ffff) >> 2;
+    uint64_t val;
 
     if (index < NREADOPS && macreg_readops[index]) {
         if (!(mac_reg_access[index] & MAC_ACCESS_FLAG_NEEDED)
@@ -1355,7 +1376,21 @@ e1000_mmio_read(void *opaque, hwaddr addr, unsigned size)
                 DBGOUT(GENERAL, "Reading register at offset: 0x%08x. "
                        "It is not fully implemented.\n", index<<2);
             }
-            return macreg_readops[index](s, index);
+            val = macreg_readops[index](s, index);
+            
+            if (rr_in_record()){
+                rr_io_input entry = {
+                    .value = val,
+                    .rip = rr_one_cpu_rip(),
+                    .inst_cnt = rr_get_inst_cnt(NULL),
+                };
+
+                append_to_queue(EVENT_TYPE_MMIO, &entry);
+            } else if (rr_in_replay()) {
+                rr_do_replay_mmio(&val);
+            }
+
+            return val;
         } else {    /* "flag needed" bit is set, but the flag is not active */
             DBGOUT(MMIO, "MMIO read attempt of disabled reg. addr=0x%08x\n",
                    index<<2);
@@ -1741,6 +1776,8 @@ static void pci_e1000_realize(PCIDevice *pci_dev, Error **errp)
     d->mit_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, e1000_mit_timer, d);
     d->flush_queue_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL,
                                         e1000_flush_queue_timer, d);
+
+    rr_register_e1000_as(pci_dev);
 }
 
 static void qdev_e1000_reset(DeviceState *dev)

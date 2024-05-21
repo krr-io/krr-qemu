@@ -16,8 +16,11 @@
 #define EVENT_TYPE_RDSEED    10
 #define EVENT_TYPE_RELEASE   11
 #define EVENT_TYPE_INST_SYNC 12
+#define EVENT_TYPE_MMIO      13
 
 #define CFU_BUFFER_SIZE     4096
+
+#define INJ_DMA_NET_BUF_BIT 1
 
 enum REGS {
     ZERO,
@@ -62,6 +65,7 @@ typedef struct {
     unsigned long spin_count;
     unsigned long inst_cnt;
     unsigned long rip;
+    int inject_buf_flag;
 } rr_interrupt;
 
 
@@ -102,6 +106,11 @@ typedef struct {
     unsigned char data[1024];
 } rr_random;
 
+typedef struct rr_dma_done_t {
+    unsigned long inst_cnt;
+} rr_dma_done;
+
+
 typedef struct rr_event_log_t{
     int type;
     int id;
@@ -113,6 +122,7 @@ typedef struct rr_event_log_t{
         rr_cfu cfu;
         rr_random rand;
         rr_gfu gfu;
+        rr_dma_done dma_done;
     } event;
     struct rr_event_log_t *next;
     unsigned long inst_cnt;

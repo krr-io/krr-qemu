@@ -49,11 +49,11 @@
 
 #include "sysemu/kernel-rr.h"
 
-target_ulong raw_copy_from_user = 0xffffffff810b0b05;
-static target_ulong singlestep_start = 0xffffffff810296c6;
-static target_ulong singlestep_end = 0xffffffff810296c6;
-static bool singlestep_started = false;
-static int count_num = 3;
+// target_ulong raw_copy_from_user = 0xffffffff810b0b05;
+// static target_ulong singlestep_start = 0xffffffff810296c6;
+// static target_ulong singlestep_end = 0xffffffff810296c6;
+// static bool singlestep_started = false;
+// static int count_num = 3;
 
 // target_ulong cfu_addr1_exec = 0xffffffff810afc12;
 // target_ulong cfu_addr2_exec = 0xffffffff810b4fb8;
@@ -94,7 +94,7 @@ static bool should_log_trace(CPUState *cpu)
 
     // int replayed_num = get_replayed_event_num();
 
-    // if (17104 <= replayed_num && replayed_num < 17105) {
+    // if (176 <= replayed_num && replayed_num < 177) {
     //     return true;
     // }
     // return should_log;
@@ -799,16 +799,16 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
     }
 
     if (rr_in_replay()) {
-        if (cpu->hit_breakpoint) {
-            // printf("Hit breakpoint[%d]\n", cpu->cpu_index);
-            cpu->hit_breakpoint = false;
-            qatomic_set(&cpu->exit_request, 0);
-            if (cpu->exception_index == -1) {
-                cpu->exception_index = EXCP_INTERRUPT;
-            }
+        // if (cpu->hit_breakpoint) {
+        //     // printf("Hit breakpoint[%d]\n", cpu->cpu_index);
+        //     cpu->hit_breakpoint = false;
+        //     qatomic_set(&cpu->exit_request, 0);
+        //     if (cpu->exception_index == -1) {
+        //         cpu->exception_index = EXCP_INTERRUPT;
+        //     }
 
-            return true;
-        } else {
+        //     return true;
+        // } else {
             rr_replay_interrupt(cpu, &interrupt_request);
             if (interrupt_request != -1) {
                 cpu->interrupt_request = interrupt_request;
@@ -816,8 +816,8 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
                 printf("[%d]Get replay int %d\n", cpu->cpu_index, interrupt_request);
             } else {
                 interrupt_request = 0;
-                return false;
-            }
+            //     return false;
+            // }
         }
         // printf("replayed request %d\n", interrupt_request);
     }
@@ -1132,6 +1132,8 @@ int cpu_exec(CPUState *cpu)
             }
 
             if (rr_in_replay()) {
+                try_replay_dma(cpu);
+
                 switch (tb->pc)
                 {
                 case RR_RECORD_CFU:
@@ -1173,8 +1175,10 @@ int cpu_exec(CPUState *cpu)
                     break;
                 case SYSCALL_ENTRY:
                 case SYSCALL_EXIT:
-                // case IRQ_ENTRY:
-                // case IRQ_EXIT:
+                case IRQ_ENTRY:
+                case IRQ_EXIT:
+                case E1000_CLEAN:
+                case E1000_CLEAN_MID:
                 // case RR_HANDLE_IRQ:
                 // case RR_RECORD_IRQ:
                 // case PF_ASM_EXC:
@@ -1188,19 +1192,19 @@ int cpu_exec(CPUState *cpu)
                 }
             }
 
-            if (singlestep_started && count_num) {
-                rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+            // if (singlestep_started && count_num) {
+            //     rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
 
-                if (tb->pc == singlestep_end) {
-                    singlestep_started = false;
-                    count_num--;
-                }
-            }
+            //     if (tb->pc == singlestep_end) {
+            //         singlestep_started = false;
+            //         count_num--;
+            //     }
+            // }
 
-            if (!singlestep_started && count_num && tb->pc == singlestep_start) {
-                singlestep_started = true;
-                rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-            }
+            // if (!singlestep_started && count_num && tb->pc == singlestep_start) {
+            //     singlestep_started = true;
+            //     rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+            // }
 
             if (should_log_trace(cpu)) {
                 // qemu_log("\nExecute TB:\n");

@@ -12,36 +12,41 @@
 // #include "sysemu/dma.h"
 
 
-#define STRNCPY_FROM_USER 0xffffffff81494ac0 // info addr strncpy_from_user
-#define STRNLEN_USER 0xffffffff81494cc4 // b lib/strnlen_user.c:116
-#define RANDOM_GEN 0xffffffff8102e320 // info addr rr_record_random
-#define PF_EXEC 0xffffffff8176f270 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff8176f510 // b fault.c:1580
-#define RR_RECORD_CFU 0xffffffff81033890 // info addr rr_record_cfu
-#define RR_RECORD_GFU 0xffffffff817337a4 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff817337fd // b getuser.S:147
-#define RR_GFU_NOCHECK8 0xffffffff8173381e // b getuser.S:162
-#define RR_GFU4 0xffffffff81733773 // b getuser.S:88
+#define STRNCPY_FROM_USER 0xffffffff81464870 // info addr strncpy_from_user
+#define STRNLEN_USER 0xffffffff81464a74 // b lib/strnlen_user.c:116
+#define RANDOM_GEN 0xffffffff81030680 // info addr rr_record_random
+#define PF_EXEC 0xffffffff8180e8a0 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff8180eb3a // b fault.c:1580
+#define RR_RECORD_CFU 0xffffffff810306f0 // info addr rr_record_cfu
+#define RR_RECORD_GFU 0xffffffff817d2764 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff817d27bd // b getuser.S:147
+#define RR_GFU_NOCHECK8 0xffffffff817d27de // b getuser.S:162
+#define RR_GFU4 0xffffffff817d2733 // b getuser.S:88
 
-#define SYSCALL_ENTRY 0xffffffff81800000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff8176fae0 // info addr syscall_exit_to_user_mode
-#define PF_ASM_EXC 0xffffffff81800b40 // info addr asm_exc_page_fault
+#define SYSCALL_ENTRY 0xffffffff81a00000 // info addr entry_SYSCALL_64
+#define SYSCALL_EXIT 0xffffffff8180f0b0 // info addr syscall_exit_to_user_mode
+#define PF_ASM_EXC 0xffffffff81a00b30 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff8176f9e0 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff8176fb50 // info addr irqentry_exit
+#define IRQ_ENTRY 0xffffffff8180efd0 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff8180f120 // info addr irqentry_exit
 
-#define LOCK_RELEASE 0xffffffff810334d5 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff8103352e // info addr rr_record_syscall
+#define LOCK_RELEASE 0 // info addr rr_record_release
+#define RR_RECORD_SYSCALL 0xffffffff8180e4d0 // info addr rr_record_syscall
 #define RR_HANDLE_SYSCALL 0xffffffff81033500
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f
 #define RR_RECORD_EXCP 0xffffffff810350d1
+
+#define E1000_CLEAN 0xffffffff815d3300
+#define E1000_CLEAN_MID 0xffffffff815d3662
 
 
 #define KVM_HC_RR_DATA_IN           13
 #define KVM_HC_RR_STRNCPY			14
 #define KVM_HC_RR_RANDOM			15
 #define KVM_HC_RR_GETUSER			16
+
+#define SG_NUM  1024
 
 
 int rr_in_replay(void);
@@ -69,9 +74,11 @@ void rr_do_replay_strncpy_from_user(CPUState *cpu);
 void rr_post_replay_exception(CPUState *cpu);
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc);
 void rr_do_replay_gfu(CPUState *cpu);
+void rr_do_replay_mmio(unsigned long *input);
 
 int rr_get_next_event_type(void);
 unsigned long rr_get_next_event_rip(void);
+unsigned long rr_one_cpu_rip(void);
 rr_event_log* rr_get_next_event(void);
 
 void rr_take_snapshot(char *ss_name);
@@ -102,8 +109,11 @@ void rr_do_replay_sync_inst(CPUState *cpu);
 void cause_other_cpu_debug(CPUState *cpu);
 void sync_syscall_spin_cnt(CPUState *cpu);
 void dump_cpus_state(void);
+void kvm_prep_buf_event(void);
+void try_replay_dma(CPUState *cs);
 
-typedef uint64_t sg_addr;
+
+typedef uint8_t dma_data;
 
 typedef struct rr_mem_log_t {
     unsigned long gpa;
@@ -118,15 +128,21 @@ typedef struct rr_sg_data_t {
     uint64_t addr;
     uint64_t len;
     unsigned long checksum;
-    sg_addr *buf;
+    dma_data *buf;
 } rr_sg_data;
 
 typedef struct rr_dma_entry_t {
     int len;
-    rr_sg_data *sgs[1024];
+    rr_sg_data *sgs[SG_NUM];
     struct rr_dma_entry_t *next;
     int replayed_sgs;
 } rr_dma_entry;
+
+typedef struct rr_dma_queue_t {
+    rr_dma_entry *front;
+    rr_dma_entry *rear;
+} rr_dma_queue;
+
 
 rr_mem_log *rr_mem_log_new(void);
 void append_mem_log(rr_mem_log *mem_log);
@@ -138,7 +154,7 @@ void rr_replay_dma_entry(void);
 int get_md5sum(void* buffer,
                unsigned long buffersize,
                char* checksum);
-unsigned long get_checksum(sg_addr *buffer, unsigned long buffersize);
+unsigned long get_checksum(dma_data *buffer, unsigned long buffersize);
 int rr_pop_next_event_type(int event_type);
 void inc_replayed_number(void);
 int skip_record_dma(void *cb_func);
@@ -154,5 +170,25 @@ CPUState* replay_get_running_cpu(void);
 void rr_debug(void);
 void check_kernel_access(void);
 void set_cpu_num(int n);
+
+void dma_enqueue(rr_dma_queue *q, rr_dma_entry *entry);
+rr_dma_entry* dma_dequeue(rr_dma_queue* q);
+void rr_load_dma_logs(const char *log_file, rr_dma_queue *queue);
+void rr_append_network_dma_sg(void *buf, uint64_t len, uint64_t addr);
+void rr_end_network_dma_entry(void);
+void rr_save_dma_logs(const char *log_name, rr_dma_entry *entry_head);
+void rr_network_dma_post_record(void);
+void rr_network_dma_pre_record(void);
+
+void rr_dma_pre_replay(void);
+void rr_dma_network_pre_replay(void);
+void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **q);
+void init_dma_queue(rr_dma_queue **queue);
+
+void rr_register_e1000_as(PCIDevice *dev);
+void rr_replay_next_network_dma(void);
+void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as);
+
+void append_to_queue(int type, void *opaque);
 
 #endif /* KERNEL_RR_H */

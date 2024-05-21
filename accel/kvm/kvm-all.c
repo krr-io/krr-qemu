@@ -2749,12 +2749,33 @@ static void do_kvm_cpu_synchronize_state(CPUState *cpu, run_on_cpu_data arg)
     }
 }
 
+static void do_kvm_cpu_prep_buf_event(CPUState *cpu, run_on_cpu_data arg)
+{
+    int r;
+
+    r = kvm_vcpu_ioctl(cpu, KVM_RR_MARK_DMA_DONE);
+    if (r) {
+        printf("failed insert prep buf event %d\n", r);
+    }
+}
+
+
 void kvm_cpu_synchronize_state(CPUState *cpu)
 {
     if (!cpu->vcpu_dirty) {
         run_on_cpu(cpu, do_kvm_cpu_synchronize_state, RUN_ON_CPU_NULL);
     }
 }
+
+void kvm_prep_buf_event(void)
+{
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        run_on_cpu(cpu, do_kvm_cpu_prep_buf_event, RUN_ON_CPU_NULL);
+    }
+}
+
 
 static void do_kvm_cpu_synchronize_post_reset(CPUState *cpu, run_on_cpu_data arg)
 {
@@ -3450,24 +3471,15 @@ static void do_rr_get_vcpu_mem_logs(CPUState *cpu, run_on_cpu_data arg)
     }
 }
 
-static void do_rr_signal_dma_finish(CPUState *cpu, run_on_cpu_data arg)
-{
-    int r;
-
-    r = kvm_vcpu_ioctl(cpu, KVM_RR_MARK_DMA_DONE, NULL);
-    if (r) {
-        printf("failed to mark dma done %d\n", r);
-        return;
-    }
-}
-
 
 int rr_signal_dma_finish(void)
 {
-    CPUState *cpu;
+    int r;
 
-    CPU_FOREACH(cpu) {
-        run_on_cpu(cpu, do_rr_signal_dma_finish, RUN_ON_CPU_NULL);
+    r = kvm_vm_ioctl(kvm_state, KVM_INJ_DMA_BUFFER, NULL);
+    if (r) {
+        printf("Failed to inject buffer: %d\n", r);
+        return -1;
     }
 
     return 0;
@@ -3496,9 +3508,17 @@ int rr_get_vcpu_events(void)
 unsigned long rr_get_inst_cnt(CPUState *cpu)
 {
     unsigned long res;
-    int r;
+    int r = 0;
+    CPUState *cs;
 
-    r = kvm_vcpu_ioctl(cpu, KVM_RR_GET_INST_CNT, &res);
+    if (cpu == NULL) {
+        CPU_FOREACH(cs) {
+            r = kvm_vcpu_ioctl(cs, KVM_RR_GET_INST_CNT, &res);
+        }
+    } else {
+        r = kvm_vcpu_ioctl(cpu, KVM_RR_GET_INST_CNT, &res);
+    }
+
     if (r) {
         printf("failed to get inst cnt: %d\n", r);
         return -1;
@@ -3550,13 +3570,14 @@ int kvm_start_record(void)
 int kvm_end_record(void) {
     int ret;
 
+    rr_remove_breakpoints();
+
     ret = kvm_vm_ioctl(kvm_state, KVM_END_RECORD, NULL);
     if (ret) {
         printf("Failed to call end record: %d\n", ret);
         return ret;
     }
 
-    rr_remove_breakpoints();
     if (rr_mem_logs_enabled())
         rr_finish_mem_log();
 

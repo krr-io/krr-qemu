@@ -1643,6 +1643,7 @@ struct kvm_enc_region {
 #define KVM_RR_CLEAR_EVENTS	 _IO(KVMIO, 0xe0)
 #define KVM_RR_GET_INST_CNT	 _IOR(KVMIO, 0xe1, unsigned long)
 #define KVM_GET_RESULT_BUFFER _IOR(KVMIO, 0xe2, unsigned long)
+#define KVM_INJ_DMA_BUFFER _IOW(KVMIO, 0xe3, unsigned long)
 
 
 struct kvm_s390_pv_sec_parm {

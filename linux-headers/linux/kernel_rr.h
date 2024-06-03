@@ -65,7 +65,6 @@ typedef struct {
     unsigned long spin_count;
     unsigned long inst_cnt;
     unsigned long rip;
-    int inject_buf_flag;
 } rr_interrupt;
 
 
@@ -107,6 +106,7 @@ typedef struct {
 } rr_random;
 
 typedef struct rr_dma_done_t {
+    int id;
     unsigned long inst_cnt;
 } rr_dma_done;
 

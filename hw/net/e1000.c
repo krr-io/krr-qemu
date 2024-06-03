@@ -1381,8 +1381,6 @@ e1000_mmio_read(void *opaque, hwaddr addr, unsigned size)
             if (rr_in_record()){
                 rr_io_input entry = {
                     .value = val,
-                    .rip = rr_one_cpu_rip(),
-                    .inst_cnt = rr_get_inst_cnt(NULL),
                 };
 
                 append_to_queue(EVENT_TYPE_MMIO, &entry);

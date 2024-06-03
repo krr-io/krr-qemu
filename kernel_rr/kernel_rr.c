@@ -95,7 +95,7 @@ static void rr_log_event(rr_event_log *event_record, int event_num);
 static bool rr_replay_is_entry(rr_event_log *event);
 static void interrupt_check(rr_event_log *event);
 static void rr_read_shm_events_info(void);
-static void pre_replay_dma_buf(rr_interrupt intr);
+static void init_lock_owner(void);
 
 static clock_t replay_start_time;
 __attribute_maybe_unused__ static bool log_trace = false;
@@ -935,9 +935,9 @@ static void rr_log_event(rr_event_log *event_record, int event_num) {
     {
         case EVENT_TYPE_INTERRUPT:
             rr_interrupt rr_in = event_record->event.interrupt;
-            qemu_log("Interrupt: %d, inst_cnt: %lu, rip=0x%lx, from=%d, cpu_id=%d, spin_count=%lu, inj_buf_flag=%d, number=%d\n",
+            qemu_log("Interrupt: %d, inst_cnt: %lu, rip=0x%lx, from=%d, cpu_id=%d, spin_count=%lu, number=%d\n",
                     rr_in.vector, rr_in.inst_cnt, rr_in.rip,
-                    rr_in.from, rr_in.id, rr_in.spin_count, rr_in.inject_buf_flag, event_num);
+                    rr_in.from, rr_in.id, rr_in.spin_count, event_num);
             break;
 
         case EVENT_TYPE_EXCEPTION:
@@ -994,7 +994,9 @@ static void rr_log_event(rr_event_log *event_record, int event_num) {
             qemu_log("Sync Instructions: cpu_id=%d, inst_cnt=%lu\n", event_record->id, event_record->inst_cnt);
             break;
         case EVENT_TYPE_DMA_DONE:
-            qemu_log("DMA Done: inst_cnt=%lu\n", event_record->event.dma_done.inst_cnt);
+            qemu_log("DMA Done: cpu_id=%d, inst_cnt=%lu\n",
+                     event_record->event.dma_done.id,
+                     event_record->event.dma_done.inst_cnt);
             break;
         case EVENT_TYPE_MMIO:
             qemu_log("MMIO: cpu_id=%d, val=%lu, rip=0x%lx, inst_cnt=%lu\n",
@@ -1431,6 +1433,7 @@ static void load_event(rr_event_log *event, int type, FILE *fptr)
         if (!fread(&event->event.dma_done, sizeof(rr_dma_done), 1, fptr))
             goto error;
 
+        event->id = event->event.dma_done.id;
         break;
 
     default:
@@ -1778,7 +1781,6 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
             // cpu->rr_executed_inst--;
             *interrupt = CPU_INTERRUPT_HARD;
             qemu_log("Ready to replay int request, cr0=%lx\n", env->cr[0]);
-            // pre_replay_dma_buf(rr_event_log_head->event.interrupt);
             // dump_cpus_state();
             // cpu->rr_executed_inst++;
 
@@ -2145,10 +2147,10 @@ void rr_do_replay_release(CPUState *cpu)
     qemu_mutex_lock(&replay_queue_mutex);
 
     if (rr_event_log_head->type != EVENT_TYPE_RELEASE) {
-        // printf("Unexpected %d, expected lock release, inst_cnt=%lu\n",
-        //        rr_event_log_head->type, cpu->rr_executed_inst);
-        // cpu->cause_debug = true;
-        // goto finish;
+        printf("Unexpected %d, expected lock release, inst_cnt=%lu\n",
+               rr_event_log_head->type, cpu->rr_executed_inst);
+        cpu->cause_debug = true;
+        goto finish;
         // abort();
     } else {
         rr_pop_event_head();
@@ -2172,7 +2174,7 @@ void rr_do_replay_release(CPUState *cpu)
             qemu_cond_signal(cs->replay_cond);
         }
     }
-// finish:
+finish:
     qemu_mutex_unlock(&replay_queue_mutex);
 }
 
@@ -2197,15 +2199,6 @@ void rr_do_replay_rdseed(unsigned long *val)
 
     qemu_mutex_unlock(&replay_queue_mutex);
 }
-
-__attribute_maybe_unused__
-static void pre_replay_dma_buf(rr_interrupt intr)
-{
-    if (intr.inject_buf_flag & INJ_DMA_NET_BUF_BIT) {
-        rr_replay_next_network_dma();
-    }
-}
-
 
 void rr_do_replay_intno(CPUState *cpu, int *intno)
 {
@@ -2414,6 +2407,8 @@ void rr_register_ivshmem(RAMBlock *rb)
     rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
     printf("Host addr for shared memory: %p\nHeader info:\ntotal_pos=%u\nrr_endabled=%u, entry_size=%lu\n",
            ivshmem_base_addr, header->total_pos, header->rr_enabled, sizeof(rr_event_log));
+
+    init_lock_owner();
 }
 
 void rr_ivshmem_set_rr_enabled(int enabled)
@@ -2583,4 +2578,19 @@ void append_to_queue(int type, void *opaque)
     header->current_byte += event_size;
 
     header->current_pos++;
+}
+
+int get_lock_owner(void) {
+    int cpu_id;
+
+    memcpy(&cpu_id, ivshmem_base_addr + sizeof(rr_event_guest_queue_header), sizeof(int));
+
+    return cpu_id;
+}
+
+static void init_lock_owner(void)
+{
+    int cpu_id = 0;
+
+    memcpy(ivshmem_base_addr + sizeof(rr_event_guest_queue_header), &cpu_id, sizeof(int));
 }

@@ -2770,9 +2770,15 @@ void kvm_cpu_synchronize_state(CPUState *cpu)
 void kvm_prep_buf_event(void)
 {
     CPUState *cpu;
+    int owner_id;
+
+    owner_id = get_lock_owner();
 
     CPU_FOREACH(cpu) {
-        run_on_cpu(cpu, do_kvm_cpu_prep_buf_event, RUN_ON_CPU_NULL);
+        if (owner_id == cpu->cpu_index) {
+            run_on_cpu(cpu, do_kvm_cpu_prep_buf_event, RUN_ON_CPU_NULL);
+            break;
+        }
     }
 }
 

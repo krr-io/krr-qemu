@@ -190,7 +190,7 @@ handle_on_bp(CPUState *cpu)
     if (!rr_in_record())
         return false;
 
-    handle_bp_points(cpu, bp_addr);
+    // handle_bp_points(cpu, bp_addr);
 
     if (cpu->singlestep_enabled != 0) {
         if (cpu->last_removed_addr == 0) {

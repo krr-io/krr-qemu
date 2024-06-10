@@ -12,33 +12,33 @@
 // #include "sysemu/dma.h"
 
 
-#define STRNCPY_FROM_USER 0xffffffff81464870 // info addr strncpy_from_user
-#define STRNLEN_USER 0xffffffff81464a74 // b lib/strnlen_user.c:116
+#define STRNCPY_FROM_USER 0xffffffff81494c60 // info addr strncpy_from_user
+#define STRNLEN_USER 0xffffffff81494e64 // b lib/strnlen_user.c:116
 #define RANDOM_GEN 0xffffffff81030680 // info addr rr_record_random
-#define PF_EXEC 0xffffffff8180e8a0 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff8180eb3a // b fault.c:1580
-#define RR_RECORD_CFU 0xffffffff810306f0 // info addr rr_record_cfu
-#define RR_RECORD_GFU 0xffffffff817d2764 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff817d27bd // b getuser.S:147
-#define RR_GFU_NOCHECK8 0xffffffff817d27de // b getuser.S:162
-#define RR_GFU4 0xffffffff817d2733 // b getuser.S:88
+#define PF_EXEC 0xffffffff81845300 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff818455a0 // b fault.c:1580
+#define RR_RECORD_CFU 0xffffffff81033890 // info addr rr_record_cfu
+#define RR_RECORD_GFU 0xffffffff81807964 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff818079bd // b getuser.S:147
+#define RR_GFU_NOCHECK8 0xffffffff818079de // b getuser.S:162
+#define RR_GFU4 0xffffffff81807933 // b getuser.S:88
 
 #define SYSCALL_ENTRY 0xffffffff81a00000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff8180f0b0 // info addr syscall_exit_to_user_mode
-#define PF_ASM_EXC 0xffffffff81a00b30 // info addr asm_exc_page_fault
+#define SYSCALL_EXIT 0xffffffff81845b70 // info addr syscall_exit_to_user_mode
+#define PF_ASM_EXC 0xffffffff81a00b40 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff8180efd0 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff8180f120 // info addr irqentry_exit
+#define IRQ_ENTRY 0xffffffff81845a70 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff81845be0 // info addr irqentry_exit
 
-#define LOCK_RELEASE 0 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff8180e4d0 // info addr rr_record_syscall
+#define LOCK_RELEASE 0xffffffff810334d5 // info addr rr_record_release
+#define RR_RECORD_SYSCALL 0xffffffff8103352e // info addr rr_record_syscall
 #define RR_HANDLE_SYSCALL 0xffffffff81033500
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f
 #define RR_RECORD_EXCP 0xffffffff810350d1
 
-#define E1000_CLEAN 0xffffffff815d3300
-#define E1000_CLEAN_MID 0xffffffff815d3662
+#define E1000_CLEAN 0xffffffff816056a0
+#define E1000_CLEAN_MID 0xffffffff81605a02
 
 
 #define KVM_HC_RR_DATA_IN           13
@@ -47,6 +47,8 @@
 #define KVM_HC_RR_GETUSER			16
 
 #define SG_NUM  1024
+
+#define MAX_CPU_NUM 16
 
 
 int rr_in_replay(void);
@@ -141,6 +143,7 @@ typedef struct rr_dma_entry_t {
     unsigned long inst_cnt;
     unsigned long rip;
     unsigned long follow_num;
+    int cpu_id;
 } rr_dma_entry;
 
 typedef struct rr_dma_queue_t {
@@ -181,7 +184,7 @@ void dma_enqueue(rr_dma_queue *q, rr_dma_entry *entry);
 rr_dma_entry* dma_dequeue(rr_dma_queue* q);
 void rr_load_dma_logs(const char *log_file, rr_dma_queue *queue);
 void rr_append_network_dma_sg(void *buf, uint64_t len, uint64_t addr);
-void rr_end_network_dma_entry(unsigned long inst_cnt, unsigned long rip);
+void rr_end_network_dma_entry(unsigned long inst_cnt, unsigned long rip, int cpu_id);
 void rr_save_dma_logs(const char *log_name, rr_dma_entry *entry_head);
 void rr_network_dma_post_record(void);
 void rr_network_dma_pre_record(void);
@@ -191,10 +194,10 @@ void rr_dma_network_pre_replay(void);
 void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **q);
 void init_dma_queue(rr_dma_queue **queue);
 
-rr_dma_entry* rr_fetch_next_network_dme_entry(void);
+rr_dma_entry* rr_fetch_next_network_dme_entry(int cpu_id);
 
 void rr_register_e1000_as(PCIDevice *dev);
-void rr_replay_next_network_dma(void);
+void rr_replay_next_network_dma(int cpu_id);
 void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as);
 
 void append_to_queue(int type, void *opaque);

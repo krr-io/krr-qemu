@@ -29,7 +29,6 @@
 
 #include <time.h>
 
-#define MAX_CPU_NUM 16
 
 const char *kernel_rr_log = "kernel_rr.log";
 
@@ -225,11 +224,11 @@ int replay_cpu_exec_ready(CPUState *cpu)
 
         // smp_rmb();
 
-        // if (qatomic_mb_read(&cpu->exit_request)) {
-        //     ready = 1;
-        //     printf("[%d]CPU Exit \n");
-        //     break;
-        // }
+        if (qatomic_mb_read(&cpu->exit_request)) {
+            ready = 1;
+            printf("[%d]CPU Exit \n", cpu->cpu_index);
+            break;
+        }
         qemu_log("CPU %d wake up\n", cpu->cpu_index);
     }
 
@@ -1497,7 +1496,7 @@ static void rr_load_events(void) {
 
     printf("Total events to read: %d\n", header.current_pos);
 
-	while(loaded_event < header.current_pos) {
+	while(loaded_event < header.current_pos - 1) {
         if (!fread(&entry_header, sizeof(rr_event_entry_header), 1, fptr)) {
             printf("Failed to read event header\n");
             abort();
@@ -1568,13 +1567,15 @@ try_insert_event(int index)
 
 void try_replay_dma(CPUState *cs, int user_ctx)
 {
-    rr_dma_entry *head = rr_fetch_next_network_dme_entry();
+    rr_dma_entry *head = rr_fetch_next_network_dme_entry(cs->cpu_index);
 
     while(head != NULL){
-        if (cs->rr_executed_inst == head->inst_cnt - 1 ||
-            (user_ctx && head->inst_cnt == 0 && replayed_event_num >= head->follow_num)) {
-            rr_replay_next_network_dma();
-            head = rr_fetch_next_network_dme_entry();
+        if ((cs->rr_executed_inst == head->inst_cnt - 1 && cs->cpu_index == head->cpu_id)||
+            (head->inst_cnt == 0 && replayed_event_num == 0) ||
+            (user_ctx && head->inst_cnt == 0 && replayed_event_num + 1 >= head->follow_num) ||
+            (head->cpu_id != cs->cpu_index && replayed_event_num + 1 >= head->follow_num)) {
+            rr_replay_next_network_dma(cs->cpu_index);
+            head = rr_fetch_next_network_dme_entry(cs->cpu_index);
         } else {
             break;
         }
@@ -1838,6 +1839,7 @@ void cause_other_cpu_debug(CPUState *cpu)
             qatomic_mb_set(&other_cpu->hit_breakpoint,true);
             other_cpu->stop = false;
             other_cpu->stopped = true;
+            qemu_cond_signal(other_cpu->replay_cond);
             smp_wmb();
         }
     }
@@ -2415,7 +2417,7 @@ static void rr_read_shm_events(void)
     queue_header = (rr_event_guest_queue_header*)malloc(sizeof(rr_event_guest_queue_header));
     memcpy(queue_header, header, sizeof(rr_event_guest_queue_header));
 
-    while(total_bytes < header->current_byte && pos < header->current_pos) {
+    while(total_bytes < header->current_byte && pos < header->current_pos - 1) {
         // qemu_log("event addr=%p\n", addr);
         bytes = record_event(addr);
         total_bytes += bytes;

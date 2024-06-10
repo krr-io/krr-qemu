@@ -172,7 +172,8 @@ static void persist_dma_log(rr_dma_entry *log, FILE *fptr) {
 
     fwrite(log, sizeof(rr_dma_entry), 1, fptr);
 
-    qemu_log("Persist dm entry, inst cnt=%lu\n", log->inst_cnt);
+    qemu_log("Persist dm entry, inst cnt=%lu, cpu_id=%d\n",
+             log->inst_cnt, log->cpu_id);
 
     for (i = 0; i < log->len; i++) {
         qemu_log("Persist log sg: 0x%lx\n", log->sgs[i]->addr);
@@ -277,9 +278,10 @@ void rr_load_dma_logs(const char *log_file, rr_dma_queue *queue)
         log->inst_cnt = loaded_node.inst_cnt;
         log->rip = loaded_node.rip;
         log->follow_num = loaded_node.follow_num;
+        log->cpu_id = loaded_node.cpu_id;
 
-        qemu_log("Loaded DMA entry: len=%d inst_cnt=%lu, rip=%lx, follow_num=%lu\n",
-                 log->len, log->inst_cnt, log->rip, log->follow_num);
+        qemu_log("Loaded DMA entry: len=%d inst_cnt=%lu, rip=%lx, follow_num=%lu, cpu_id=%d\n",
+                 log->len, log->inst_cnt, log->rip, log->follow_num, log->cpu_id);
 
         // for (i = 0; i < log->len; i++) {
         //     printf("log: sg_addr=0x%lx, sg_len=%ld\n", log->sgs[i]->addr, log->sgs[i]->len);

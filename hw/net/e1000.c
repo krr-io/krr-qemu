@@ -180,7 +180,7 @@ static void do_mark_dma_end_cpu(CPUState *cpu, run_on_cpu_data arg)
     cnt = rr_get_inst_cnt(cpu);
 
     rr_append_network_dma_sg(data->desc, data->len, data->dma_addr);
-    rr_end_network_dma_entry(cnt, rr_one_cpu_rip());
+    rr_end_network_dma_entry(cnt, 0, cpu->cpu_index);
 
     pci_dma_write(data->vdev, data->dma_addr, data->desc, data->len);
 }

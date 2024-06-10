@@ -1083,6 +1083,7 @@ int cpu_exec(CPUState *cpu)
             // }
 
             if (check_for_breakpoints(cpu, pc, &cflags)) {
+                // qemu_log("Reach breakpoint\n");
                 cause_other_cpu_debug(cpu);
                 break;
             }

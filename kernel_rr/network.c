@@ -29,6 +29,9 @@ static rr_dma_queue *dma_queue = NULL;
 static rr_dma_entry *pending_dma_entry = NULL;
 static AddressSpace *e1000_as = NULL;
 
+// Currently not used
+static rr_dma_queue* smp_entry_queue[MAX_CPU_NUM];
+
 static int entry_cnt = 0;
 
 static const char *network_log_name = "kernel_rr_network.log";
@@ -41,8 +44,9 @@ static void do_replay_network_dma_entry(rr_dma_entry *dma_entry)
         return;
     }
 
-    qemu_log("Replay dma entry: inst=%lu, rip=0x%lx, follow_num=%lu\n",
-             dma_entry->inst_cnt, dma_entry->rip, dma_entry->follow_num);
+    qemu_log("Replay dma entry: inst=%lu, rip=0x%lx, follow_num=%lu, cpu_id=%d\n",
+             dma_entry->inst_cnt, dma_entry->rip,
+             dma_entry->follow_num, dma_entry->cpu_id);
 
     for (i = 0; i < dma_entry->len; i++) {
         rr_sg_data *sg = dma_entry->sgs[i];
@@ -102,8 +106,29 @@ void rr_append_network_dma_sg(void *buf, uint64_t len, uint64_t addr)
     pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
 }
 
+// This is currently not used
+__attribute_maybe_unused__
+static void rr_split_entry_queue(rr_dma_queue *queue)
+{
+    rr_dma_entry *front = dma_dequeue(queue);
+    int i;
 
-void rr_end_network_dma_entry(unsigned long inst_cnt, unsigned long rip)
+    for (i = 0; i < MAX_CPU_NUM; i++) {
+        init_dma_queue(&smp_entry_queue[i]);
+    }
+
+    while (front != NULL) {
+        if (front->cpu_id >= MAX_CPU_NUM) {
+            printf("Invalid cpu_id %d\n", front->cpu_id);
+            abort();
+        }
+
+        dma_enqueue(smp_entry_queue[front->cpu_id], front);
+        front = dma_dequeue(queue);
+    }
+}
+
+void rr_end_network_dma_entry(unsigned long inst_cnt, unsigned long rip, int cpu_id)
 {
     if (pending_dma_entry == NULL)
         return;
@@ -116,6 +141,7 @@ void rr_end_network_dma_entry(unsigned long inst_cnt, unsigned long rip)
     pending_dma_entry->inst_cnt = inst_cnt;
     pending_dma_entry->rip = rip;
     pending_dma_entry->follow_num = get_recorded_num();
+    pending_dma_entry->cpu_id = cpu_id;
 
     // printf("Append new entry, len=%d\n", pending_dma_entry->len);
     dma_enqueue(dma_queue, pending_dma_entry);
@@ -142,19 +168,23 @@ void rr_network_dma_pre_record(void)
 void rr_dma_network_pre_replay(void)
 {
     rr_dma_pre_replay_common(network_log_name, &dma_queue);
+
+    // rr_split_entry_queue(dma_queue);
 }
 
 
-rr_dma_entry* rr_fetch_next_network_dme_entry(void) 
+rr_dma_entry* rr_fetch_next_network_dme_entry(int cpu_id) 
 {
+    // return smp_entry_queue[cpu_id]->front;
     return dma_queue->front;
 }
 
 
-void rr_replay_next_network_dma(void)
+void rr_replay_next_network_dma(int cpu_id)
 {
     rr_dma_entry *front;
 
+    // front = dma_dequeue(smp_entry_queue[cpu_id]);
     front = dma_dequeue(dma_queue);
     if (front == NULL) {
         return;

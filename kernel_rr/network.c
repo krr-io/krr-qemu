@@ -41,16 +41,22 @@ static void do_replay_network_dma_entry(rr_dma_entry *dma_entry)
         return;
     }
 
+    qemu_log("Replay dma entry: inst=%lu, rip=0x%lx, follow_num=%lu\n",
+             dma_entry->inst_cnt, dma_entry->rip, dma_entry->follow_num);
+
     for (i = 0; i < dma_entry->len; i++) {
         rr_sg_data *sg = dma_entry->sgs[i];
         uint64_t len = sg->len;
 
-        qemu_log("Replay dma addr 0x%lx\n", sg->addr);
+        qemu_log("Replay dma addr 0x%lx, len=%lu\n", sg->addr, len);
         printf("Replay dma addr 0x%lx\n", sg->addr);
 
         if (dma_memory_rw(e1000_as, sg->addr, sg->buf, len,
                       DMA_DIRECTION_FROM_DEVICE, MEMTXATTRS_UNSPECIFIED) != MEMTX_OK)
-        {} else {
+        {
+            printf("Failed to write to dma addr\n");
+            abort();
+        } else {
             printf("Write to dma addr Ok\n");
         }
     }
@@ -91,13 +97,13 @@ void rr_append_network_dma_sg(void *buf, uint64_t len, uint64_t addr)
     memcpy(sgd->buf, buf, len);
     sgd->addr = addr;
     sgd->len = len;
-    printf("data appended 0x%lx, len=%lu\n", sgd->addr, sgd->len);
+    // printf("data appended 0x%lx, len=%lu\n", sgd->addr, sgd->len);
 
     pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
 }
 
 
-void rr_end_network_dma_entry(void)
+void rr_end_network_dma_entry(unsigned long inst_cnt, unsigned long rip)
 {
     if (pending_dma_entry == NULL)
         return;
@@ -107,11 +113,12 @@ void rr_end_network_dma_entry(void)
     }
 
     pending_dma_entry->replayed_sgs = 0;
+    pending_dma_entry->inst_cnt = inst_cnt;
+    pending_dma_entry->rip = rip;
+    pending_dma_entry->follow_num = get_recorded_num();
 
-    printf("Append new entry, len=%d\n", pending_dma_entry->len);
+    // printf("Append new entry, len=%d\n", pending_dma_entry->len);
     dma_enqueue(dma_queue, pending_dma_entry);
-
-    rr_signal_dma_finish();
 
     pending_dma_entry = NULL;
 
@@ -136,6 +143,13 @@ void rr_dma_network_pre_replay(void)
 {
     rr_dma_pre_replay_common(network_log_name, &dma_queue);
 }
+
+
+rr_dma_entry* rr_fetch_next_network_dme_entry(void) 
+{
+    return dma_queue->front;
+}
+
 
 void rr_replay_next_network_dma(void)
 {

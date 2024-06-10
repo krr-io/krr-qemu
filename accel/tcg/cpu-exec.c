@@ -94,10 +94,10 @@ static bool should_log_trace(CPUState *cpu)
 
     // int replayed_num = get_replayed_event_num();
 
-    // if (176 <= replayed_num && replayed_num < 177) {
+    // if (1253 <= replayed_num && replayed_num < 1255) {
     //     return true;
     // }
-    // return should_log;
+    // // return should_log;
     return should_log;
 }
 
@@ -1132,7 +1132,7 @@ int cpu_exec(CPUState *cpu)
             }
 
             if (rr_in_replay()) {
-                try_replay_dma(cpu);
+                try_replay_dma(cpu, 0);
 
                 switch (tb->pc)
                 {

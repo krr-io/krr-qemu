@@ -43,6 +43,7 @@
 #include "trace.h"
 #include "qom/object.h"
 #include "sysemu/kernel-rr.h"
+#include "hw/core/cpu.h"
 
 static const uint8_t bcast[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
@@ -156,11 +157,55 @@ struct E1000BaseClass {
 };
 typedef struct E1000BaseClass E1000BaseClass;
 
+struct RRE1000Write {
+    PCIDevice *vdev;
+    struct e1000_rx_desc *desc;
+    dma_addr_t dma_addr;
+    dma_addr_t len;
+};
+typedef struct RRE1000Write RRE1000Write;
+
+
 #define TYPE_E1000_BASE "e1000-base"
 
 DECLARE_OBJ_CHECKERS(E1000State, E1000BaseClass,
                      E1000, TYPE_E1000_BASE)
 
+
+static void do_mark_dma_end_cpu(CPUState *cpu, run_on_cpu_data arg)
+{
+    unsigned long cnt;
+    RRE1000Write *data = (RRE1000Write *)arg.host_ptr;
+
+    cnt = rr_get_inst_cnt(cpu);
+
+    rr_append_network_dma_sg(data->desc, data->len, data->dma_addr);
+    rr_end_network_dma_entry(cnt, rr_one_cpu_rip());
+
+    pci_dma_write(data->vdev, data->dma_addr, data->desc, data->len);
+}
+
+static void rr_mark_dma_end(struct RRE1000Write *rr_e1000_data)
+{
+    CPUState *cpu;
+    int owner_id = 0;
+    run_on_cpu_data data = RUN_ON_CPU_HOST_PTR((void *)rr_e1000_data);
+    
+    if (get_cpu_num() > 0) {
+        owner_id = get_lock_owner();
+
+        if (owner_id == -1) {
+            owner_id = 0;
+        }
+    }
+
+    CPU_FOREACH(cpu) {
+        if (owner_id == cpu->cpu_index) {
+            run_on_cpu(cpu, do_mark_dma_end_cpu, data);
+            break;
+        }
+    }
+}
 
 static void
 e1000_link_up(E1000State *s)
@@ -979,6 +1024,11 @@ e1000_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
         e1000_receiver_overrun(s, total_size);
         return -1;
     }
+
+    if (rr_in_replay()) {
+        return 0;
+    }
+
     do {
         desc_size = total_size - desc_offset;
         if (desc_size > s->rxbuf_size) {
@@ -1023,12 +1073,17 @@ e1000_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
             DBGOUT(RX, "Null RX descriptor!!\n");
         }
         if (rr_in_record()) {
-            rr_append_network_dma_sg(&desc, sizeof(desc), base);
-            rr_end_network_dma_entry();
-            kvm_prep_buf_event();
+            RRE1000Write w = {
+                .vdev = d,
+                .desc = &desc,
+                .dma_addr = base,
+                .len = sizeof(desc)
+            };
+
+            rr_mark_dma_end(&w);
+        } else {
+            pci_dma_write(d, base, &desc, sizeof(desc));
         }
-        // printf("Recorded desc, rip=0x%lx\n", rr_one_cpu_rip());
-        pci_dma_write(d, base, &desc, sizeof(desc));
 
         if (++s->mac_reg[RDH] * sizeof(desc) >= s->mac_reg[RDLEN])
             s->mac_reg[RDH] = 0;

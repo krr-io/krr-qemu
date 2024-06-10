@@ -111,7 +111,10 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
                 // goto retry;
                 abort();
         }
+
+        try_replay_dma(cpu, 1);
     }
+
 
     if (tb->jump_next_event == EVENT_TYPE_INTERRUPT || 
         tb->jump_next_event == EVENT_TYPE_EXCEPTION) {

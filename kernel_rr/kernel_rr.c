@@ -167,6 +167,11 @@ void set_cpu_num(int n)
     cpu_cnt = n;
 }
 
+int get_cpu_num(void)
+{
+    return cpu_cnt;
+}
+
 static void initialize_replay(void) {
     qemu_mutex_init(&replay_queue_mutex);
     qemu_cond_init(&replay_cond);
@@ -1106,6 +1111,7 @@ void append_event(rr_event_log event, int is_record)
     if (is_record) {
         tmp_event_cur = rr_get_tail(rr_smp_event_log_queues[event_record->id]);
 
+        event_record->next = NULL;
         if (tmp_event_cur == NULL) {
             rr_smp_event_log_queues[event_record->id] = event_record;
         } else {
@@ -1158,9 +1164,9 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
 
         memcpy(&event_record->event.interrupt, in, copied_size);
         if (event_record->event.interrupt.from == 3) {
-            printf("merging interrupt: %d\n", event_num);
+            // printf("merging interrupt: %d\n", event_num);
             rr_merge_user_interrupt_of_guest_and_hypervisor(&(event_record->event.interrupt));
-            qemu_log("Merged user interrupt\n");
+            qemu_log("Merged user interrupt, inst=%lu\n", event_record->event.interrupt.inst_cnt);
         }
 
         interrupt_check(event_record);
@@ -1237,9 +1243,13 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
         copied_size = sizeof(rr_dma_done);
         memcpy(&event_record->event.dma_done, event, sizeof(rr_dma_done));
         event_dma_done++;
+        if (0 < event_record->event.dma_done.inst_cnt && event_record->event.dma_done.inst_cnt < 100) {
+            printf("Strange inst cnt\n");
+            abort();
+        }
         break;
     default:
-        printf("Unrecognized event %d\n", type);
+        printf("Shm Event: unrecognized event %d\n", type);
         abort();
         break;
     }
@@ -1350,7 +1360,7 @@ static void persist_event(rr_event_log *event, FILE *fptr)
         fwrite(event, sizeof(rr_event_log), 1, fptr);
         break;
     default:
-        printf("Unrecognized event %d\n", event->type);
+        printf("Persist: Unrecognized event %d\n", event->type);
         abort();
         break;
     }
@@ -1461,6 +1471,8 @@ static void rr_save_events(void)
 
     persist_queue_header(queue_header, fptr);
 
+    printf("Start persisted event\n");
+
 	while (cur != NULL) {
 		persist_event(cur, fptr);
         cur = cur->next;
@@ -1554,19 +1566,19 @@ try_insert_event(int index)
     }
 }
 
-void try_replay_dma(CPUState *cs)
+void try_replay_dma(CPUState *cs, int user_ctx)
 {
-    qemu_mutex_lock(&replay_queue_mutex);
+    rr_dma_entry *head = rr_fetch_next_network_dme_entry();
 
-    if (rr_event_log_head == NULL) goto finish;
-    if (rr_event_log_head->type != EVENT_TYPE_DMA_DONE) goto finish;
-
-    if (cs->rr_executed_inst >= rr_event_log_head->event.dma_done.inst_cnt - 10) {
-        rr_replay_next_network_dma();
-        rr_pop_event_head();
+    while(head != NULL){
+        if (cs->rr_executed_inst == head->inst_cnt - 1 ||
+            (user_ctx && head->inst_cnt == 0 && replayed_event_num >= head->follow_num)) {
+            rr_replay_next_network_dma();
+            head = rr_fetch_next_network_dme_entry();
+        } else {
+            break;
+        }
     }
-finish:
-    qemu_mutex_unlock(&replay_queue_mutex);
 }
 
 __attribute_maybe_unused__
@@ -1582,8 +1594,8 @@ static void rr_record_settle_events(void)
 
     for (int i = 0; i < MAX_CPU_NUM; i++) {
         if (rr_smp_event_log_queues[i] != NULL) {
-            printf("Orphan event from kvm!\n");
-            qemu_log("Orphan event from kvm!\n");
+            printf("Orphan event from kvm on cpu %d!\n", i);
+            qemu_log("Orphan event from kvm on cpu %d!\n", i);
 
             event = rr_smp_event_log_queues[i];
 
@@ -1640,6 +1652,14 @@ void rr_post_record(void)
     rr_read_shm_events_info();
 
     rr_read_shm_events();
+
+    for (int i=0;i<2; i++) {
+        rr_event_log *event = rr_smp_event_log_queues[i];
+        while (event != NULL) {
+            printf("Get event %d, 0x%lx, %lu\n", event->id, event->rip, event->inst_cnt);
+            event = event->next;
+        }
+    }
 
     rr_record_settle_events();
 
@@ -1709,6 +1729,8 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
     bool mismatched = false;
     bool matched = false;
 
+    try_replay_dma(cpu, 0);
+
     qemu_mutex_lock(&replay_queue_mutex);
 
     if (rr_event_log_head == NULL) {
@@ -1730,7 +1752,7 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
     if (cpu->cpu_index != rr_event_log_head->id) {
         *interrupt = -1;
         goto finish;
-    } 
+    }
 
     if (rr_event_log_head->type == EVENT_TYPE_INTERRUPT) {
 
@@ -2359,7 +2381,7 @@ static int record_event(void *event_addr)
 
     event_record = rr_event_log_new_from_event_shm(event_addr + sizeof(rr_event_entry_header),
                                                    event_header->type, &copied);
-
+    // qemu_log("event type %d\n", event_record->type);
     if (rr_event_cur == NULL) {
         rr_event_log_head = event_record;
         rr_event_cur = event_record;
@@ -2387,15 +2409,17 @@ static void rr_read_shm_events(void)
 {
     rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
     void *addr = ivshmem_base_addr + header->header_size;
-    unsigned long bytes = 0;
+    unsigned long bytes, total_bytes = 0;
     int pos = 0;
 
     queue_header = (rr_event_guest_queue_header*)malloc(sizeof(rr_event_guest_queue_header));
     memcpy(queue_header, header, sizeof(rr_event_guest_queue_header));
 
-    while(bytes < header->current_byte && pos < header->current_pos) {
-        addr += bytes;
+    while(total_bytes < header->current_byte && pos < header->current_pos) {
+        // qemu_log("event addr=%p\n", addr);
         bytes = record_event(addr);
+        total_bytes += bytes;
+        addr += bytes;
         pos++;
     }
 }
@@ -2578,6 +2602,12 @@ void append_to_queue(int type, void *opaque)
     header->current_byte += event_size;
 
     header->current_pos++;
+}
+
+unsigned long get_recorded_num(void)
+{
+    rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
+    return header->current_pos;
 }
 
 int get_lock_owner(void) {

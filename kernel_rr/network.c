@@ -29,6 +29,8 @@ static rr_dma_queue *dma_queue = NULL;
 static rr_dma_entry *pending_dma_entry = NULL;
 static AddressSpace *e1000_as = NULL;
 
+static unsigned long total_network_buf = 0;
+
 // Currently not used
 static rr_dma_queue* smp_entry_queue[MAX_CPU_NUM];
 
@@ -101,6 +103,8 @@ void rr_append_network_dma_sg(void *buf, uint64_t len, uint64_t addr)
     memcpy(sgd->buf, buf, len);
     sgd->addr = addr;
     sgd->len = len;
+    
+    total_network_buf += len;
     // printf("data appended 0x%lx, len=%lu\n", sgd->addr, sgd->len);
 
     pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
@@ -156,13 +160,16 @@ void rr_end_network_dma_entry(unsigned long inst_cnt, unsigned long rip, int cpu
 void rr_network_dma_post_record(void)
 {
     rr_save_dma_logs(network_log_name, dma_queue->front);
-    printf("network entry number %d\n", entry_cnt);
+    printf("network entry number %d, total net buf %lu\n",
+           entry_cnt, total_network_buf);
 }
 
 void rr_network_dma_pre_record(void)
 {
     init_dma_queue(&dma_queue);
     remove(network_log_name);
+
+    total_network_buf = 0;
 }
 
 void rr_dma_network_pre_replay(void)

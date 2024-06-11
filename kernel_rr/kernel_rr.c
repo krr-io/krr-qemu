@@ -50,7 +50,7 @@ static int event_io_input_num = 0;
 static int event_cfu_num = 0;
 static int event_gfu_num = 0;
 static int event_random_num = 0;
-static int event_dma_done = 0;
+static int event_dma_done = 0; // Unused
 static int event_strnlen = 0;
 static int event_rdseed_num = 0;
 static int event_release = 0;
@@ -903,7 +903,7 @@ rr_event_log_new_from_event(rr_event_log event, int record_mode)
         memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
         event_io_input_num++;
         break;
-    case EVENT_TYPE_DMA_DONE:
+    case EVENT_TYPE_DMA_DONE: // Unused
         memcpy(&event_record->event.dma_done, &event.event.dma_done, sizeof(rr_dma_done));
         event_dma_done++;
         break;
@@ -1298,10 +1298,10 @@ void rr_print_events_stat(void)
     printf("=== Event Stats ===\n");
 
     printf("Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\nRandom: %d\n"
-           "IO Input: %d\nStrnlen: %d\nDMA IO: %d\nRDSEED: %d\nInst Sync: %d, data_copies=%lu\n",
+           "IO Input: %d\nStrnlen: %d\nRDSEED: %d\nInst Sync: %d, data_copies=%lu\n",
            event_interrupt_num, event_syscall_num, event_exception_num,
            event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_strnlen,
-           event_dma_done, event_rdseed_num, event_sync_inst, data_copied);
+           event_rdseed_num, event_sync_inst, data_copied);
 
     total_event_number = get_total_events_num();
 

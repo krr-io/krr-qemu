@@ -1049,8 +1049,8 @@ e1000_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
                 }
                 do {
                     iov_copy = MIN(copy_size, iov->iov_len - iov_ofs);
-                    // if (rr_in_record())
-                    //     rr_append_network_dma_sg(iov->iov_base + iov_ofs, iov_copy, ba);
+                    if (rr_in_record() && !get_kernel_only())
+                        rr_append_network_dma_sg(iov->iov_base + iov_ofs, iov_copy, ba);
                     pci_dma_write(d, ba, iov->iov_base + iov_ofs, iov_copy);
                     copy_size -= iov_copy;
                     ba += iov_copy;
@@ -1073,18 +1073,18 @@ e1000_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
         } else { // as per intel docs; skip descriptors with null buf addr
             DBGOUT(RX, "Null RX descriptor!!\n");
         }
-        // if (rr_in_record()) {
-        //     RRE1000Write w = {
-        //         .vdev = d,
-        //         .desc = &desc,
-        //         .dma_addr = base,
-        //         .len = sizeof(desc)
-        //     };
+        if (rr_in_record() && !get_kernel_only()) {
+            RRE1000Write w = {
+                .vdev = d,
+                .desc = &desc,
+                .dma_addr = base,
+                .len = sizeof(desc)
+            };
 
-        //     rr_mark_dma_end(&w);
-        // } else {
-        pci_dma_write(d, base, &desc, sizeof(desc));
-        // }
+            rr_mark_dma_end(&w);
+        } else {
+            pci_dma_write(d, base, &desc, sizeof(desc));
+        }
 
         if (++s->mac_reg[RDH] * sizeof(desc) >= s->mac_reg[RDLEN])
             s->mac_reg[RDH] = 0;

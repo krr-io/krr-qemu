@@ -451,6 +451,11 @@ int skip_record_dma(void *cb_func)
     return 0;
 }
 
+int get_kernel_only(void)
+{
+    return kernel_only;
+}
+
 void set_kernel_only(int konly)
 {
     kernel_only = konly;

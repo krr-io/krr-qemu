@@ -201,5 +201,6 @@ void rr_replay_next_network_dma(int cpu_id);
 void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as);
 
 void append_to_queue(int type, void *opaque);
+int get_kernel_only(void);
 
 #endif /* KERNEL_RR_H */

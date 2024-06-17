@@ -185,6 +185,7 @@ static void do_mark_dma_end_cpu(CPUState *cpu, run_on_cpu_data arg)
     pci_dma_write(data->vdev, data->dma_addr, data->desc, data->len);
 }
 
+__attribute_maybe_unused__
 static void rr_mark_dma_end(struct RRE1000Write *rr_e1000_data)
 {
     CPUState *cpu;
@@ -1048,8 +1049,8 @@ e1000_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
                 }
                 do {
                     iov_copy = MIN(copy_size, iov->iov_len - iov_ofs);
-                    if (rr_in_record())
-                        rr_append_network_dma_sg(iov->iov_base + iov_ofs, iov_copy, ba);
+                    // if (rr_in_record())
+                    //     rr_append_network_dma_sg(iov->iov_base + iov_ofs, iov_copy, ba);
                     pci_dma_write(d, ba, iov->iov_base + iov_ofs, iov_copy);
                     copy_size -= iov_copy;
                     ba += iov_copy;
@@ -1072,18 +1073,18 @@ e1000_receive_iov(NetClientState *nc, const struct iovec *iov, int iovcnt)
         } else { // as per intel docs; skip descriptors with null buf addr
             DBGOUT(RX, "Null RX descriptor!!\n");
         }
-        if (rr_in_record()) {
-            RRE1000Write w = {
-                .vdev = d,
-                .desc = &desc,
-                .dma_addr = base,
-                .len = sizeof(desc)
-            };
+        // if (rr_in_record()) {
+        //     RRE1000Write w = {
+        //         .vdev = d,
+        //         .desc = &desc,
+        //         .dma_addr = base,
+        //         .len = sizeof(desc)
+        //     };
 
-            rr_mark_dma_end(&w);
-        } else {
-            pci_dma_write(d, base, &desc, sizeof(desc));
-        }
+        //     rr_mark_dma_end(&w);
+        // } else {
+        pci_dma_write(d, base, &desc, sizeof(desc));
+        // }
 
         if (++s->mac_reg[RDH] * sizeof(desc) >= s->mac_reg[RDLEN])
             s->mac_reg[RDH] = 0;
@@ -1434,11 +1435,23 @@ e1000_mmio_read(void *opaque, hwaddr addr, unsigned size)
             val = macreg_readops[index](s, index);
             
             if (rr_in_record()){
-                rr_io_input entry = {
-                    .value = val,
-                };
+                CPUState *cpu;
+                bool record = true;
 
-                append_to_queue(EVENT_TYPE_MMIO, &entry);
+                CPU_FOREACH(cpu) {
+                    if (qemu_cpu_is_self(cpu) && cpu->userspace) {
+                        record = false;
+                        break;
+                    }
+                }
+
+                if (record) {
+                    rr_io_input entry = {
+                        .value = val,
+                    };
+
+                    append_to_queue(EVENT_TYPE_MMIO, &entry);
+                }
             } else if (rr_in_replay()) {
                 rr_do_replay_mmio(&val);
             }

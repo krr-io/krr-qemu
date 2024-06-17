@@ -445,6 +445,7 @@ struct CPUState {
     unsigned long last_removed_addr;
     QemuMutex replay_mutex;
     struct QemuCond *replay_cond;
+    int userspace;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

@@ -1129,7 +1129,7 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
     rr_ivshmem_set_rr_enabled(1);
 
     printf("Paused VM, start taking snapshot\n");
-    rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
+    // rr_save_snapshot(qdict_get_try_str(qdict, "name"), &err);
     // save_snapshot(qdict_get_try_str(qdict, "name"), true, NULL, false, NULL, &err);
 
     hmp_handle_error(mon, err);

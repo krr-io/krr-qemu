@@ -414,6 +414,25 @@
 
 
 ##
+# @rr-record:
+#
+# Returns information about KVM acceleration
+#
+# Returns: @KvmInfo
+#
+# Since: 0.14
+#
+# Example:
+#
+# -> { "execute": "rr-record" }
+# <- { "return": { "enabled": true, "present": true } }
+#
+##
+{ 'command': 'rr-record', 'returns': '' }
+
+
+
+##
 # @rr-end-record:
 #
 # Returns information about KVM acceleration

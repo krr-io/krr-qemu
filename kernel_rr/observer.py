@@ -278,7 +278,10 @@ def gen_script(cpu_num):
     if test_name == constants.KERNEL_BUILD_TEST_NAME:
         disk_image = os.environ["KBUILD_DISK"]
 
-    ivshmem = "-object memory-backend-file,size=65536M,share,mem-path=/dev/shm/ivshmem,id=hostmem -device ivshmem-plain,memdev=hostmem"
+    elif test_name == constants.REDIS_TEST_NAME:
+        disk_image = os.environ["REDIS_DISK"]
+
+    ivshmem = "-object memory-backend-file,size=32768M,share,mem-path=/dev/shm/ivshmem,id=hostmem -device ivshmem-plain,memdev=hostmem"
 
     if mode == "kernel_rr":
         kernel_image = os.environ["KRR_SMP_IMG"]
@@ -297,6 +300,9 @@ def gen_script(cpu_num):
 
     if test_name == constants.ROCKS_DB_BP_TEST_NAME:
         extra_dev = " -drive file=../build/nvm.img,if=none,id=nvm -device nvme,serial=deadbeef,drive=nvm"
+
+    if test_name == constants.REDIS_TEST_NAME:
+        extra_dev = " -netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000,netdev=net0"
 
     if test_name == constants.ROCKS_DB_NBP_TEST_NAME:
         extra_dev = " -drive file=../build/nkbypass.img,id=nvm,if=none -device nvme,serial=deadbeef,drive=nvm"

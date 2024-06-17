@@ -45,6 +45,7 @@
 #include "hw/intc/intc.h"
 #include "hw/rdma/rdma.h"
 #include "accel/kvm/kvm-cpus.h"
+#include "sysemu/kernel-rr.h"
 
 NameInfo *qmp_query_name(Error **errp)
 {
@@ -101,6 +102,27 @@ void qmp_stop(Error **errp)
 void qmp_system_reset(Error **errp)
 {
     qemu_system_reset_request(SHUTDOWN_CAUSE_HOST_QMP_SYSTEM_RESET);
+}
+
+void qmp_rr_record(Error **errp)
+{
+    bool autostart = false;
+
+    if (runstate_is_running()){
+        autostart = true;
+        vm_stop(RUN_STATE_PAUSED);
+    }
+
+    rr_ivshmem_set_rr_enabled(1);
+
+    printf("Paused VM, start taking snapshot\n");
+
+    printf("Snapshot taken, start recording...\n");
+
+    kvm_start_record();
+
+    if (autostart)
+        vm_start();
 }
 
 void qmp_rr_end_record(Error **errp)

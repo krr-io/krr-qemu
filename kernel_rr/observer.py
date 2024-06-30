@@ -313,7 +313,7 @@ def gen_script(cpu_num):
     qemu_base_cmd = """
     {qemu_binary} -kernel {kernel_image} \
     -accel kvm -smp {cpu_num} -cpu host -no-hpet -m 8G -append \
-    "root=/dev/sda rw init=/lib/systemd/systemd tsc=unstable console=ttyS0" \
+    "root=/dev/sda rw init=/lib/systemd/systemd tsc=reliable console=ttyS0" \
     -hda {disk_image} \
     {ivshmem} -vnc :00 -D rec.log {extra_dev} -exit-record 1 \
     -qmp unix:{socket_path},server=on,wait=off {extra_arg}

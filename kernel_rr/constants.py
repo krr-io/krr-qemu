@@ -12,6 +12,7 @@ ROCKS_DB_BP_TEST_NAME = "rocksdb_kernel_bypass"
 ROCKS_DB_NBP_TEST_NAME = "rocksdb"
 REDIS_TEST_NAME = "redis"
 KERNEL_BUILD_TEST_NAME = "kernel_build"
+SPEC_TEST_NAME = "spec"
 
 mode = "kernel_rr"
 test_name = ROCKS_DB_NBP_TEST_NAME

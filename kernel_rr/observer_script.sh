@@ -46,7 +46,7 @@ exec_qemu() {
       else
         echo "Process ends, but result is missing"
         return 1
-      fi 
+      fi
     fi
 
     if [ $mode == "baseline" ];then
@@ -75,7 +75,6 @@ exec_qemu() {
 
 for i in 1 2 4 8;
 do
-  
   while true; do
     exec_qemu $i
     if [ $? -eq 0 ]; then

@@ -2412,13 +2412,15 @@ static void rr_read_shm_events(void)
     rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
     void *addr = ivshmem_base_addr + header->header_size;
     unsigned long bytes, total_bytes = 0;
+    unsigned int cur_pos = header->current_pos;
+    unsigned long cur_byte = header->current_byte;
     int pos = 0;
 
     queue_header = (rr_event_guest_queue_header*)malloc(sizeof(rr_event_guest_queue_header));
     memcpy(queue_header, header, sizeof(rr_event_guest_queue_header));
 
-    while(total_bytes < header->current_byte && pos < header->current_pos - 1) {
-        // qemu_log("event addr=%p\n", addr);
+    while(total_bytes < cur_byte && pos < cur_pos - 1) {
+        qemu_log("event addr=%p pos=%d %u\n", addr, pos, cur_pos);
         bytes = record_event(addr);
         total_bytes += bytes;
         addr += bytes;

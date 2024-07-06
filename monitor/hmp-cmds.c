@@ -1150,7 +1150,12 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
 
 void hmp_rr_end_record(Monitor *mon, const QDict *qdict)
 {
+
+    vm_stop(RUN_STATE_PAUSED);
+
     kvm_end_record();
+
+    vm_start();
 }
 
 void hmp_rr_replay(Monitor *mon, const QDict *qdict)

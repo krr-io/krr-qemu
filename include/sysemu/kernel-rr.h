@@ -115,6 +115,8 @@ void kvm_prep_buf_event(void);
 void try_replay_dma(CPUState *cs, int user_ctx);
 int get_lock_owner(void);
 int get_cpu_num(void);
+int get_record_net(void);
+void set_record_net(int val);
 
 
 typedef uint8_t dma_data;

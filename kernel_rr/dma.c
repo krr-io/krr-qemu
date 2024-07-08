@@ -33,6 +33,7 @@ static AddressSpace *dma_as = NULL;
 
 void *nvme_cb_func = NULL;
 static bool kernel_only = true;
+static bool record_net = true;
 
 static unsigned long total_buf_cnt = 0;
 static unsigned long total_buf_size = 0;
@@ -459,4 +460,14 @@ int get_kernel_only(void)
 void set_kernel_only(int konly)
 {
     kernel_only = konly;
+}
+
+int get_record_net(void)
+{
+    return record_net;
+}
+
+void set_record_net(int val)
+{
+    record_net = val;
 }

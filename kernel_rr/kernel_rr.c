@@ -1301,10 +1301,10 @@ void rr_print_events_stat(void)
     printf("=== Event Stats ===\n");
 
     sprintf(msg, "Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\nRandom: %d\n"
-            "IO Input: %d\nStrnlen: %d\nRDSEED: %d\nInst Sync: %d\nTotal Replay Events: %d\n",
+            "IO Input: %d\nStrnlen: %d\nRDSEED: %d\nInst Sync: %d\nDMA Buf Size: %lu\nTotal Replay Events: %d\n",
             event_interrupt_num, event_syscall_num, event_exception_num,
             event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_strnlen,
-            event_rdseed_num, event_sync_inst, total_event_number);
+            event_rdseed_num, event_sync_inst, get_dma_buf_size(), total_event_number);
 
     printf("%s", msg);
 

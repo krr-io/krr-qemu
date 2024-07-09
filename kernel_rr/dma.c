@@ -41,6 +41,11 @@ static unsigned long total_nvme_cnt = 0;
 static unsigned long total_nvme_size = 0;
 
 
+unsigned long get_dma_buf_size(void) {
+    return total_buf_size;
+}
+
+
 void rr_register_ide_as(IDEDMA *dma)
 {
     if (dma_as != NULL) {

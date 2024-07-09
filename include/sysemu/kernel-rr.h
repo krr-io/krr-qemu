@@ -117,6 +117,7 @@ int get_lock_owner(void);
 int get_cpu_num(void);
 int get_record_net(void);
 void set_record_net(int val);
+unsigned long get_dma_buf_size(void);
 
 
 typedef uint8_t dma_data;

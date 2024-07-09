@@ -85,8 +85,6 @@ volatile int current_owner = -1;
 static int exit_record = 0;
 static int ignore_record = 0;
 
-static unsigned long data_copied = 0;
-
 static void rr_read_shm_events(void);
 static void rr_reset_ivshmem(void);
 static void finish_replay(void);
@@ -1295,17 +1293,24 @@ __attribute_maybe_unused__ static rr_event_log_guest *rr_event_log_guest_new(voi
 __attribute_maybe_unused__
 void rr_print_events_stat(void)
 {
-    printf("=== Event Stats ===\n");
-
-    printf("Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\nRandom: %d\n"
-           "IO Input: %d\nStrnlen: %d\nRDSEED: %d\nInst Sync: %d, data_copies=%lu\n",
-           event_interrupt_num, event_syscall_num, event_exception_num,
-           event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_strnlen,
-           event_rdseed_num, event_sync_inst, data_copied);
+    FILE *f = fopen("rr-cost.txt", "w");
+    char msg[2048];
 
     total_event_number = get_total_events_num();
 
-    printf("Total Replay Events: %d\n", total_event_number);
+    printf("=== Event Stats ===\n");
+
+    sprintf(msg, "Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\nRandom: %d\n"
+            "IO Input: %d\nStrnlen: %d\nRDSEED: %d\nInst Sync: %d\nTotal Replay Events: %d\n",
+            event_interrupt_num, event_syscall_num, event_exception_num,
+            event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_strnlen,
+            event_rdseed_num, event_sync_inst, total_event_number);
+
+    printf("%s", msg);
+
+    fprintf(f, "%s", msg);
+
+    fclose(f);
 }
 
 static void persist_event(rr_event_log *event, FILE *fptr)

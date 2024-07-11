@@ -205,5 +205,6 @@ void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as);
 
 void append_to_queue(int type, void *opaque);
 int get_kernel_only(void);
+void set_count_syscall(int val);
 
 #endif /* KERNEL_RR_H */

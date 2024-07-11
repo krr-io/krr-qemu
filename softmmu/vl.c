@@ -3703,6 +3703,9 @@ void qemu_init(int argc, char **argv, char **envp)
             case QEMU_OPTION_no_record_net:
                 set_record_net(0);
                 break;
+            case QEMU_OPTION_count_syscall:
+                set_count_syscall(1);
+                break;
             default:
                 if (os_parse_cmd_args(popt->index, optarg)) {
                     error_report("Option not supported in this build");

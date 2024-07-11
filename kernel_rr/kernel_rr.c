@@ -70,6 +70,7 @@ static int bt_started = 0;
 static unsigned long bp = 0xffffffff8108358f;
 
 static int gdb_stopped = 1;
+static int count_syscall = 0;
 
 // int64_t replay_start_time = 0;
 static unsigned long dirty_page_num = 0;
@@ -88,7 +89,7 @@ static int ignore_record = 0;
 static void rr_read_shm_events(void);
 static void rr_reset_ivshmem(void);
 static void finish_replay(void);
-static void rr_log_event(rr_event_log *event_record, int event_num);
+static void rr_log_event(rr_event_log *event_record, int event_num, int *syscall_table);
 static bool rr_replay_is_entry(rr_event_log *event);
 static void interrupt_check(rr_event_log *event);
 static void rr_read_shm_events_info(void);
@@ -932,7 +933,7 @@ static rr_event_log *rr_get_tail(rr_event_log *rr_event)
     return tmp_event;
 }
 
-static void rr_log_event(rr_event_log *event_record, int event_num) {
+static void rr_log_event(rr_event_log *event_record, int event_num, int *syscall_table) {
     switch (event_record->type)
     {
         case EVENT_TYPE_INTERRUPT:
@@ -955,6 +956,8 @@ static void rr_log_event(rr_event_log *event_record, int event_num) {
                     event_record->event.syscall.regs.rax, event_record->event.syscall.kernel_gsbase,
                     event_record->event.syscall.cr3, event_record->event.syscall.id,
                     event_record->event.syscall.spin_count, event_num);
+            if (count_syscall && syscall_table != NULL)
+                syscall_table[event_record->event.syscall.regs.rax] += 1;
             break;
 
         case EVENT_TYPE_IO_IN:
@@ -1017,11 +1020,19 @@ static void rr_log_all_events(void)
 {
     int num = 1;
     rr_event_log *event = rr_event_log_head;
+    int syscall_table[512] = {0};
 
     while (event != NULL) {
-        rr_log_event(event, num);
+        rr_log_event(event, num, syscall_table);
         event = event->next;
         num++;
+    }
+
+    if (count_syscall) {
+        for (int i = 0; i < 512; i++) {
+            if (syscall_table[i] > 0)
+                printf("syscall %d: %d\n", i, syscall_table[i]);
+        }
     }
 }
 
@@ -1606,7 +1617,7 @@ static void rr_record_settle_events(void)
             event = rr_smp_event_log_queues[i];
 
             while (event != NULL) {
-                rr_log_event(event, 0);
+                rr_log_event(event, 0, NULL);
                 event = event->next;
             }
 
@@ -2632,4 +2643,9 @@ static void init_lock_owner(void)
     int cpu_id = 0;
 
     memcpy(ivshmem_base_addr + sizeof(rr_event_guest_queue_header), &cpu_id, sizeof(int));
+}
+
+void set_count_syscall(int val)
+{
+    count_syscall = val;
 }

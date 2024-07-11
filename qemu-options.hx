@@ -4298,12 +4298,22 @@ SRST
     Start right away with a saved state (``loadvm`` in monitor)
 ERST
 
-DEF("whole-system", HAS_ARG, QEMU_OPTION_no_record_net, \
+DEF("no-record-net", HAS_ARG, QEMU_OPTION_no_record_net, \
     "-no-record-net [tag|id]\n" \
     "                start right away with a saved state (loadvm in monitor)\n",
     QEMU_ARCH_ALL)
 SRST
 ``-no-record-net 1``
+    Start right away with a saved state (``loadvm`` in monitor)
+ERST
+
+
+DEF("count-syscall", HAS_ARG, QEMU_OPTION_count_syscall, \
+    "-count-syscall [tag|id]\n" \
+    "                start right away with a saved state (loadvm in monitor)\n",
+    QEMU_ARCH_ALL)
+SRST
+``-count-syscall 1``
     Start right away with a saved state (``loadvm`` in monitor)
 ERST
 

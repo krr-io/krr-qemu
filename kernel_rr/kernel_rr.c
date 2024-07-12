@@ -96,6 +96,8 @@ static void rr_read_shm_events_info(void);
 static void init_lock_owner(void);
 
 static clock_t replay_start_time;
+static long long record_start_time;
+static long long record_end_time;
 __attribute_maybe_unused__ static bool log_trace = false;
 
 static int cpu_cnt = 0;
@@ -104,6 +106,12 @@ static long syscall_spin_cnt = 0;
 
 rr_event_guest_queue_header *queue_header = NULL;
 
+
+static long long current_time_in_milliseconds(void) {
+    struct timespec spec;
+    clock_gettime(CLOCK_REALTIME, &spec);
+    return spec.tv_sec * 1000 + spec.tv_nsec / 1e6;
+}
 
 /*
 This is only called in device mmio context to see if the mmio
@@ -360,6 +368,8 @@ static void pre_record(void) {
     rr_network_dma_pre_record();
     rr_pre_mem_record();
     fclose(file);
+
+    record_start_time = current_time_in_milliseconds();
 }
 
 __attribute_maybe_unused__ static bool check_inst_matched_and_fix(CPUState *cpu, rr_event_log *event)
@@ -1308,14 +1318,15 @@ void rr_print_events_stat(void)
     char msg[2048];
 
     total_event_number = get_total_events_num();
+    double duration = record_end_time - record_start_time;
 
     printf("=== Event Stats ===\n");
 
     sprintf(msg, "Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\nRandom: %d\n"
-            "IO Input: %d\nStrnlen: %d\nRDSEED: %d\nInst Sync: %d\nDMA Buf Size: %lu\nTotal Replay Events: %d\n",
+            "IO Input: %d\nStrnlen: %d\nRDSEED: %d\nInst Sync: %d\nDMA Buf Size: %lu\nTotal Replay Events: %d\nTime(s): %.2f\n",
             event_interrupt_num, event_syscall_num, event_exception_num,
             event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_strnlen,
-            event_rdseed_num, event_sync_inst, get_dma_buf_size(), total_event_number);
+            event_rdseed_num, event_sync_inst, get_dma_buf_size(), total_event_number, duration / 1000);
 
     printf("%s", msg);
 
@@ -1660,6 +1671,8 @@ void rr_get_result(void)
 
 void rr_post_record(void)
 {
+    record_end_time = current_time_in_milliseconds();
+
     for (int i=0; i < 16; i++) {
         rr_smp_event_log_queues[i] = NULL;
     }
@@ -1673,7 +1686,7 @@ void rr_post_record(void)
     for (int i=0;i<2; i++) {
         rr_event_log *event = rr_smp_event_log_queues[i];
         while (event != NULL) {
-            printf("Get event %d, 0x%lx, %lu\n", event->id, event->rip, event->inst_cnt);
+            // printf("Get event %d, 0x%lx, %lu\n", event->id, event->rip, event->inst_cnt);
             event = event->next;
         }
     }
@@ -1685,7 +1698,6 @@ void rr_post_record(void)
     rr_save_events();
     rr_dma_post_record();
     rr_network_dma_post_record();
-    rr_memlog_post_record();
 
     printf("Getting result\n");
     rr_get_result();

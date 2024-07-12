@@ -395,6 +395,9 @@ void rr_dma_post_record(void)
     rr_save_dma_logs(kernel_rr_dma_log, dma_queue->front);
     printf("Total dma buf cnt %lu size %lu, total nvme buf cnt %lu size %lu\n",
            total_buf_cnt, total_buf_size, total_nvme_cnt, total_nvme_size);
+
+    dma_queue = NULL;
+
     return;
 }
 

@@ -9,10 +9,10 @@ def read_rr_cost_file(file_path):
         for line in file:
             if ':' in line:
                 key, value = line.split(':')
-                rr_cost_data[key.strip()] = int(value.strip())
+                rr_cost_data[key.strip()] = float(value.strip())
             elif '=' in line:
                 key, value = line.split('=')
-                rr_cost_data[key.strip()] = int(value.strip())
+                rr_cost_data[key.strip()] = float(value.strip())
     return rr_cost_data
 
 def get_file_size(file_path):

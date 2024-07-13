@@ -115,48 +115,17 @@ def generate_rocksdb_bp(buffer):
     buffer = buffer[buffer.find(benchmark):]
 
     try:
-        fillseq = "fillseq" in buffer
-        fillrandom = "fillrandom" in buffer
-        readseq = "readseq" in buffer
-        readrandom = "readrandom" in buffer
-        readwhilewriting = "readwhilewriting" in buffer
-        readwhilescanning = "readwhilescanning" in buffer
-        seekrandom = "seekrandom" in buffer
-        readrandomwriterandom = "readrandomwriterandom" in buffer
+        if benchmark in buffer:
+            ops_idx = item_list.index("ops/sec") - 1
+            lat_idx = item_list.index("micros/op") - 1
 
-        bm = benchmark
-        if fillseq or fillrandom:
-            tp = item_list[6]
-            ops_ps = item_list[4]
-            latency = item_list[2]
+            ops_ps = item_list[ops_idx]
+            latency = item_list[lat_idx]
 
-            append_file(bm, THROUGHPUT, tp)
-        elif readseq or readrandom:
-            ops_ps = item_list[4]
-            latency = item_list[2]
+            append_file(bm, OPSPS, ops_ps)
+            append_file(bm, LATENCY, latency)
 
-        elif readwhilewriting:
-            bm = "readwhilewriting"
-            tp = item_list[6]
-            ops_ps = item_list[4]
-            latency = item_list[2]
-        elif readwhilescanning:
-            bm = "readwhilescanning"
-            ops_ps = item_list[4]
-            latency = item_list[2]
-        elif seekrandom:
-            bm = "seekrandom"
-            ops_ps = item_list[4]
-            latency = item_list[2]
-        elif readrandomwriterandom:
-            bm = "readrandomwriterandom"
-            ops_ps = item_list[4]
-            latency = item_list[2]
-
-        append_file(bm, OPSPS, ops_ps)
-        append_file(bm, LATENCY, latency)
-
-        return True
+            return True
 
     except Exception as e:
         print("{} {}: {}".format(traceback.format_exc(), e, item_list))

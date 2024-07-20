@@ -12,26 +12,26 @@
 // #include "sysemu/dma.h"
 
 
-#define STRNCPY_FROM_USER 0xffffffff81494ee0 // info addr strncpy_from_user
-#define STRNLEN_USER 0xffffffff814950e4 // b lib/strnlen_user.c:116
+#define STRNCPY_FROM_USER 0xffffffff81464870 // info addr strncpy_from_user
+#define STRNLEN_USER 0xffffffff814649a0 // info addr strnlen_user
 #define RANDOM_GEN 0xffffffff81030680 // info addr rr_record_random
-#define PF_EXEC 0xffffffff81845300 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff818455a0 // b fault.c:1580
-#define RR_RECORD_CFU 0xffffffff810338b0 // info addr rr_record_cfu
-#define RR_RECORD_GFU 0xffffffff81807964 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff818079bd // b getuser.S:147
-#define RR_GFU_NOCHECK8 0xffffffff818079de // b getuser.S:162
-#define RR_GFU4 0xffffffff81807933 // b getuser.S:88
+#define PF_EXEC 0xffffffff8180e8a0 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff8180eb3a // b fault.c:1580
+#define RR_RECORD_CFU 0xffffffff810306f0 // info addr rr_record_cfu
+#define RR_RECORD_GFU 0xffffffff817d2764 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff817d27bd // b getuser.S:147
+#define RR_GFU_NOCHECK8 0xffffffff817d27de // b getuser.S:162
+#define RR_GFU4 0xffffffff817d2733 // b getuser.S:88
 
 #define SYSCALL_ENTRY 0xffffffff81a00000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff81845b70 // info addr syscall_exit_to_user_mode
-#define PF_ASM_EXC 0xffffffff81a00b40 // info addr asm_exc_page_fault
+#define SYSCALL_EXIT 0xffffffff8180f0b0 // info addr syscall_exit_to_user_mode
+#define PF_ASM_EXC 0xffffffff81a00b30 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff81845a70 // info addr irqentry_enter
+#define IRQ_ENTRY 0xffffffff8180efd0 // info addr irqentry_enter
 #define IRQ_EXIT 0xffffffff81845be0 // info addr irqentry_exit
 
-#define LOCK_RELEASE 0xffffffff810334f5 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff8103354e // info addr rr_record_syscall
+#define LOCK_RELEASE 0 // info addr rr_record_release
+#define RR_RECORD_SYSCALL 0xffffffff8180e4d0 // info addr rr_record_syscall
 #define RR_HANDLE_SYSCALL 0xffffffff81033520
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f

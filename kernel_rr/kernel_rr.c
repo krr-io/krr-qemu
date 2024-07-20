@@ -611,30 +611,83 @@ void rr_do_replay_gfu(CPUState *cpu)
 }
 
 
+/*
+    We didn't actually record the real content of
+    strnlen_user user memory, but only the length
+    read from that memory, but to keep the replay
+    consistent with the record, we still write the
+    same length of pseudo data to the src memory
+    address, that is, N bytes with the last byte
+    being 0.
+ */
 void rr_do_replay_strnlen_user(CPUState *cpu)
 {
     X86CPU *x86_cpu;
     CPUArchState *env;
     rr_event_log *node;
+    int ret;
+    rr_event_log *cur = rr_event_log_head;
+    bool reordered = false;
 
     node = rr_event_log_head;
 
-    if (node->type != EVENT_TYPE_STRNLEN) {
-        printf("Expeced strnlen_user, got %d\n", node->type);
-        cpu->cause_debug = true;
-        return;
-    }
-
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
+
+    if (node->type != EVENT_TYPE_STRNLEN) {
+        /*
+            Same situation to the rr_do_replay_strncpy_from_user, there could
+            possibly be interrupt hanppening between the strnlen_user function
+            call point and the record point, so we try to search further.
+        */
+        printf("Current[%d] not strnlen_user, look for next\n", rr_event_log_head->type);
+        while (cur->next != NULL && cur->next->type != EVENT_TYPE_STRNLEN) {
+            cur = cur->next;
+        }
+
+        if (cur->next == NULL) {
+            printf("Expected log copy from user, but got %d, ip=0x%lx\n", rr_event_log_head->type, env->eip);
+            // abort();
+            cpu->cause_debug = 1;
+            return;
+        }
+
+        if (cur->next->type == EVENT_TYPE_STRNLEN) {
+            node = cur->next;
+            reordered = true;
+        }
+    }
 
     printf("[CPU %d]Replayed strlen_user: len=%lu, event number=%d\n",
             cpu->cpu_index, node->event.cfu.len, replayed_event_num);
     qemu_log("[CPU %d]Replayed strlen_user: len=%lu, event number=%d\n",
             cpu->cpu_index, node->event.cfu.len, replayed_event_num);
-    env->regs[R_EBX] = node->event.cfu.len;
 
-    rr_pop_event_head();
+    uint8_t data[node->event.cfu.len];
+
+    for (int i = 0; i < node->event.cfu.len; i++) {
+        data[i] = 1;
+    }
+    data[node->event.cfu.len - 1] = 0;
+
+    ret = cpu_memory_rw_debug(cpu, env->regs[R_EDI],
+                              data,
+                              node->event.cfu.len, true);
+    if (ret < 0) {
+        printf("Failed to write to address %lx: %d\n", env->regs[R_EDI], ret);
+        abort();
+    } else {
+        printf("Write to address 0x%lx len %lu\n",
+                env->regs[R_EDI],
+                node->event.cfu.len);
+    }
+
+    if (!reordered)
+        rr_pop_event_head();
+    else {
+        cur->next = cur->next->next;
+        replayed_event_num++;
+    }
 }
 
 
@@ -2177,6 +2230,8 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
         qemu_log("Mismatched RDTSC, expected inst cnt %lu, found %lu, rip=0x%lx\n",
                rr_event_log_head->inst_cnt, cpu->rr_executed_inst, env->eip);
         cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+        cpu->cause_debug = true;
+        goto finish;
     }
 
     *tsc = rr_event_log_head->event.io_input.value;

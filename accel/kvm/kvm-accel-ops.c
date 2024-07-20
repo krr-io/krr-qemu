@@ -80,19 +80,19 @@ void rr_insert_breakpoints(void)
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
-        // bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for syscall: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for system call\n");
-        // }
+        bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for syscall: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for system call\n");
+        }
 
-        // bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for pf: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for syscall exit\n");
-        // }
+        bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for pf: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for syscall exit\n");
+        }
 
         // bp_ret = kvm_insert_breakpoint(cpu, IRQ_ENTRY, 1, GDB_BREAKPOINT_SW);
         // if (bp_ret > 0) {
@@ -108,18 +108,18 @@ void rr_insert_breakpoints(void)
         //     printf("Inserted breakpoints for irq exit\n");
         // }
 
-        bp_ret = kvm_insert_breakpoint(cpu, E1000_CLEAN, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for e1000 clean: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for e1000 clean\n");
-        }
-        bp_ret = kvm_insert_breakpoint(cpu, E1000_CLEAN_MID, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for e1000 clean mid\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, E1000_CLEAN, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for e1000 clean: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for e1000 clean\n");
+        // }
+        // bp_ret = kvm_insert_breakpoint(cpu, E1000_CLEAN_MID, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for e1000 clean mid\n");
+        // }
 
         // bp_ret = kvm_insert_breakpoint(cpu, PF_EXEC_END, 1, GDB_BREAKPOINT_HW);
         // if (bp_ret > 0) {

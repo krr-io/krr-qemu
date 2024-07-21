@@ -47,6 +47,7 @@ static int event_syscall_num = 0;
 static int event_exception_num = 0;
 static int event_interrupt_num = 0;
 static int event_io_input_num = 0;
+static int event_rdtsc_num = 0;
 static int event_cfu_num = 0;
 static int event_gfu_num = 0;
 static int event_random_num = 0;
@@ -261,7 +262,7 @@ void inc_replayed_number(void)
 static int get_total_events_num(void)
 {
     return event_interrupt_num + event_syscall_num + event_exception_num + \
-           event_cfu_num + event_random_num + event_io_input_num + \
+           event_cfu_num + event_random_num + event_io_input_num + event_rdtsc_num + \
            event_dma_done + event_gfu_num + event_strnlen + event_rdseed_num + \
            event_release;
 }
@@ -939,7 +940,7 @@ rr_event_log_new_from_event(rr_event_log event, int record_mode)
         break;
      case EVENT_TYPE_RDTSC:
         memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
-        event_io_input_num++;
+        event_rdtsc_num++;
         break;
     case EVENT_TYPE_GFU:
         memcpy(&event_record->event.gfu, &event.event.gfu, sizeof(rr_gfu));
@@ -1264,7 +1265,7 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
     case EVENT_TYPE_RDTSC:
         copied_size = sizeof(rr_io_input);
         memcpy(&event_record->event.io_input, event, copied_size);
-        event_io_input_num++;
+        event_rdtsc_num++;
         break;
     case EVENT_TYPE_GFU:
         copied_size = sizeof(rr_gfu);
@@ -1376,9 +1377,9 @@ void rr_print_events_stat(void)
     printf("=== Event Stats ===\n");
 
     sprintf(msg, "Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\nRandom: %d\n"
-            "IO Input: %d\nStrnlen: %d\nRDSEED: %d\nInst Sync: %d\nDMA Buf Size: %lu\nTotal Replay Events: %d\nTime(s): %.2f\n",
+            "IO Input: %d\nRDTSC: %d\nStrnlen: %d\nRDSEED: %d\nInst Sync: %d\nDMA Buf Size: %lu\nTotal Replay Events: %d\nTime(s): %.2f\n",
             event_interrupt_num, event_syscall_num, event_exception_num,
-            event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_strnlen,
+            event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_rdtsc_num, event_strnlen,
             event_rdseed_num, event_sync_inst, get_dma_buf_size(), total_event_number, duration / 1000);
 
     printf("%s", msg);

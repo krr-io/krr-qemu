@@ -1301,6 +1301,7 @@ int qemu_savevm_state_iterate(QEMUFile *f, bool postcopy)
             !se->ops->is_active_iterate(se->opaque)) {
             continue;
         }
+        printf("save %s\n", se->idstr);
         /*
          * In the postcopy phase, any device that doesn't know how to
          * do postcopy should have saved it's state in the _complete
@@ -1715,8 +1716,6 @@ int qemu_save_device_state(QEMUFile *f)
         if (se->vmsd && !vmstate_save_needed(se->vmsd, se->opaque)) {
             continue;
         }
-
-        printf("save device %s\n", se->idstr);
 
         save_section_header(f, se, QEMU_VM_SECTION_FULL);
 

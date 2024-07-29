@@ -79,6 +79,7 @@ static unsigned long dirty_page_num = 0;
 static void *ivshmem_base_addr = NULL;
 
 static bool kernel_user_access_pf = false;
+static bool kernel_user_access_pf_cfu = false;
 
 static QemuMutex replay_queue_mutex;
 static QemuCond replay_cond;
@@ -692,6 +693,17 @@ void rr_do_replay_strnlen_user(CPUState *cpu)
 }
 
 
+static void rr_handle_pending_pf_in_cfu(rr_event_log *cur_node)
+{
+    if (cur_node->next->type == EVENT_TYPE_EXCEPTION) {
+        rr_event_log *tmp = cur_node->next;
+        cur_node->next = tmp->next;
+        tmp->next = cur_node;
+        rr_event_log_head = tmp;
+    }
+}
+
+
 void rr_do_replay_cfu(CPUState *cpu)
 {
     X86CPU *x86_cpu;
@@ -724,6 +736,31 @@ void rr_do_replay_cfu(CPUState *cpu)
         }
     }
 
+    unsigned long write_len = node->event.cfu.len;
+
+    node->event.cfu.data[node->event.cfu.len - 1] = 0;
+
+    ret = cpu_memory_rw_debug(cpu, node->event.cfu.src_addr,
+                            node->event.cfu.data,
+                            write_len, true);
+    if (ret < 0) {
+        if (ret == -1 && !kernel_user_access_pf_cfu) {
+            kernel_user_access_pf_cfu = true;
+            qemu_log("Save the cfu entry for later\n");
+            rr_handle_pending_pf_in_cfu(node);
+            return;
+        } else {
+            abort();
+        }
+
+        printf("Failed to write to address %lx: %d\n", node->event.cfu.src_addr, ret);
+        abort();
+    } else {
+        printf("Write to address 0x%lx len %lu\n",
+                node->event.cfu.src_addr,
+                node->event.cfu.len);
+    }
+
     printf("[CPU %d]Replayed CFU[0x%lx]: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
             cpu->cpu_index,
             env->eip,
@@ -736,25 +773,6 @@ void rr_do_replay_cfu(CPUState *cpu)
                 node->event.cfu.src_addr,
                 node->event.cfu.dest_addr,
                 node->event.cfu.len, replayed_event_num);
-
-    unsigned long write_len = node->event.cfu.len;
-
-    if (node->event.cfu.len < 4096) {
-        node->event.cfu.data[node->event.cfu.len] = 0;
-        write_len++;
-    }
-
-    ret = cpu_memory_rw_debug(cpu, node->event.cfu.src_addr,
-                            node->event.cfu.data,
-                            write_len, true);
-    if (ret < 0) {
-        printf("Failed to write to address %lx: %d\n", node->event.cfu.src_addr, ret);
-        abort();
-    } else {
-        printf("Write to address 0x%lx len %lu\n",
-                node->event.cfu.src_addr,
-                node->event.cfu.len);
-    }
 
     if (!reordered)
         rr_pop_event_head();
@@ -817,16 +835,17 @@ void rr_do_replay_strncpy_from_user(CPUState *cpu)
                 node->event.cfu.len, replayed_event_num);
 
     if (node->event.cfu.len > 0) {
-        node->event.cfu.data[node->event.cfu.len] = 0;
+        node->event.cfu.data[node->event.cfu.len - 1] = 0;
         ret = cpu_memory_rw_debug(cpu, node->event.cfu.src_addr,
                                 node->event.cfu.data,
-                                node->event.cfu.len + 1, true);
+                                node->event.cfu.len, true);
         if (ret < 0) {
             printf("Failed to write to address %lx: %d, len=%lu\n",
                    node->event.cfu.src_addr, ret, node->event.cfu.len);
             if (ret == -1 && !kernel_user_access_pf) {
                 kernel_user_access_pf = true;
                 printf("Save the strncpy entry for later\n");
+                rr_handle_pending_pf_in_cfu(node);
                 return;
             } else {
                 abort();
@@ -952,6 +971,9 @@ rr_event_log_new_from_event(rr_event_log event, int record_mode)
         break;
     case EVENT_TYPE_CFU:
         memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
+
+        event_record->event.cfu.data = event.event.cfu.data;
+
         event_cfu_num++;
         break;
     case EVENT_TYPE_RANDOM:
@@ -1275,6 +1297,15 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
     case EVENT_TYPE_CFU:
         copied_size = sizeof(rr_cfu);
         memcpy(&event_record->event.cfu, event, copied_size);
+        int s = event_record->event.cfu.len * sizeof(unsigned char);
+        
+        printf("%s\n", (unsigned char *)(event + sizeof(rr_cfu)));
+        event_record->event.cfu.data = (unsigned char *)malloc(s);
+        memcpy(event_record->event.cfu.data, (void *)(event + sizeof(rr_cfu)), s);
+
+        printf("%s\n", (unsigned char *)event_record->event.cfu.data);
+        copied_size += s;
+
         event_cfu_num++;
         break;
     case EVENT_TYPE_RANDOM:
@@ -1419,6 +1450,7 @@ static void persist_event(rr_event_log *event, FILE *fptr)
         break;
     case EVENT_TYPE_CFU:
         fwrite(&event->event.cfu, sizeof(rr_cfu), 1, fptr);
+        fwrite(event->event.cfu.data, sizeof(unsigned char) * event->event.cfu.len, 1, fptr);
         break;
     case EVENT_TYPE_RANDOM:
         fwrite(&event->event.rand, sizeof(rr_random), 1, fptr);
@@ -1488,6 +1520,15 @@ static void load_event(rr_event_log *event, int type, FILE *fptr)
             goto error;
 
         event->id = event->event.cfu.id;
+        int s = sizeof(unsigned char) * event->event.cfu.len;
+
+        event->event.cfu.data = (unsigned char *)malloc(s); 
+
+        if (!fread(event->event.cfu.data, s, 1, fptr))
+            goto error;
+
+        printf("%s\n", event->event.cfu.data);
+
         break;
     case EVENT_TYPE_RANDOM:
         if (!fread(&event->event.rand, sizeof(rr_random), 1, fptr))
@@ -1974,13 +2015,17 @@ finish:
 
 void rr_post_replay_exception(CPUState *cpu)
 {
-    if (!kernel_user_access_pf) {
+    if (!kernel_user_access_pf && !kernel_user_access_pf_cfu) {
         return;
     }
 
-    rr_do_replay_strncpy_from_user(cpu);
+    if (kernel_user_access_pf)
+        rr_do_replay_strncpy_from_user(cpu);
+    else
+        rr_do_replay_cfu(cpu);
 
     kernel_user_access_pf = false;
+    kernel_user_access_pf_cfu = false;
 }
 
 void rr_do_replay_exception_end(CPUState *cpu)
@@ -2124,29 +2169,38 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
     }
 
     if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst) {
-        qemu_log("Mismatched IO Input, expected inst cnt %lu, found %lu, rip=0x%lx\n",
-               rr_event_log_head->inst_cnt, cpu->rr_executed_inst, rr_event_log_head->rip);
+        if (env->eip == cpu->last_replayed_addr && cpu->rr_executed_inst == cpu->last_replayed_inst) {
+            qemu_log("Repetitive inst, skip\n");
+            goto finish;
+        }
+
+        qemu_log("Mismatched IO Input, expected inst cnt %lu, found %lu, rip=0x%lx, actual_rip=0x%lx\n",
+               rr_event_log_head->inst_cnt, cpu->rr_executed_inst, rr_event_log_head->rip, env->eip);
          cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+        //  abort();
     }
 
-    // if (rr_event_log_head->rip != env->eip) {
-    //     printf("Unexpected IO Input RIP, expected 0x%lx, actual 0x%lx\n",
-    //         rr_event_log_head->rip, env->eip);
-    //     abort();
-    // }
+    if (rr_event_log_head->rip != env->eip) {
+        printf("Unexpected IO Input RIP, expected 0x%lx, actual 0x%lx\n",
+            rr_event_log_head->rip, env->eip);
+        abort();
+    }
 
     *input = rr_event_log_head->event.io_input.value;
 
-    qemu_log("[CPU %d]Replayed io input=0x%lx, inst_cnt=%lu, cpu_id=%d, replayed event number=%d\n",
+    qemu_log("[CPU %d]Replayed io input=0x%lx, inst_cnt=%lu, cpu_id=%d, rip=0x%lx, replayed event number=%d\n",
              cpu->cpu_index, *input, cpu->rr_executed_inst,
-             rr_event_log_head->id, replayed_event_num);
-    printf("[CPU %d]Replayed io input=0x%lx, inst_cnt=%lu, cpu_id=%d, replayed event number=%d\n",
+             rr_event_log_head->id, rr_event_log_head->rip, replayed_event_num);
+    printf("[CPU %d]Replayed io input=0x%lx, inst_cnt=%lu, cpu_id=%d, rip=0x%lx, replayed event number=%d\n",
              cpu->cpu_index, *input, cpu->rr_executed_inst,
-             rr_event_log_head->id, replayed_event_num);
+             rr_event_log_head->id, rr_event_log_head->rip, replayed_event_num);
 
     rr_pop_event_head();
 
 finish:
+    cpu->last_replayed_addr = env->eip;
+    cpu->last_replayed_inst = cpu->rr_executed_inst;
+
     qemu_mutex_unlock(&replay_queue_mutex);
     return;
 }
@@ -2671,6 +2725,8 @@ void append_to_queue(int type, void *opaque)
         .type = type,
     };
     int event_size = 0;
+
+    return;
     
     switch (type)
     {

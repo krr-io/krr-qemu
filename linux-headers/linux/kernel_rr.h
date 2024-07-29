@@ -79,7 +79,7 @@ typedef struct {
     unsigned long dest_addr;
     unsigned long len;
     unsigned long rdx;
-    __u8 data[CFU_BUFFER_SIZE];
+    unsigned char *data;
 } rr_cfu;
 
 typedef struct {

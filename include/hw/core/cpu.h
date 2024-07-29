@@ -446,6 +446,8 @@ struct CPUState {
     QemuMutex replay_mutex;
     struct QemuCond *replay_cond;
     int userspace;
+    unsigned long last_replayed_addr;
+    unsigned long last_replayed_inst;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

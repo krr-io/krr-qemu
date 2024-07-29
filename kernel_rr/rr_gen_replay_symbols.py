@@ -29,7 +29,7 @@ def fetch_strncpy_from_user():
     return filter_info_addr("strncpy_from_user")
 
 def fetch_strnlen_user():
-    return filter_loc_addr("lib/strnlen_user.c:116")
+    return filter_info_addr("strnlen_user")
 
 def fetch_random_gen():
     return filter_info_addr("rr_record_random")

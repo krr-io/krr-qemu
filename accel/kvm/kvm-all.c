@@ -3595,6 +3595,7 @@ int kvm_end_record(void) {
     if (rr_mem_logs_enabled())
         rr_finish_mem_log();
 
+    rr_ivshmem_set_rr_enabled(0);
     rr_set_record(0);
     rr_post_record();
 

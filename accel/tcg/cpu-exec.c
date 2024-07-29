@@ -94,10 +94,10 @@ static bool should_log_trace(CPUState *cpu)
 
     // int replayed_num = get_replayed_event_num();
 
-    // if (1253 <= replayed_num && replayed_num < 1255) {
+    // if (18487 <= replayed_num && replayed_num < 18555) {
     //     return true;
     // }
-    // // return should_log;
+    // return should_log;
     return should_log;
 }
 
@@ -1150,6 +1150,7 @@ int cpu_exec(CPUState *cpu)
                     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
                 case RR_RECORD_GFU:
+                case RR_GFU_NOCHECK1:
                 case RR_GFU_NOCHECK4:
                 case RR_GFU_NOCHECK8:
                 case RR_GFU4:

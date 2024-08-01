@@ -3827,4 +3827,8 @@ void qemu_init(int argc, char **argv, char **envp)
     accel_setup_post(current_machine);
     os_setup_post();
     resume_mux_open();
+
+    if (rr_in_replay()) {
+        replay_ready();
+    }
 }

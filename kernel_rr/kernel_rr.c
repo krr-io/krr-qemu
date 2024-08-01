@@ -107,6 +107,7 @@ static int cpu_cnt = 0;
 static long syscall_spin_cnt = 0;
 
 rr_event_guest_queue_header *queue_header = NULL;
+rr_event_guest_queue_header *initial_queue_header = NULL;
 
 
 static long long current_time_in_milliseconds(void) {
@@ -371,6 +372,11 @@ static void pre_record(void) {
     rr_pre_mem_record();
     fclose(file);
 
+    initial_queue_header = (rr_event_guest_queue_header *)malloc(sizeof(rr_event_guest_queue_header));
+    memcpy(initial_queue_header, ivshmem_base_addr, sizeof(rr_event_guest_queue_header));
+
+    printf("Initial queue header enabled=%d\n", initial_queue_header->rr_enabled);
+
     record_start_time = current_time_in_milliseconds();
 }
 
@@ -599,10 +605,10 @@ void rr_do_replay_gfu(CPUState *cpu)
         }
     }
 
-    printf("[CPU %d]Replayed get_user: %lx, event number=%d\n",
-            cpu->cpu_index, replay_node->event.gfu.val, replayed_event_num);
-    qemu_log("[CPU %d]Replayed get_user: %lx, event number=%d\n",
-            cpu->cpu_index, replay_node->event.gfu.val, replayed_event_num);
+    printf("[CPU %d]Replayed get_user[0x%lx]: %lx, event number=%d\n",
+            cpu->cpu_index, env->eip, replay_node->event.gfu.val, replayed_event_num);
+    qemu_log("[CPU %d]Replayed get_user[0x%lx]: %lx, event number=%d\n",
+            cpu->cpu_index, env->eip, replay_node->event.gfu.val, replayed_event_num);
 
     env->regs[R_EDX] = replay_node->event.gfu.val;
     // env->regs[R_EBX] = rr_event_log_head->event.gfu.val;
@@ -1296,12 +1302,14 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
         break;
     case EVENT_TYPE_CFU:
         copied_size = sizeof(rr_cfu);
+        unsigned char *c = (unsigned char *)(event + sizeof(rr_cfu));
+        printf("cfu addr: %p %s, data %p, offset=%lu\n", c, c, event_record->event.cfu.data, event + sizeof(rr_cfu) - ivshmem_base_addr);
+
         memcpy(&event_record->event.cfu, event, copied_size);
         int s = event_record->event.cfu.len * sizeof(unsigned char);
         
-        printf("%s\n", (unsigned char *)(event + sizeof(rr_cfu)));
         event_record->event.cfu.data = (unsigned char *)malloc(s);
-        memcpy(event_record->event.cfu.data, (void *)(event + sizeof(rr_cfu)), s);
+        memcpy(event_record->event.cfu.data, (unsigned char *)(event + sizeof(rr_cfu)), s);
 
         printf("%s\n", (unsigned char *)event_record->event.cfu.data);
         copied_size += s;
@@ -1590,6 +1598,7 @@ static void rr_save_events(void)
 	FILE *fptr = fopen(kernel_rr_log, "a");
 	rr_event_log *cur= rr_event_log_head;
 
+    persist_queue_header(initial_queue_header, fptr);
     persist_queue_header(queue_header, fptr);
 
     printf("Start persisted event\n");
@@ -1610,6 +1619,13 @@ static void rr_load_events(void) {
     rr_event_log loaded_node;
     rr_event_entry_header entry_header;
     int loaded_event = 0;
+
+    initial_queue_header = (rr_event_guest_queue_header *)malloc(sizeof(rr_event_guest_queue_header));
+
+    if (!fread(initial_queue_header, sizeof(rr_event_guest_queue_header), 1, fptr)) {
+        printf("Failed to read headr\n");
+        abort();
+    }
 
     if (!fread(&header, sizeof(rr_event_guest_queue_header), 1, fptr)) {
         printf("Failed to read headr\n");
@@ -1802,6 +1818,12 @@ void rr_post_record(void)
 
     if (exit_record)
         exit(10);
+}
+
+void replay_ready(void)
+{
+    printf("replay initial queue header enabled=%d\n", initial_queue_header->rr_enabled);
+    memcpy(ivshmem_base_addr, initial_queue_header, sizeof(rr_event_guest_queue_header));
 }
 
 // void rr_pre_replay(void)
@@ -2725,8 +2747,6 @@ void append_to_queue(int type, void *opaque)
         .type = type,
     };
     int event_size = 0;
-
-    return;
     
     switch (type)
     {

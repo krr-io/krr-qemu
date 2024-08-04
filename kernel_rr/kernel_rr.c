@@ -80,6 +80,7 @@ static void *ivshmem_base_addr = NULL;
 
 static bool kernel_user_access_pf = false;
 static bool kernel_user_access_pf_cfu = false;
+static bool kernel_user_access_pf_strnlen = false;
 
 static QemuMutex replay_queue_mutex;
 static QemuCond replay_cond;
@@ -618,6 +619,15 @@ void rr_do_replay_gfu(CPUState *cpu)
         rr_pop_event_head();
 }
 
+static void rr_handle_pending_pf_in_cfu(rr_event_log *cur_node)
+{
+    if (cur_node->next->type == EVENT_TYPE_EXCEPTION) {
+        rr_event_log *tmp = cur_node->next;
+        cur_node->next = tmp->next;
+        tmp->next = cur_node;
+        rr_event_log_head = tmp;
+    }
+}
 
 /*
     We didn't actually record the real content of
@@ -678,10 +688,19 @@ void rr_do_replay_strnlen_user(CPUState *cpu)
     }
     data[node->event.cfu.len - 1] = 0;
 
-    ret = cpu_memory_rw_debug(cpu, env->regs[R_EDI],
+    ret = cpu_memory_rw_debug(cpu, node->event.cfu.src_addr,
                               data,
                               node->event.cfu.len, true);
     if (ret < 0) {
+        if (ret == -1 && !kernel_user_access_pf_strnlen) {
+            kernel_user_access_pf_strnlen = true;
+            qemu_log("Save the cfu entry for later\n");
+            rr_handle_pending_pf_in_cfu(node);
+            return;
+        } else {
+            abort();
+        }
+
         printf("Failed to write to address %lx: %d\n", env->regs[R_EDI], ret);
         abort();
     } else {
@@ -697,18 +716,6 @@ void rr_do_replay_strnlen_user(CPUState *cpu)
         replayed_event_num++;
     }
 }
-
-
-static void rr_handle_pending_pf_in_cfu(rr_event_log *cur_node)
-{
-    if (cur_node->next->type == EVENT_TYPE_EXCEPTION) {
-        rr_event_log *tmp = cur_node->next;
-        cur_node->next = tmp->next;
-        tmp->next = cur_node;
-        rr_event_log_head = tmp;
-    }
-}
-
 
 void rr_do_replay_cfu(CPUState *cpu)
 {
@@ -1036,7 +1043,7 @@ static void rr_log_event(rr_event_log *event_record, int event_num, int *syscall
             break;
 
         case EVENT_TYPE_EXCEPTION:
-            qemu_log("PF exception: %d, cr2=0x%lx, error_code=%d, cpu_id=%d, spin_cnt=%lu, number=%d\n",
+            qemu_log("Exception: %d, cr2=0x%lx, error_code=%d, cpu_id=%d, spin_cnt=%lu, number=%d\n",
                 event_record->event.exception.exception_index, event_record->event.exception.cr2,
                 event_record->event.exception.error_code,
                 event_record->event.exception.id,
@@ -1078,8 +1085,8 @@ static void rr_log_event(rr_event_log *event_record, int event_num, int *syscall
                     event_record->event.rand.buf, event_record->event.rand.len, event_num);
             break;
         case EVENT_TYPE_STRNLEN:
-            qemu_log("Strnlen: len=%lu, number=%d\n",
-                    event_record->event.cfu.len, event_num);
+            qemu_log("Strnlen: len=%lu, src=0x%lx, number=%d\n",
+                    event_record->event.cfu.len, event_record->event.cfu.src_addr, event_num);
             break;
         case EVENT_TYPE_RDSEED:
             qemu_log("RDSEED: val=%lu\n", event_record->event.gfu.val);
@@ -1138,10 +1145,12 @@ void rr_do_replay_rand(CPUState *cpu, int hypercall)
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
 
-    if (rr_event_log_head->type != EVENT_TYPE_RANDOM) {
+    if (rr_event_log_head->type != EVENT_TYPE_RDSEED) {
         printf("Unexpected random\n");
         qemu_log("Unexpected random\n");
-        abort();
+        cpu->cause_debug = 1;
+        return;
+        // abort();
     }
 
     if (hypercall) {
@@ -2037,17 +2046,20 @@ finish:
 
 void rr_post_replay_exception(CPUState *cpu)
 {
-    if (!kernel_user_access_pf && !kernel_user_access_pf_cfu) {
+    if (!kernel_user_access_pf && !kernel_user_access_pf_cfu && !kernel_user_access_pf_strnlen) {
         return;
     }
 
     if (kernel_user_access_pf)
         rr_do_replay_strncpy_from_user(cpu);
-    else
+    else if (kernel_user_access_pf_cfu)
         rr_do_replay_cfu(cpu);
+    else
+        rr_do_replay_strnlen_user(cpu);
 
     kernel_user_access_pf = false;
     kernel_user_access_pf_cfu = false;
+    kernel_user_access_pf_strnlen = false;
 }
 
 void rr_do_replay_exception_end(CPUState *cpu)
@@ -2307,8 +2319,8 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
         qemu_log("Mismatched RDTSC, expected inst cnt %lu, found %lu, rip=0x%lx\n",
                rr_event_log_head->inst_cnt, cpu->rr_executed_inst, env->eip);
         cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
-        cpu->cause_debug = true;
-        goto finish;
+        // cpu->cause_debug = true;
+        // goto finish;
     }
 
     *tsc = rr_event_log_head->event.io_input.value;

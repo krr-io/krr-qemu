@@ -3,6 +3,7 @@ import copy
 
 
 KERNEL_RR_HEADER = "/home/projects/qemu-tcg-kvm/include/sysemu/kernel-rr.h"
+VERSION = str(gdb.parse_and_eval("init_uts_ns.name"))
 
 
 def filter_info_addr(symbol):
@@ -22,7 +23,13 @@ def filter_loc_addr(loc):
     output = gdb.execute("b {}".format(loc), to_string=True)
     blocks = output.split()
 
-    return blocks[3][:-1]
+    candidate = blocks[3][:-1]
+
+    try:
+        int(candidate, 16)
+        return candidate
+    except:
+        return "0"
 
 
 def fetch_strncpy_from_user():
@@ -38,10 +45,16 @@ def fetch_exc_page_fault():
     return filter_info_addr("exc_page_fault")
 
 def fetch_exc_page_fault_end():
-    return filter_loc_addr("fault.c:1580")
+    if "6.1.0" in VERSION:
+        return filter_loc_addr("fault.c:1580")
+    else:
+        return filter_loc_addr("fault.c:1463")
 
 def fetch_rr_record_cfu():
     return filter_info_addr("rr_record_cfu")
+
+def fetch_gfu_nocheck1():
+    return filter_loc_addr("getuser.S:127")
 
 def fetch_rr_record_gfu():
     return filter_loc_addr("getuser.S:103")
@@ -87,6 +100,8 @@ handlers = {
     "PF_EXEC_END": fetch_exc_page_fault_end,
     "RR_RECORD_CFU": fetch_rr_record_cfu,
     "RR_RECORD_GFU": fetch_rr_record_gfu,
+    "RR_GFU4": fetch_gfu4,
+    "RR_GFU_NOCHECK1": fetch_gfu_nocheck1,
     "RR_GFU_NOCHECK4": fetch_gfu_nocheck4,
     "RR_GFU_NOCHECK8": fetch_gfu_nocheck8,
     "SYSCALL_ENTRY": fetch_syscall_entry,
@@ -94,7 +109,6 @@ handlers = {
     "PF_ASM_EXC": fetch_pf_asm_exec,
     "IRQ_ENTRY": fetch_irq_entry,
     "IRQ_EXIT": fetch_irq_exit,
-    "RR_GFU4": fetch_gfu4,
     "RR_RECORD_SYSCALL": fetch_record_syscall,
     "RR_HANDLE_SYSCALL": fetch_handle_syscall,
     "LOCK_RELEASE": fetch_release,
@@ -103,6 +117,7 @@ handlers = {
 
 def generate_symbols():
     generate_done = False
+    print(VERSION)
 
     with open(KERNEL_RR_HEADER, 'r') as file:
         lines = file.readlines()
@@ -118,7 +133,7 @@ def generate_symbols():
                     try:
                         spots[2] = handlers[macro]()
                     except Exception as e:
-                        print("Failed to generate symbol for {}".format(macro))
+                        print("Failed to generate symbol for {}: {}".format(macro, e))
                     else:
                         print("Writing symbol addr {} for macro {}".format(spots[2], macro))
                         output_lines[index] = ' '.join(spots) + '\n'

@@ -92,11 +92,11 @@ static bool should_log_trace(CPUState *cpu)
     log out the instructions only between two events.
     */
 
-    // int replayed_num = get_replayed_event_num();
+    int replayed_num = get_replayed_event_num();
 
-    // if (18487 <= replayed_num && replayed_num < 18555) {
-    //     return true;
-    // }
+    if (28273 <= replayed_num && replayed_num < 28274) {
+        return true;
+    }
     // return should_log;
     return should_log;
 }
@@ -230,8 +230,10 @@ static inline TranslationBlock *tb_lookup(CPUState *cpu, target_ulong pc,
                tb->flags == flags &&
                tb->trace_vcpu_dstate == *cpu->trace_dstate &&
                tb_cflags(tb) == cflags)) {
-
-        if (tb->jump_next_event != -1) {
+        
+        /* We don't wanna use cached tb of rep io instruction, because we
+           need to handle it in replay() */
+        if (tb->jump_next_event != -1 || (tb->io_inst & IO_INST_REP)) {
             return NULL;
         }
 
@@ -1077,10 +1079,10 @@ int cpu_exec(CPUState *cpu)
                 cpu->cflags_next_tb = -1;
             }
 
-            // if (should_log_trace(cpu) && should_manual_breakpoint(pc) && !breaked) {
-            //     cpu->cause_debug = 1;
-            //     breaked = true;
-            // }
+            if (get_replayed_event_num() == 28273 && !breaked) {
+                cpu->cause_debug = 1;
+                breaked = true;
+            }
 
             if (check_for_breakpoints(cpu, pc, &cflags)) {
                 // qemu_log("Reach breakpoint\n");
@@ -1215,7 +1217,7 @@ int cpu_exec(CPUState *cpu)
                 // qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
             }
 
-            rr_inc_inst(cpu, tb->pc);
+            rr_inc_inst(cpu, tb->pc, tb);
 
 
             cpu->last_pc = tb->pc;

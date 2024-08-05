@@ -82,7 +82,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
     tcg_debug_assert(db->is_jmp == DISAS_NEXT);  /* no early exit */
 
     if (rr_in_replay() && db->in_user_mode) {
-        qemu_log("[CPU %d]User mode, fetch next event\n", cpu->cpu_index);
+        // qemu_log("[CPU %d]User mode, fetch next event\n", cpu->cpu_index);
 // retry:
         rr_event_log *log = rr_get_next_event();
         int next_event = log->type;
@@ -92,7 +92,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
             case EVENT_TYPE_SYSCALL:
                 db->do_syscall = true;
                 tb->jump_next_event = EVENT_TYPE_SYSCALL;
-                qemu_log("Next event syscall\n");
+                // qemu_log("Next event syscall\n");
                 break;
             case EVENT_TYPE_INTERRUPT:
                 tb->jump_next_event = EVENT_TYPE_INTERRUPT;
@@ -194,6 +194,8 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
     if (db->do_syscall) {
         tb->jump_next_event = EVENT_TYPE_SYSCALL;
     }
+
+    tb->io_inst = db->io_inst;
 
 #ifdef DEBUG_DISAS
     if (qemu_loglevel_mask(CPU_LOG_TB_IN_ASM)

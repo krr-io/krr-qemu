@@ -14,25 +14,25 @@
 
 #define STRNCPY_FROM_USER 0xffffffff814a4180 // info addr strncpy_from_user
 #define STRNLEN_USER 0xffffffff814a42b0 // info addr strnlen_user
-#define RANDOM_GEN 0xffffffff81034280 // info addr rr_record_random
-#define PF_EXEC 0xffffffff81a13830 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff81a13ad0 // b fault.c:1580
-#define RR_RECORD_CFU 0xffffffff81033f80 // info addr rr_record_cfu
-#define RR_GFU_NOCHECK1 0xffffffff81462ede // b arch/x86/lib/getuser.S:127
+#define RANDOM_GEN 0xffffffff81034080 // info addr rr_record_random
+#define PF_EXEC 0xffffffff81a13840 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff81a13ae0 // b fault.c:1580 arch/x86/mm/fault.c:1463
+#define RR_RECORD_CFU 0xffffffff810340f0 // info addr rr_record_cfu
+#define RR_GFU_NOCHECK1 0xffffffff819b029e // b arch/x86/lib/getuser.S:127
 #define RR_RECORD_GFU 0xffffffff819b0284 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff819b02dd // b getuser.S:147
-#define RR_GFU_NOCHECK8 0xffffffff819b02fe // b getuser.S:162
+#define RR_GFU_NOCHECK4 0xffffffff819b02dd // b getuser.S:162
+#define RR_GFU_NOCHECK8 0xffffffff819b02fe // b getuser.S:147
 #define RR_GFU4 0xffffffff819b0253 // b getuser.S:88
 
 #define SYSCALL_ENTRY 0xffffffff81c00000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff81a14090 // info addr syscall_exit_to_user_mode
+#define SYSCALL_EXIT 0xffffffff81a140a0 // info addr syscall_exit_to_user_mode
 #define PF_ASM_EXC 0xffffffff81c00b40 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff81a13fa0 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff81a14100 // info addr irqentry_exit
+#define IRQ_ENTRY 0xffffffff81a13fb0 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff81a14110 // info addr irqentry_exit
 
 #define LOCK_RELEASE 0 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff81a130b0 // info addr rr_record_syscall
+#define RR_RECORD_SYSCALL 0xffffffff81a130c0 // info addr rr_record_syscall
 #define RR_HANDLE_SYSCALL 0xffffffff81033520
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f
@@ -50,6 +50,10 @@
 #define SG_NUM  1024
 
 #define MAX_CPU_NUM 16
+
+#define IO_INST_REP 1
+#define IO_INST_REP_OUT 2
+#define STO_INST_REP 4
 
 
 int rr_in_replay(void);
@@ -177,7 +181,7 @@ unsigned long get_recorded_num(void);
 void rr_register_ivshmem(RAMBlock *rb);
 unsigned long rr_get_shm_addr(void);
 void rr_ivshmem_set_rr_enabled(int enabled);
-int rr_inc_inst(CPUState *cpu, unsigned long next_pc);
+int rr_inc_inst(CPUState *cpu, unsigned long next_pc, TranslationBlock *tb);
 int replay_cpu_exec_ready(CPUState *cpu);
 CPUState* replay_get_running_cpu(void);
 void rr_debug(void);

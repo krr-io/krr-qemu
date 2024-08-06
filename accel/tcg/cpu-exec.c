@@ -94,7 +94,7 @@ static bool should_log_trace(CPUState *cpu)
 
     int replayed_num = get_replayed_event_num();
 
-    if (28273 <= replayed_num && replayed_num < 28274) {
+    if (30562 <= replayed_num && replayed_num < 30563) {
         return true;
     }
     // return should_log;
@@ -1079,10 +1079,10 @@ int cpu_exec(CPUState *cpu)
                 cpu->cflags_next_tb = -1;
             }
 
-            if (get_replayed_event_num() == 28273 && !breaked) {
-                cpu->cause_debug = 1;
-                breaked = true;
-            }
+            // if (get_replayed_event_num() == 28273 && !breaked) {
+            //     cpu->cause_debug = 1;
+            //     breaked = true;
+            // }
 
             if (check_for_breakpoints(cpu, pc, &cflags)) {
                 // qemu_log("Reach breakpoint\n");
@@ -1115,7 +1115,7 @@ int cpu_exec(CPUState *cpu)
 
             if (tb->jump_next_event == EVENT_TYPE_EXCEPTION) {
                  tb->jump_next_event = -1;
-                rr_do_replay_exception(cpu);
+                rr_do_replay_exception(cpu, 1);
                 break;
             }
 #ifndef CONFIG_USER_ONLY

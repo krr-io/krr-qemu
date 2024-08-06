@@ -33,6 +33,9 @@ void QEMU_NORETURN helper_raise_interrupt(CPUX86State *env, int intno,
 
 void QEMU_NORETURN helper_raise_exception(CPUX86State *env, int exception_index)
 {
+    if (exception_index == EXCP06_ILLOP)
+        env->eflags |= RF_MASK;
+
     raise_exception(env, exception_index);
 }
 

@@ -2001,7 +2001,7 @@ void cause_other_cpu_debug(CPUState *cpu)
 }
 
 
-void rr_do_replay_exception(CPUState *cpu)
+void rr_do_replay_exception(CPUState *cpu, int user_mode)
 {
     X86CPU *x86_cpu;
     CPUArchState *env;
@@ -2027,6 +2027,26 @@ void rr_do_replay_exception(CPUState *cpu)
 
     sync_spin_inst_cnt(cpu, rr_event_log_head);
 
+    if (user_mode) {
+        env->regs[R_EAX] = rr_event_log_head->event.exception.regs.rax;
+        env->regs[R_EBX] = rr_event_log_head->event.exception.regs.rbx;
+        env->regs[R_ECX] = rr_event_log_head->event.exception.regs.rcx;
+        env->regs[R_EDX] = rr_event_log_head->event.exception.regs.rdx;
+        env->regs[R_EBP] = rr_event_log_head->event.exception.regs.rbp;
+        env->regs[R_ESP] = rr_event_log_head->event.exception.regs.rsp;
+        env->regs[R_EDI] = rr_event_log_head->event.exception.regs.rdi;
+        env->regs[R_ESI] = rr_event_log_head->event.exception.regs.rsi;
+        env->regs[R_R8] = rr_event_log_head->event.exception.regs.r8;
+        env->regs[R_R9] = rr_event_log_head->event.exception.regs.r9;
+        env->regs[R_R10] = rr_event_log_head->event.exception.regs.r10;
+        env->regs[R_R11] = rr_event_log_head->event.exception.regs.r11;
+        env->regs[R_R12] = rr_event_log_head->event.exception.regs.r12;
+        env->regs[R_R13] = rr_event_log_head->event.exception.regs.r13;
+        env->regs[R_R14] = rr_event_log_head->event.exception.regs.r14;
+        env->regs[R_R15] = rr_event_log_head->event.exception.regs.r15;
+        env->eflags = rr_event_log_head->event.exception.regs.rflags;
+        env->eip = rr_event_log_head->event.exception.regs.rip;
+    }
 
     // printf("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
     //        rr_event_log_head->event.exception.exception_index,
@@ -2159,10 +2179,10 @@ void rr_do_replay_syscall(CPUState *cpu)
 
     cpu->rr_executed_inst--;
 
-    // qemu_log("[%d]Replayed syscall=%lu, inst_cnt=%lu, replayed event number=%d\n",
-    //         cpu->cpu_index, env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
-    // printf("[%d]Replayed syscall=%lu, inst_cnt=%lu, replayed event number=%d\n",
-    //        cpu->cpu_index, env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
+    qemu_log("[%d]Replayed syscall=%lu, inst_cnt=%lu, replayed event number=%d\n",
+            cpu->cpu_index, env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
+    printf("[%d]Replayed syscall=%lu, inst_cnt=%lu, replayed event number=%d\n",
+           cpu->cpu_index, env->regs[R_EAX], cpu->rr_executed_inst, replayed_event_num);
     
     // sync_spin_inst_cnt(cpu, rr_event_log_head);
 
@@ -2593,7 +2613,7 @@ static void rr_read_shm_events(void)
     memcpy(queue_header, header, sizeof(rr_event_guest_queue_header));
 
     while(total_bytes < cur_byte && pos < cur_pos - 1) {
-        qemu_log("event addr=%p pos=%d %u\n", addr, pos, cur_pos);
+        // qemu_log("event addr=%p pos=%d %u\n", addr, pos, cur_pos);
         bytes = record_event(addr);
         total_bytes += bytes;
         addr += bytes;

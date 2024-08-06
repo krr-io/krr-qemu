@@ -14,10 +14,10 @@
 
 #define STRNCPY_FROM_USER 0xffffffff814a4180 // info addr strncpy_from_user
 #define STRNLEN_USER 0xffffffff814a42b0 // info addr strnlen_user
-#define RANDOM_GEN 0xffffffff81034080 // info addr rr_record_random
+#define RANDOM_GEN 0xffffffff810340a0 // info addr rr_record_random
 #define PF_EXEC 0xffffffff81a13840 // info addr exc_page_fault
 #define PF_EXEC_END 0xffffffff81a13ae0 // b fault.c:1580 arch/x86/mm/fault.c:1463
-#define RR_RECORD_CFU 0xffffffff810340f0 // info addr rr_record_cfu
+#define RR_RECORD_CFU 0xffffffff81034110 // info addr rr_record_cfu
 #define RR_GFU_NOCHECK1 0xffffffff819b029e // b arch/x86/lib/getuser.S:127
 #define RR_RECORD_GFU 0xffffffff819b0284 // b getuser.S:103
 #define RR_GFU_NOCHECK4 0xffffffff819b02dd // b getuser.S:162
@@ -75,7 +75,7 @@ uint64_t rr_num_instr_before_next_interrupt(void);
 int rr_is_syscall_ready(CPUState *cpu);
 void rr_do_replay_io_input(CPUState *cpu, unsigned long *input);
 void rr_do_replay_syscall(CPUState *cpu);
-void rr_do_replay_exception(CPUState *cpu);
+void rr_do_replay_exception(CPUState *cpu, int user_mode);
 void rr_do_replay_exception_end(CPUState *cpu);
 void rr_do_replay_strncpy_from_user(CPUState *cpu);
 void rr_post_replay_exception(CPUState *cpu);

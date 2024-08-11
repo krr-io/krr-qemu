@@ -805,6 +805,7 @@ void rr_do_replay_cfu(CPUState *cpu)
 
     if (temp_cfu_event != NULL) {
         temp_cfu_event = NULL;
+        replayed_event_num++;
         return;
     }
 
@@ -880,6 +881,7 @@ void rr_do_replay_strncpy_from_user(CPUState *cpu)
                 kernel_user_access_pf = true;
                 printf("Save the strncpy entry for later\n");
                 rr_handle_pending_pf_in_cfu(node);
+                cpu->cause_debug = true;
                 return;
             } else {
                 abort();
@@ -2379,7 +2381,6 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     }
 
     *tsc = rr_event_log_head->event.io_input.value;
-    rr_pop_event_head();
 
     qemu_log("[CPU %d]Replayed rdtsc=%lx, replayed event number=%d\n",
             cpu->cpu_index, *tsc, replayed_event_num);
@@ -2387,6 +2388,8 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
            cpu->cpu_index, *tsc, replayed_event_num);
 
 finish:
+    rr_pop_event_head();
+
     qemu_mutex_unlock(&replay_queue_mutex);
     return;
 }

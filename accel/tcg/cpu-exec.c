@@ -1174,7 +1174,7 @@ int cpu_exec(CPUState *cpu)
                     break;
                 case RR_RECORD_SYSCALL:
                     sync_syscall_spin_cnt(cpu);
-                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+                    rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
 
                     break;
                 case SYSCALL_ENTRY:
@@ -1183,6 +1183,8 @@ int cpu_exec(CPUState *cpu)
                 case IRQ_EXIT:
                 case E1000_CLEAN:
                 case E1000_CLEAN_MID:
+                case COSTUMED1:
+                case COSTUMED2:
                 // case RR_HANDLE_IRQ:
                 // case RR_RECORD_IRQ:
                 // case PF_ASM_EXC:
@@ -1218,6 +1220,7 @@ int cpu_exec(CPUState *cpu)
             }
 
             rr_inc_inst(cpu, tb->pc, tb);
+            // qemu_log("PC 0x%lx %lu\n", tb->pc, cpu->rr_executed_inst);
 
 
             cpu->last_pc = tb->pc;

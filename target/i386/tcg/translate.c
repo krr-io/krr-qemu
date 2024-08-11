@@ -4720,6 +4720,10 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         b = 0x105;
     }
 
+    if (s->prefix & (PREFIX_REPZ)) {
+        s->io_inst |= INST_REP;
+    }
+
     /* now check op code */
  reswitch:
     // qemu_log("op byte: %x\n", b);

@@ -33,9 +33,8 @@ void QEMU_NORETURN helper_raise_interrupt(CPUX86State *env, int intno,
 
 void QEMU_NORETURN helper_raise_exception(CPUX86State *env, int exception_index)
 {
-    // Intel sets RF flag on exceptions, we keep it consistent for KRR
-    // if (exception_index == EXCP06_ILLOP)
-    env->eflags |= RF_MASK;
+    if (exception_index == EXCP06_ILLOP)
+        env->eflags |= RF_MASK;
 
     raise_exception(env, exception_index);
 }

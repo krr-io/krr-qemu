@@ -423,9 +423,6 @@ static int handle_mmu_fault(CPUState *cs, vaddr addr, int size,
 
         env->error_code = error_code;
         cs->exception_index = EXCP0E_PAGE;
-
-        // Intel sets RF flag on exceptions, we keep it consistent for KRR
-        env->eflags |= RF_MASK;
         return 1;
     }
 }

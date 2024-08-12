@@ -199,8 +199,8 @@ handle_on_bp(CPUState *cpu)
 
     bp_addr = cpu->kvm_run->debug.arch.pc;
 
-    if (!rr_in_record())
-        return false;
+    // if (!rr_in_record())
+    return false;
 
     // handle_bp_points(cpu, bp_addr);
 

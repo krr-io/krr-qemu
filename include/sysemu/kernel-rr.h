@@ -12,28 +12,28 @@
 // #include "sysemu/dma.h"
 
 
-#define STRNCPY_FROM_USER 0xffffffff8277ce90 // info addr strncpy_from_user
-#define STRNLEN_USER 0xffffffff8277d140 // info addr strnlen_user
-#define RANDOM_GEN 0xffffffff8115f800 // info addr rr_record_random
-#define PF_EXEC 0xffffffff85050860 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff85050e21 // b fault.c:1580 arch/x86/mm/fault.c:1463
-#define RR_RECORD_CFU 0xffffffff8115f8c0 // info addr rr_record_cfu
-#define RR_GFU_NOCHECK1 0xffffffff84ddc0ee // b arch/x86/lib/getuser.S:127
-#define RR_RECORD_GFU 0xffffffff84ddc0d0 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff84ddc10d // b getuser.S:162
-#define RR_GFU_NOCHECK8 0xffffffff84ddc11e // b getuser.S:147
-#define RR_GFU4 0xffffffff84ddc0a3 // b getuser.S:88
+#define STRNCPY_FROM_USER 0xffffffff8149dbe0 // info addr strncpy_from_user
+#define STRNLEN_USER 0xffffffff8149dd10 // info addr strnlen_user
+#define RANDOM_GEN 0xffffffff8115e200 // info addr rr_record_random
+#define PF_EXEC 0xffffffff8177a8c0 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff8177ab60 // b fault.c:1580 arch/x86/mm/fault.c:1463
+#define RR_RECORD_CFU 0xffffffff810344b0 // info addr rr_record_cfu
+#define RR_GFU_NOCHECK1 0xffffffff8173e27e // b arch/x86/lib/getuser.S:127
+#define RR_RECORD_GFU 0xffffffff8173e264 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff8173e2bd // b getuser.S:162
+#define RR_GFU_NOCHECK8 0xffffffff8173e2de // b getuser.S:147
+#define RR_GFU4 0xffffffff8173e233 // b getuser.S:88
 
-#define SYSCALL_ENTRY 0xffffffff85200000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff85051ee0 // info addr syscall_exit_to_user_mode
-#define PF_ASM_EXC 0xffffffff85200ae0 // info addr asm_exc_page_fault
+#define SYSCALL_ENTRY 0xffffffff81800000 // info addr entry_SYSCALL_64
+#define SYSCALL_EXIT 0xffffffff8177b130 // info addr syscall_exit_to_user_mode
+#define PF_ASM_EXC 0xffffffff81800b40 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff85051f90 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff85052020 // info addr irqentry_exit
+#define IRQ_ENTRY 0xffffffff8177b030 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff8177b1a0 // info addr irqentry_exit
 
-#define LOCK_RELEASE 0 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff8504d5e0 // info addr rr_record_syscall
-#define RR_HANDLE_SYSCALL 0xffffffff81033520
+#define LOCK_RELEASE 0xffffffff81034100 // info addr rr_record_release
+#define RR_RECORD_SYSCALL 0xffffffff8103413e // info addr rr_record_syscall
+#define RR_HANDLE_SYSCALL 0xffffffff81034110
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f
 #define RR_RECORD_EXCP 0xffffffff810350d1

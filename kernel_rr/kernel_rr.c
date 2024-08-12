@@ -318,9 +318,8 @@ static void sync_spin_inst_cnt(CPUState *cpu, rr_event_log *event)
     }
 
     if (event->type == EVENT_TYPE_INTERRUPT) {
-        spin_cnt_diff = event->event.interrupt.spin_count * 3 - 1;
-    }
-    else if (event->type == EVENT_TYPE_EXCEPTION) {
+        spin_cnt_diff = event->event.interrupt.spin_count * 3;
+    } else if (event->type == EVENT_TYPE_EXCEPTION) {
         qemu_log("spin_cnt_diff=%ld\n", spin_cnt_diff);
         spin_cnt_diff = event->event.exception.spin_count * 3;
     }
@@ -881,7 +880,6 @@ void rr_do_replay_strncpy_from_user(CPUState *cpu)
                 kernel_user_access_pf = true;
                 printf("Save the strncpy entry for later\n");
                 rr_handle_pending_pf_in_cfu(node);
-                cpu->cause_debug = true;
                 return;
             } else {
                 abort();

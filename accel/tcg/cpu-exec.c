@@ -94,7 +94,7 @@ static bool should_log_trace(CPUState *cpu)
 
     int replayed_num = get_replayed_event_num();
 
-    if (30562 <= replayed_num && replayed_num < 30563) {
+    if (393 <= replayed_num && replayed_num < 394) {
         return true;
     }
     // return should_log;

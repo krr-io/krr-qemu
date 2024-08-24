@@ -12,27 +12,28 @@
 // #include "sysemu/dma.h"
 
 
-#define STRNCPY_FROM_USER 0xffffffff8149dbe0 // info addr strncpy_from_user
-#define STRNLEN_USER 0xffffffff8149dd10 // info addr strnlen_user
-#define RANDOM_GEN 0xffffffff8115e200 // info addr rr_record_random
-#define PF_EXEC 0xffffffff8177a8c0 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff8177ab60 // b fault.c:1580 arch/x86/mm/fault.c:1463
-#define RR_RECORD_CFU 0xffffffff810344b0 // info addr rr_record_cfu
-#define RR_GFU_NOCHECK1 0xffffffff8173e27e // b arch/x86/lib/getuser.S:127
-#define RR_RECORD_GFU 0xffffffff8173e264 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff8173e2bd // b getuser.S:162
-#define RR_GFU_NOCHECK8 0xffffffff8173e2de // b getuser.S:147
-#define RR_GFU4 0xffffffff8173e233 // b getuser.S:88
+#define STRNCPY_FROM_USER 0xffffffff83cc33b0 // info addr strncpy_from_user
+#define STRNLEN_USER 0xffffffff83cc3660 // info addr strnlen_user
+#define RANDOM_GEN 0xffffffff8128ade0 // info addr rr_record_random
+#define PF_EXEC 0xffffffff89062f80 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff89062ff1 // b fault.c:1580 arch/x86/mm/fault.c:1463
+#define RR_CFU_BEGIN 0xffffffff8128b1d0
+#define RR_RECORD_CFU 0xffffffff8128aea0 // info addr rr_record_cfu
+#define RR_GFU_NOCHECK1 0xffffffff88c0815e // b arch/x86/lib/getuser.S:127
+#define RR_RECORD_GFU 0xffffffff88c08140 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff88c0817d // b getuser.S:162
+#define RR_GFU_NOCHECK8 0xffffffff88c0818e // b getuser.S:147
+#define RR_GFU4 0xffffffff88c08113 // b getuser.S:88
 
-#define SYSCALL_ENTRY 0xffffffff81800000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff8177b130 // info addr syscall_exit_to_user_mode
-#define PF_ASM_EXC 0xffffffff81800b40 // info addr asm_exc_page_fault
+#define SYSCALL_ENTRY 0xffffffff89200000 // info addr entry_SYSCALL_64
+#define SYSCALL_EXIT 0xffffffff8161a4a0 // info addr syscall_exit_to_user_mode
+#define PF_ASM_EXC 0xffffffff89200ae0 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff8177b030 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff8177b1a0 // info addr irqentry_exit
+#define IRQ_ENTRY 0xffffffff890638e0 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff89063970 // info addr irqentry_exit
 
-#define LOCK_RELEASE 0xffffffff81034100 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff8103413e // info addr rr_record_syscall
+#define LOCK_RELEASE 0 // info addr rr_record_release
+#define RR_RECORD_SYSCALL 0xffffffff89061040 // info addr rr_record_syscall
 #define RR_HANDLE_SYSCALL 0xffffffff81034110
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f
@@ -41,8 +42,9 @@
 #define E1000_CLEAN 0xffffffff816056a0
 #define E1000_CLEAN_MID 0xffffffff81605a02
 
-#define COSTUMED1 0xffffffff84dec44c
-#define COSTUMED2 0xffffffff8172fecd
+#define COSTUMED1 0xffffffff8161a360
+#define COSTUMED2 0xffffffff8907bd70
+#define COSTUMED3 0xffffffff8161a35d
 
 
 #define KVM_HC_RR_DATA_IN           13
@@ -71,7 +73,7 @@ int get_replayed_event_num(void);
 
 void rr_replay_interrupt(CPUState *cpu, int *interrupt);
 void rr_do_replay_intno(CPUState *cpu, int *intno);
-void rr_do_replay_cfu(CPUState *cpu);
+void rr_do_replay_cfu(CPUState *cpu, int post_exception);
 void rr_do_replay_rand(CPUState *cpu, int hypercall);
 void rr_do_replay_rdseed(unsigned long *val);
 
@@ -81,7 +83,7 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input);
 void rr_do_replay_syscall(CPUState *cpu);
 void rr_do_replay_exception(CPUState *cpu, int user_mode);
 void rr_do_replay_exception_end(CPUState *cpu);
-void rr_do_replay_strncpy_from_user(CPUState *cpu);
+void rr_do_replay_strncpy_from_user(CPUState *cpu, int post_exception);
 void rr_post_replay_exception(CPUState *cpu);
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc);
 void rr_do_replay_gfu(CPUState *cpu);

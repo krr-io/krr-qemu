@@ -561,7 +561,7 @@ void helper_vmcall(CPUX86State *env)
             // Ignore
             return;
         case KVM_HC_RR_DATA_IN:
-            rr_do_replay_cfu(cs);
+            rr_do_replay_cfu(cs, 0);
             return;
         case KVM_HC_RR_GETUSER:
             rr_do_replay_gfu(cs);

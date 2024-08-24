@@ -50,17 +50,20 @@ def fetch_exc_page_fault():
     return filter_info_addr("exc_page_fault")
 
 def fetch_exc_page_fault_end():
-    if "6.1.0" in VERSION or "6.1.18" in VERSION or "6.1.31" in VERSION:
+    if "6.1.0" in VERSION or "6.1.18" in VERSION or "6.1.31" in VERSION or "6.1.34" in VERSION:
         return filter_loc_addr("fault.c:1580")
     elif "6.1.86" in VERSION:
         return filter_loc_addr("fault.c:1523")
-    elif "6.1.61" in VERSION or "6.1.77" in VERSION:
+    elif "6.1.61" in VERSION or "6.1.77" in VERSION or "6.1.38" in VERSION or "6.1.62" in VERSION:
         return filter_loc_addr("fault.c:1532")
     else:
         return filter_loc_addr("fault.c:1463")
 
 def fetch_rr_record_cfu():
     return filter_info_addr("rr_record_cfu")
+
+def fetch_rr_cfu_begin():
+    return filter_info_addr("rr_begin_cfu")
 
 def fetch_gfu_nocheck1():
     return filter_loc_addr("getuser.S:127")
@@ -108,6 +111,7 @@ handlers = {
     "PF_EXEC": fetch_exc_page_fault,
     "PF_EXEC_END": fetch_exc_page_fault_end,
     "RR_RECORD_CFU": fetch_rr_record_cfu,
+    "RR_CFU_BEGIN": fetch_rr_cfu_begin,
     "RR_RECORD_GFU": fetch_rr_record_gfu,
     "RR_GFU4": fetch_gfu4,
     "RR_GFU_NOCHECK1": fetch_gfu_nocheck1,

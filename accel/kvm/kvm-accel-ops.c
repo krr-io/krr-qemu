@@ -50,7 +50,8 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
         bp_addr != E1000_CLEAN && \
         bp_addr != E1000_CLEAN_MID && \
         bp_addr != COSTUMED1 && \
-        bp_addr != COSTUMED2)
+        bp_addr != COSTUMED2 && \
+        bp_addr != COSTUMED3)
         return false;
 
     return true;
@@ -68,7 +69,7 @@ static bool rr_is_address_sw(target_ulong bp_addr)
         || bp_addr == RR_GFU_NOCHECK8 \
         || bp_addr == E1000_CLEAN \
         || bp_addr == E1000_CLEAN_MID \
-        || bp_addr == COSTUMED1 || bp_addr == COSTUMED2 || bp_addr == RR_RECORD_SYSCALL)
+        || bp_addr == COSTUMED1 || bp_addr == COSTUMED2 || bp_addr == COSTUMED3 || bp_addr == RR_RECORD_SYSCALL)
     {
         return true;
     }
@@ -111,19 +112,26 @@ void rr_insert_breakpoints(void)
             printf("Inserted breakpoints for irq exit\n");
         }
 
-        // bp_ret = kvm_insert_breakpoint(cpu, COSTUMED1, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for e1000 clean: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for e1000 clean\n");
-        // }
+        bp_ret = kvm_insert_breakpoint(cpu, COSTUMED1, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for e1000 clean: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for e1000 clean\n");
+        }
 
-        // bp_ret = kvm_insert_breakpoint(cpu, COSTUMED2, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for e1000 clean mid\n");
-        // }
+        bp_ret = kvm_insert_breakpoint(cpu, COSTUMED2, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for e1000 clean mid\n");
+        }
+
+        bp_ret = kvm_insert_breakpoint(cpu, COSTUMED3, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for e1000 clean mid\n");
+        }
 
         // bp_ret = kvm_insert_breakpoint(cpu, RR_RECORD_SYSCALL, 1, GDB_BREAKPOINT_SW);
         // if (bp_ret > 0) {
@@ -175,6 +183,7 @@ void rr_remove_breakpoints(void)
         kvm_remove_breakpoint(cpu, E1000_CLEAN_MID, 1, GDB_BREAKPOINT_SW);
         kvm_remove_breakpoint(cpu, COSTUMED1, 1, GDB_BREAKPOINT_SW);
         kvm_remove_breakpoint(cpu, COSTUMED2, 1, GDB_BREAKPOINT_SW);
+        kvm_remove_breakpoint(cpu, COSTUMED3, 1, GDB_BREAKPOINT_SW);
         kvm_remove_breakpoint(cpu, RR_RECORD_SYSCALL, 1, GDB_BREAKPOINT_SW);
         // kvm_remove_breakpoint(cpu, uaccess_begin, 1, GDB_BREAKPOINT_SW);
     }
@@ -199,8 +208,8 @@ handle_on_bp(CPUState *cpu)
 
     bp_addr = cpu->kvm_run->debug.arch.pc;
 
-    // if (!rr_in_record())
-    return false;
+    if (!rr_in_record())
+        return false;
 
     // handle_bp_points(cpu, bp_addr);
 

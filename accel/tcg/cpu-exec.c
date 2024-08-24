@@ -92,11 +92,11 @@ static bool should_log_trace(CPUState *cpu)
     log out the instructions only between two events.
     */
 
-    int replayed_num = get_replayed_event_num();
+    // int replayed_num = get_replayed_event_num();
 
-    if (393 <= replayed_num && replayed_num < 394) {
-        return true;
-    }
+    // if (46259 <= replayed_num) {
+    //     return true;
+    // }
     // return should_log;
     return should_log;
 }
@@ -815,6 +815,7 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
             if (interrupt_request != -1) {
                 cpu->interrupt_request = interrupt_request;
                 qatomic_mb_set(&cpu->exit_request, 0);
+                cpu->interrupt_replayed = 1;
                 printf("[%d]Get replay int %d\n", cpu->cpu_index, interrupt_request);
             } else {
                 interrupt_request = 0;
@@ -999,6 +1000,7 @@ int cpu_exec(CPUState *cpu)
 
     /* replay_interrupt may need current_cpu */
     current_cpu = cpu;
+    bool break_while = false;
 
     if (cpu_handle_halt(cpu)) {
         return EXCP_HALTED;
@@ -1079,10 +1081,16 @@ int cpu_exec(CPUState *cpu)
                 cpu->cflags_next_tb = -1;
             }
 
-            // if (get_replayed_event_num() == 28273 && !breaked) {
+            // if (get_replayed_event_num() == 46253 && !breaked) {
             //     cpu->cause_debug = 1;
             //     breaked = true;
             // }
+
+            if (cpu->interrupt_replayed) {
+                cpu->interrupt_replayed = 0;
+                break_while = true;
+                break;
+            }
 
             if (check_for_breakpoints(cpu, pc, &cflags)) {
                 // qemu_log("Reach breakpoint\n");
@@ -1140,7 +1148,8 @@ int cpu_exec(CPUState *cpu)
                 switch (tb->pc)
                 {
                 case RR_RECORD_CFU:
-                    rr_do_replay_cfu(cpu);
+                case RR_CFU_BEGIN:
+                    rr_do_replay_cfu(cpu, 0);
                     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
                 case STRNLEN_USER:
@@ -1148,7 +1157,7 @@ int cpu_exec(CPUState *cpu)
                     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
                 case STRNCPY_FROM_USER:
-                    rr_do_replay_strncpy_from_user(cpu);
+                    rr_do_replay_strncpy_from_user(cpu, 0);
                     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
                 case RR_RECORD_GFU:
@@ -1185,6 +1194,7 @@ int cpu_exec(CPUState *cpu)
                 case E1000_CLEAN_MID:
                 case COSTUMED1:
                 case COSTUMED2:
+                case COSTUMED3:
                 // case RR_HANDLE_IRQ:
                 // case RR_RECORD_IRQ:
                 // case PF_ASM_EXC:
@@ -1235,6 +1245,10 @@ int cpu_exec(CPUState *cpu)
             /* Try to align the host and virtual clocks
                if the guest is in advance */
             align_clocks(&sc, cpu);
+        }
+
+        if (break_while) {
+            break;
         }
 
         // qemu_log("exit interrupt\n");

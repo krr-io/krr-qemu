@@ -449,6 +449,7 @@ struct CPUState {
     unsigned long last_replayed_addr;
     unsigned long last_replayed_inst;
     unsigned int is_rep_io_inst;
+    int interrupt_replayed;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

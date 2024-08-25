@@ -52,9 +52,9 @@ def fetch_exc_page_fault():
 def fetch_exc_page_fault_end():
     if "6.1.0" in VERSION or "6.1.18" in VERSION or "6.1.31" in VERSION or "6.1.34" in VERSION:
         return filter_loc_addr("fault.c:1580")
-    elif "6.1.86" in VERSION:
+    elif "6.1.86" in VERSION or "6.1.84" in VERSION:
         return filter_loc_addr("fault.c:1523")
-    elif "6.1.61" in VERSION or "6.1.77" in VERSION or "6.1.38" in VERSION or "6.1.62" in VERSION:
+    elif "6.1.61" in VERSION or "6.1.77" in VERSION or "6.1.38" in VERSION or "6.1.62" in VERSION or "6.1.66" in VERSION:
         return filter_loc_addr("fault.c:1532")
     else:
         return filter_loc_addr("fault.c:1463")

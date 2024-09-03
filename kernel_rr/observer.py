@@ -116,14 +116,14 @@ def generate_rocksdb_bp(buffer):
 
     try:
         if benchmark in buffer:
-            ops_idx = item_list.index("ops/sec") - 1
+            ops_idx = item_list.index("ops/sec;") - 1
             lat_idx = item_list.index("micros/op") - 1
 
             ops_ps = item_list[ops_idx]
             latency = item_list[lat_idx]
 
-            append_file(bm, OPSPS, ops_ps)
-            append_file(bm, LATENCY, latency)
+            append_file(benchmark, OPSPS, ops_ps)
+            append_file(benchmark, LATENCY, latency)
 
             return True
 
@@ -282,7 +282,7 @@ def gen_script(cpu_num):
     qemu_base_cmd = """
     {qemu_binary} -kernel {kernel_image} \
     -accel kvm -smp {cpu_num} -cpu host -no-hpet -m 8G -append \
-    "root=/dev/sda rw init=/lib/systemd/systemd tsc=reliable console=ttyS0" \
+    "root=/dev/sda rw init=/lib/systemd/systemd tsc=reliable console=ttyS0 noavx" \
     -hda {disk_image} \
     {ivshmem} -vnc :00 -D rec.log {extra_dev} -exit-record 1 \
     -qmp unix:{socket_path},server=on,wait=off {extra_arg}

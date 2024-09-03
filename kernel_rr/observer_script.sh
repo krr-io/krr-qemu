@@ -7,9 +7,11 @@ shift
 shift
 shift
 
-env_vars="KRR_SMP_IMG=/home/silver/bzImage KRR_UNI_IMG=/home/silver/uni-guest/bzImage \
-  KRR_DISK=/home/silver/rootfs-bypass.qcow2 BL_IMG=/home/silver/normal-guest/bzImage \
-  KBUILD_DISK=/home/silver/rootfs-kbuild.qcow2 "
+basedir="/home/silver"
+
+env_vars="KRR_SMP_IMG=${basedir}/bzImage KRR_UNI_IMG=${basedir}/uni-guest/bzImage \
+  KRR_DISK=${basedir}/rootfs-bypass.qcow2 BL_IMG=${basedir}/normal-guest/bzImage \
+  KBUILD_DISK=${basedir}/rootfs-kbuild.qcow2 "
 
 missing_duration=60
 file="/dev/shm/record"

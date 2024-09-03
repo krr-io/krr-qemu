@@ -2099,6 +2099,7 @@ void rr_do_replay_exception(CPUState *cpu, int user_mode)
         env->regs[R_R15] = rr_event_log_head->event.exception.regs.r15;
         env->eflags = rr_event_log_head->event.exception.regs.rflags;
         env->eip = rr_event_log_head->event.exception.regs.rip;
+        env->exception_is_int = 0;
     }
 
     // printf("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 

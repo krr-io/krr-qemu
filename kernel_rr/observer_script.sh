@@ -38,6 +38,8 @@ exec_qemu() {
 
   sleep 5
 
+  rr_set_cpu_aff
+
   while true; do
     if pgrep qemu > /dev/null; then
       true
@@ -75,7 +77,7 @@ exec_qemu() {
   done
 }
 
-for i in 1 2 4 8;
+for i in 1 2 4 8 16;
 do
   while true; do
     exec_qemu $i

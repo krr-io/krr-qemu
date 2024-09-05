@@ -208,8 +208,8 @@ handle_on_bp(CPUState *cpu)
 
     bp_addr = cpu->kvm_run->debug.arch.pc;
 
-    if (!rr_in_record())
-        return false;
+    // if (!rr_in_record())
+    return false;
 
     // handle_bp_points(cpu, bp_addr);
 
@@ -280,11 +280,11 @@ static void start_record(void)
     if (rr_get_ignore_record())
         return;
 
-    pause_all_vcpus();
+    vm_stop(RUN_STATE_PAUSED);
     rr_ivshmem_set_rr_enabled(1);
     kvm_start_record();
 
-    resume_all_vcpus();
+    vm_start();
 }
 
 static void end_record(void)

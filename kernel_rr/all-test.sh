@@ -1,11 +1,10 @@
 #!/bin/bash
 
 # Define the array
-schemes=("baseline" "kernel_rr" "whole_system_rr")
+schemes=("baseline" "kernel_rr")
 #schemes=("kernel_rr")
 
 test=${1}
-benchmark=${2}
 basedir="/users/sishuaig"
 
 # Loop through the array
@@ -32,12 +31,15 @@ do
     echo "Scheme: $scheme, Branch: $branch"
     cd ${basedir}/kernel-rr-linux/;git checkout $branch;sh replace.sh
 
-    for i in 1 2 3 4 5;
+    for benchmark in readrandom readseq readwhilewriting readwhilescanning seekrandom;
     do
-        cd ${basedir}/qemu-tcg-kvm/kernel_rr/;bash observer_script.sh $scheme $test $benchmark
-        if [ -f "/dev/shm/quit" ]; then
-                echo "Ending test..."
-                exit 0
-        fi
+        for i in 1 2 3 4 5;
+        do
+            cd ${basedir}/qemu-tcg-kvm/kernel_rr/;bash observer_script.sh $scheme $test $benchmark
+            if [ -f "/dev/shm/quit" ]; then
+                    echo "Ending test..."
+                    exit 0
+            fi
+        done
     done
 done

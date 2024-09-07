@@ -34,6 +34,7 @@
 
 #define EXCP_START_RECORD     0x10006
 #define EXCP_END_RECORD     0x10007
+#define EXCP_RR_CP           0x10008
 
 /* some important defines:
  *

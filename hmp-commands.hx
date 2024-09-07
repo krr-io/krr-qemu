@@ -1768,7 +1768,7 @@ ERST
 
     {
         .name       = "rr_record",
-        .args_type  = "name:s,trace:i?",
+        .args_type  = "name:s,trace:i?,trace_interval:i?",
         .params     = "tag",
         .help       = "",
         .cmd        = hmp_rr_record,

@@ -119,7 +119,7 @@ void qmp_rr_record(Error **errp)
 
     printf("Snapshot taken, start recording...\n");
 
-    kvm_start_record();
+    kvm_start_record(0, 0);
 
     if (autostart)
         vm_start();

@@ -2945,6 +2945,11 @@ int kvm_cpu_exec(CPUState *cpu)
                 break;
             }
 
+            if (run_ret == -102) {
+                ret = EXCP_RR_CP;
+                break;
+            }
+
             if (run_ret == -EINTR || run_ret == -EAGAIN) {
                 DPRINTF("io window exit\n");
                 kvm_eat_signals(cpu);
@@ -3556,11 +3561,13 @@ unsigned long rr_get_result_buffer(void)
 }
 
 
-int kvm_start_record(void)
+int kvm_start_record(int enable_trace, unsigned long trace_interval)
 {
     int ret;
     struct rr_record_data data = {
-        .shm_base_addr = rr_get_shm_addr()
+        .shm_base_addr = rr_get_shm_addr(),
+        .enable_trace = enable_trace,
+        .trace_interval = trace_interval
     };
 
     // CPU_FOREACH(cpu) {

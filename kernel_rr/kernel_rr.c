@@ -368,6 +368,7 @@ static void pre_record(void) {
 
     printf("Removing existing log files: %s\n", kernel_rr_log);
 
+    rr_init_checkpoints();
     remove(kernel_rr_log);
     rr_dma_pre_record();
     rr_network_dma_pre_record();
@@ -1868,6 +1869,8 @@ void rr_post_record(void)
     rr_dma_post_record();
     rr_network_dma_post_record();
 
+    rr_save_checkpoints();
+
     printf("Getting result\n");
     rr_get_result();
 
@@ -2296,7 +2299,7 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
         //  cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
         //  abort();
         cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
-        // cpu->cause_debug = 1;
+        cpu->cause_debug = 1;
     }
 
     if (rr_event_log_head->rip != env->eip) {
@@ -2405,16 +2408,16 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
         qemu_log("Mismatched RDTSC, expected inst cnt %lu, found %lu, rip=0x%lx\n",
                rr_event_log_head->inst_cnt, cpu->rr_executed_inst, env->eip);
         cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
-        // cpu->cause_debug = true;
+        cpu->cause_debug = true;
         // goto finish;
     }
 
     *tsc = rr_event_log_head->event.io_input.value;
 
-    qemu_log("[CPU %d]Replayed rdtsc=%lx, replayed event number=%d\n",
-            cpu->cpu_index, *tsc, replayed_event_num);
-    printf("[CPU %d]Replayed rdtsc=%lx, replayed event number=%d\n",
-           cpu->cpu_index, *tsc, replayed_event_num);
+    qemu_log("[CPU %d]Replayed rdtsc=%lx, inst=%lu, replayed event number=%d\n",
+            cpu->cpu_index, *tsc, rr_event_log_head->event.io_input.inst_cnt, replayed_event_num);
+    printf("[CPU %d]Replayed rdtsc=%lx, inst=%lu, replayed event number=%d\n",
+           cpu->cpu_index, *tsc, rr_event_log_head->event.io_input.inst_cnt, replayed_event_num);
 
 finish:
     rr_pop_event_head();
@@ -2529,6 +2532,7 @@ uint64_t rr_num_instr_before_next_interrupt(void)
             rr_dma_pre_replay();
             rr_dma_network_pre_replay();
             initialize_replay();
+            rr_load_checkpoints();
 
             initialized_replay = 1;
         } else {

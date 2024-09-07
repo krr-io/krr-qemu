@@ -199,6 +199,8 @@ void rr_enable_mem_logs(void);
 
 struct rr_record_data {
     unsigned long shm_base_addr;
+    int enable_trace;
+    unsigned long trace_interval;
 };
 
 #endif

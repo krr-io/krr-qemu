@@ -282,7 +282,7 @@ static void start_record(void)
 
     vm_stop(RUN_STATE_PAUSED);
     rr_ivshmem_set_rr_enabled(1);
-    kvm_start_record();
+    kvm_start_record(0, 0);
 
     vm_start();
 }
@@ -335,6 +335,10 @@ static void *kvm_vcpu_thread_fn(void *arg)
                     handle_bp_points(cpu, cpu->kvm_run->debug.arch.pc);
                     cpu_handle_guest_debug(cpu);
                 }
+            }
+
+            if (r == EXCP_RR_CP) {
+                handle_rr_checkpoint(cpu);
             }
         }
         qemu_wait_io_event(cpu);

@@ -94,7 +94,9 @@ static bool should_log_trace(CPUState *cpu)
 
     // int replayed_num = get_replayed_event_num();
 
-    // if (46259 <= replayed_num) {
+    // if (cpu->rr_executed_inst > 9998)
+    //     return true;
+    // if (3756 <= replayed_num) {
     //     return true;
     // }
     // return should_log;
@@ -1081,7 +1083,7 @@ int cpu_exec(CPUState *cpu)
                 cpu->cflags_next_tb = -1;
             }
 
-            // if (get_replayed_event_num() == 46253 && !breaked) {
+            // if (cpu->last_pc == 0xffffffff8128af40 && get_replayed_event_num() > 3754 && !breaked) {
             //     cpu->cause_debug = 1;
             //     breaked = true;
             // }
@@ -1208,8 +1210,11 @@ int cpu_exec(CPUState *cpu)
                 }
             }
 
-
-
+            if (check_for_breakpoints(cpu, pc, &cflags)) {
+                // qemu_log("Reach breakpoint\n");
+                cause_other_cpu_debug(cpu);
+                break;
+            }
             // if (singlestep_started && count_num) {
             //     rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
 
@@ -1232,6 +1237,7 @@ int cpu_exec(CPUState *cpu)
             rr_inc_inst(cpu, tb->pc, tb);
             // qemu_log("PC 0x%lx %lu\n", tb->pc, cpu->rr_executed_inst);
 
+            handle_replay_rr_checkpoint(cpu);
 
             cpu->last_pc = tb->pc;
 

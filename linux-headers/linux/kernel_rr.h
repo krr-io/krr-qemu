@@ -65,6 +65,7 @@ typedef struct {
     unsigned long spin_count;
     unsigned long inst_cnt;
     unsigned long rip;
+    struct kvm_regs regs;
 } rr_interrupt;
 
 
@@ -128,6 +129,7 @@ typedef struct rr_event_log_t{
     struct rr_event_log_t *next;
     unsigned long inst_cnt;
     unsigned long rip;
+    int user_mode;
 } rr_event_log;
 
 typedef struct rr_event_log_guest_t {

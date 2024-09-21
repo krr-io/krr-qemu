@@ -2766,7 +2766,7 @@ void qmp_x_exit_preconfig(Error **errp)
         if (error_fatal == NULL) {
             // vm_start();
             printf("Loaded snapshot %s\n", kernel_replay_name);
-            // dump_cpus_state();
+            dump_cpus_state();
         } else {
             printf("Failed to load snapshot\n");
             // exit(1);

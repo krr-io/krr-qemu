@@ -83,7 +83,7 @@ typedef struct SyncClocks {
 static int64_t max_delay;
 static int64_t max_advance;
 
-static bool should_log = false;
+static bool should_log = true;
 
 static bool should_log_trace(CPUState *cpu)
 {
@@ -94,9 +94,9 @@ static bool should_log_trace(CPUState *cpu)
 
     // int replayed_num = get_replayed_event_num();
 
-    // if (cpu->rr_executed_inst > 9998)
-    //     return true;
-    // if (3756 <= replayed_num) {
+    // // if (cpu->rr_executed_inst > 9998)
+    // //     return true;
+    // if (527 <= replayed_num && replayed_num < 530) {
     //     return true;
     // }
     // return should_log;
@@ -1008,7 +1008,14 @@ int cpu_exec(CPUState *cpu)
         return EXCP_HALTED;
     }
 
+    dump_cpus_state();
+    printf("ch1\n");
+
     rcu_read_lock();
+
+
+    dump_cpus_state();
+    printf("ch2\n");
 
     cpu_exec_enter(cpu);
 
@@ -1058,6 +1065,7 @@ int cpu_exec(CPUState *cpu)
         TranslationBlock *last_tb = NULL;
         int tb_exit = 0;
 
+        dump_cpus_state();
         while (replay_cpu_exec_ready(cpu) && !cpu_handle_interrupt(cpu, &last_tb)) {
             TranslationBlock *tb;
             target_ulong cs_base, pc;
@@ -1083,10 +1091,10 @@ int cpu_exec(CPUState *cpu)
                 cpu->cflags_next_tb = -1;
             }
 
-            // if (cpu->last_pc == 0xffffffff8128af40 && get_replayed_event_num() > 3754 && !breaked) {
-            //     cpu->cause_debug = 1;
-            //     breaked = true;
-            // }
+            if (cpu->rr_executed_inst == -1 && !breaked) {
+                cpu->cause_debug = 1;
+                breaked = true;
+            }
 
             if (cpu->interrupt_replayed) {
                 cpu->interrupt_replayed = 0;
@@ -1208,6 +1216,8 @@ int cpu_exec(CPUState *cpu)
                 default:
                     break;
                 }
+
+                rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst);
             }
 
             if (check_for_breakpoints(cpu, pc, &cflags)) {
@@ -1234,10 +1244,10 @@ int cpu_exec(CPUState *cpu)
                 // qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
             }
 
+            handle_replay_rr_checkpoint(cpu, tb->io_inst & INST_REP);
+
             rr_inc_inst(cpu, tb->pc, tb);
             // qemu_log("PC 0x%lx %lu\n", tb->pc, cpu->rr_executed_inst);
-
-            handle_replay_rr_checkpoint(cpu);
 
             cpu->last_pc = tb->pc;
 

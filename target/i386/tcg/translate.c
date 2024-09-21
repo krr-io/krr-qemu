@@ -4547,6 +4547,13 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
     }
 }
 
+// static void restore_eflags(DisasContext *s)
+// {
+//     tcg_gen_ld_tl(s->T0, cpu_env, offsetof(CPUX86State, eflags));
+//     gen_helper_write_eflags(cpu_env, s->T0, tcg_const_i32((TF_MASK | AC_MASK | ID_MASK | NT_MASK) & 0xffff));
+//     set_cc_op(s, CC_OP_EFLAGS);
+// }
+
 /* convert one instruction. s->base.is_jmp is set if the translation must
    be stopped. Return the next pc value */
 static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
@@ -8507,6 +8514,12 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     default:
         goto unknown_op;
     }
+
+    qemu_log("cc op %d\n", s->cc_op);
+    gen_compute_eflags(s);
+    gen_helper_write_eflags(cpu_env, cpu_cc_src,
+                        tcg_const_i32((CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C) & 0xffff));  // Write the computed flags to env->eflags
+
     return s->pc;
  illegal_op:
     qemu_log("Error: Invalid ops!\n");

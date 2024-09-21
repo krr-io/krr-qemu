@@ -27,6 +27,7 @@
 #include "exec/log.h"
 #include "helper-tcg.h"
 #include "seg_helper.h"
+#include "sysemu/kernel-rr.h"
 
 int get_pg_mode(CPUX86State *env)
 {
@@ -988,6 +989,11 @@ static void do_interrupt64(CPUX86State *env, int intno, int is_int,
         eflags |= RF_MASK;
     }
 
+    if (rr_in_replay()) {
+        eflags = rr_get_interrupt_eflags();
+        qemu_log("Replayed eflags 0x%x\n", eflags);
+    }
+
     PUSHQ(esp, env->segs[R_SS].selector);
     PUSHQ(esp, env->regs[R_ESP]);
     PUSHQ(esp, eflags);
@@ -1002,6 +1008,7 @@ static void do_interrupt64(CPUX86State *env, int intno, int is_int,
         env->eflags &= ~IF_MASK;
     }
     env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
+
 
     if (new_stack) {
         ss = 0 | dpl;

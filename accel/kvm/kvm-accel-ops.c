@@ -84,33 +84,33 @@ void rr_insert_breakpoints(void)
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
-        bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for syscall: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for system call\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for syscall: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for system call\n");
+        // }
 
-        bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for pf: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for syscall exit\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for pf: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for syscall exit\n");
+        // }
 
-        bp_ret = kvm_insert_breakpoint(cpu, IRQ_ENTRY, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for irq entry: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for irq entry\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, IRQ_ENTRY, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for irq entry: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for irq entry\n");
+        // }
 
-        bp_ret = kvm_insert_breakpoint(cpu, IRQ_EXIT, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for irq exit: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for irq exit\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, IRQ_EXIT, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for irq exit: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for irq exit\n");
+        // }
 
         bp_ret = kvm_insert_breakpoint(cpu, COSTUMED1, 1, GDB_BREAKPOINT_SW);
         if (bp_ret > 0) {
@@ -119,19 +119,19 @@ void rr_insert_breakpoints(void)
             printf("Inserted breakpoints for e1000 clean\n");
         }
 
-        bp_ret = kvm_insert_breakpoint(cpu, COSTUMED2, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for e1000 clean mid\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, COSTUMED2, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for e1000 clean mid\n");
+        // }
 
-        bp_ret = kvm_insert_breakpoint(cpu, COSTUMED3, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for e1000 clean mid\n");
-        }
+        // bp_ret = kvm_insert_breakpoint(cpu, COSTUMED3, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for e1000 clean mid\n");
+        // }
 
         // bp_ret = kvm_insert_breakpoint(cpu, RR_RECORD_SYSCALL, 1, GDB_BREAKPOINT_SW);
         // if (bp_ret > 0) {
@@ -208,10 +208,13 @@ handle_on_bp(CPUState *cpu)
 
     bp_addr = cpu->kvm_run->debug.arch.pc;
 
-    // if (!rr_in_record())
-    return false;
+    if (!rr_in_record())
+        return false;
 
     // handle_bp_points(cpu, bp_addr);
+    handle_rr_checkpoint(cpu);
+
+    // return false;
 
     if (cpu->singlestep_enabled != 0) {
 
@@ -332,7 +335,8 @@ static void *kvm_vcpu_thread_fn(void *arg)
 
             if (r == EXCP_DEBUG) {
                 if (!handle_on_bp(cpu)) {
-                    handle_bp_points(cpu, cpu->kvm_run->debug.arch.pc);
+                    // handle_bp_points(cpu, cpu->kvm_run->debug.arch.pc);
+                    // handle_rr_checkpoint(cpu);
                     cpu_handle_guest_debug(cpu);
                 }
             }

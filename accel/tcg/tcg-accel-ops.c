@@ -39,6 +39,8 @@
 #include "tcg-accel-ops-rr.h"
 #include "tcg-accel-ops-icount.h"
 
+#include "sysemu/kernel-rr.h"
+
 /* common functionality among all TCG variants */
 
 void tcg_cpu_init_cflags(CPUState *cpu, bool parallel)

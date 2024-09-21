@@ -21,6 +21,7 @@
 #include "cpu.h"
 #include "exec/helper-proto.h"
 #include "helper-tcg.h"
+#include "sysemu/kernel-rr.h"
 
 const uint8_t parity_table[256] = {
     CC_P, 0, 0, CC_P, 0, CC_P, CC_P, 0,
@@ -94,6 +95,70 @@ static target_ulong compute_all_adcox(target_ulong dst, target_ulong src1,
 {
     return (src1 & ~(CC_C | CC_O)) | (dst * CC_C) | (src2 * CC_O);
 }
+
+int is_valid_op(int op)
+{
+    switch(op) {
+        case CC_OP_EFLAGS:
+        case CC_OP_CLR:
+        case CC_OP_POPCNT:
+        case CC_OP_MULB:
+        case CC_OP_MULW:
+        case CC_OP_MULL:
+        case CC_OP_ADDB:
+        case CC_OP_ADDW:
+        case CC_OP_ADDL:
+        case CC_OP_ADCB:
+        case CC_OP_ADCW:
+        case CC_OP_ADCL:
+        case CC_OP_SUBB:
+        case CC_OP_SUBW:
+        case CC_OP_SUBL:
+        case CC_OP_SBBB:
+        case CC_OP_SBBW:
+        case CC_OP_SBBL:
+        case CC_OP_LOGICB:
+        case CC_OP_LOGICW:
+        case CC_OP_LOGICL:
+        case CC_OP_INCB:
+        case CC_OP_INCW:
+        case CC_OP_INCL:
+        case CC_OP_DECB:
+        case CC_OP_DECW:
+        case CC_OP_DECL:
+        case CC_OP_SHLB:
+        case CC_OP_SHLW:
+        case CC_OP_SHLL:
+        case CC_OP_SARB:
+        case CC_OP_SARW:
+        case CC_OP_SARL:
+        case CC_OP_BMILGB:
+        case CC_OP_BMILGW:
+        case CC_OP_BMILGL:
+        case CC_OP_ADCX:
+        case CC_OP_ADOX:
+        case CC_OP_ADCOX:
+#ifdef TARGET_X86_64
+        case CC_OP_MULQ:
+        case CC_OP_ADDQ:
+        case CC_OP_ADCQ:
+        case CC_OP_SUBQ:
+        case CC_OP_SBBQ:
+        case CC_OP_LOGICQ:
+        case CC_OP_INCQ:
+        case CC_OP_DECQ:
+        case CC_OP_SHLQ:
+        case CC_OP_SARQ:
+        case CC_OP_BMILGQ:
+#endif
+            return 1;
+        default:
+            return 0;
+    }
+
+    return 0;
+}
+
 
 target_ulong helper_cc_compute_all(target_ulong dst, target_ulong src1,
                                    target_ulong src2, int op)
@@ -328,6 +393,9 @@ target_ulong helper_cc_compute_c(target_ulong dst, target_ulong src1,
 void helper_write_eflags(CPUX86State *env, target_ulong t0,
                          uint32_t update_mask)
 {
+    if (!is_valid_op(env->cc_op))
+        return;
+
     cpu_load_eflags(env, t0, update_mask);
 }
 

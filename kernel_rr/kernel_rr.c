@@ -41,6 +41,8 @@ unsigned long g_ram_size = 0;
 rr_event_log *rr_event_log_head = NULL;
 rr_event_log *rr_event_cur = NULL;
 
+rr_event_log *current_replay_int_log = NULL;
+
 
 rr_event_log* rr_smp_event_log_queues[MAX_CPU_NUM];
 
@@ -160,6 +162,11 @@ int rr_get_ignore_record(void) {
     return ignore_record;
 }
 
+static void rr_handle_cpu(CPUArchState *env)
+{
+    printf("cr0=%lx, eflags=0x%lx\n", env->cr[0], env->eflags);
+}
+
 __attribute_maybe_unused__
 void dump_cpus_state(void) {
     CPUState *cs;
@@ -170,7 +177,7 @@ void dump_cpus_state(void) {
         printf("CPU#%d:", cs->cpu_index);
         x86_cpu = X86_CPU(cs);
         env = &x86_cpu->env;
-        printf("cr0=%lx\n", env->cr[0]);
+        rr_handle_cpu(env);
     }
 }
 
@@ -547,8 +554,8 @@ int rr_in_replay(void)
 void rr_set_record(int record)
 {
     if (record) {
-        pre_record();
         rr_reset_ivshmem();
+        pre_record();
     }
 
     g_rr_in_record = record;
@@ -1089,9 +1096,9 @@ static void rr_log_event(rr_event_log *event_record, int event_num, int *syscall
     {
         case EVENT_TYPE_INTERRUPT:
             rr_interrupt rr_in = event_record->event.interrupt;
-            qemu_log("Interrupt: %d, inst_cnt: %lu, rip=0x%lx, from=%d, cpu_id=%d, spin_count=%lu, number=%d\n",
+            qemu_log("Interrupt: %d, inst_cnt: %lu, rip=0x%lx, from=%d, rax=0x%llx, cpu_id=%d, spin_count=%lu, number=%d\n",
                     rr_in.vector, rr_in.inst_cnt, rr_in.rip,
-                    rr_in.from, rr_in.id, rr_in.spin_count, event_num);
+                    rr_in.from, rr_in.regs.rax, rr_in.id, rr_in.spin_count, event_num);
             break;
 
         case EVENT_TYPE_EXCEPTION:
@@ -1696,7 +1703,8 @@ static void rr_load_events(void) {
 	while(loaded_event < header.current_pos - 1) {
         if (!fread(&entry_header, sizeof(rr_event_entry_header), 1, fptr)) {
             printf("Failed to read event header\n");
-            abort();
+            // abort();
+            break;
         }
 
         load_event(&loaded_node, entry_header.type, fptr);
@@ -1883,8 +1891,9 @@ void rr_post_record(void)
 
 void replay_ready(void)
 {
-    printf("replay initial queue header enabled=%d\n", initial_queue_header->rr_enabled);
-    memcpy(ivshmem_base_addr, initial_queue_header, sizeof(rr_event_guest_queue_header));
+    printf("replay initial queue header enabled=%d, current_byte=%lu\n",
+           initial_queue_header->rr_enabled, initial_queue_header->current_byte);
+    // memcpy(ivshmem_base_addr, initial_queue_header, sizeof(rr_event_guest_queue_header));
 }
 
 // void rr_pre_replay(void)
@@ -2081,7 +2090,7 @@ void rr_do_replay_exception(CPUState *cpu, int user_mode)
     env->error_code = rr_event_log_head->event.exception.error_code;
     env->cr[2] = rr_event_log_head->event.exception.cr2;
 
-    sync_spin_inst_cnt(cpu, rr_event_log_head);
+    rr_event_log_head->user_mode = user_mode;
 
     if (user_mode) {
         env->regs[R_EAX] = rr_event_log_head->event.exception.regs.rax;
@@ -2100,10 +2109,12 @@ void rr_do_replay_exception(CPUState *cpu, int user_mode)
         env->regs[R_R13] = rr_event_log_head->event.exception.regs.r13;
         env->regs[R_R14] = rr_event_log_head->event.exception.regs.r14;
         env->regs[R_R15] = rr_event_log_head->event.exception.regs.r15;
-        env->eflags = rr_event_log_head->event.exception.regs.rflags;
-        env->eip = rr_event_log_head->event.exception.regs.rip;
         env->exception_is_int = 0;
+        env->eip = rr_event_log_head->event.exception.regs.rip;
+        env->eflags = rr_event_log_head->event.exception.regs.rflags;
     }
+
+    sync_spin_inst_cnt(cpu, rr_event_log_head);
 
     // printf("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
     //        rr_event_log_head->event.exception.exception_index,
@@ -2317,6 +2328,7 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
              cpu->cpu_index, *input, cpu->rr_executed_inst,
              rr_event_log_head->id, rr_event_log_head->rip, replayed_event_num);
 
+    append_to_queue(EVENT_TYPE_IO_IN, &(rr_event_log_head->event.io_input));
     rr_pop_event_head();
 
 finish:
@@ -2419,6 +2431,8 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     printf("[CPU %d]Replayed rdtsc=%lx, inst=%lu, replayed event number=%d\n",
            cpu->cpu_index, *tsc, rr_event_log_head->event.io_input.inst_cnt, replayed_event_num);
 
+    append_to_queue(EVENT_TYPE_RDTSC, &(rr_event_log_head->event.io_input));
+
 finish:
     rr_pop_event_head();
 
@@ -2486,10 +2500,16 @@ void rr_do_replay_rdseed(unsigned long *val)
     qemu_mutex_unlock(&replay_queue_mutex);
 }
 
+uint32_t rr_get_interrupt_eflags(void)
+{
+    return current_replay_int_log->event.interrupt.regs.rflags;
+}
+
 void rr_do_replay_intno(CPUState *cpu, int *intno)
 {
     X86CPU *x86_cpu;
     CPUArchState *env;
+    rr_event_log *node = rr_event_log_head;
 
     if (rr_event_log_head == NULL) {
         qemu_log("No events anymore\n");
@@ -2502,7 +2522,30 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
     
         *intno = rr_event_log_head->event.interrupt.vector;
 
+        env->regs[R_EAX] = rr_event_log_head->event.interrupt.regs.rax;
+        env->regs[R_EBX] = rr_event_log_head->event.interrupt.regs.rbx;
+        env->regs[R_ECX] = rr_event_log_head->event.interrupt.regs.rcx;
+        env->regs[R_EDX] = rr_event_log_head->event.interrupt.regs.rdx;
+        env->regs[R_EBP] = rr_event_log_head->event.interrupt.regs.rbp;
+        env->regs[R_ESP] = rr_event_log_head->event.interrupt.regs.rsp;
+        env->regs[R_EDI] = rr_event_log_head->event.interrupt.regs.rdi;
+        env->regs[R_ESI] = rr_event_log_head->event.interrupt.regs.rsi;
+        env->regs[R_R8] = rr_event_log_head->event.interrupt.regs.r8;
+        env->regs[R_R9] = rr_event_log_head->event.interrupt.regs.r9;
+        env->regs[R_R10] = rr_event_log_head->event.interrupt.regs.r10;
+        env->regs[R_R11] = rr_event_log_head->event.interrupt.regs.r11;
+        env->regs[R_R12] = rr_event_log_head->event.interrupt.regs.r12;
+        env->regs[R_R13] = rr_event_log_head->event.interrupt.regs.r13;
+        env->regs[R_R14] = rr_event_log_head->event.interrupt.regs.r14;
+        env->regs[R_R15] = rr_event_log_head->event.interrupt.regs.r15;
+        // env->eflags = rr_event_log_head->event.interrupt.regs.rflags;
+
         sync_spin_inst_cnt(cpu, rr_event_log_head);
+
+        append_to_queue(EVENT_TYPE_INTERRUPT, &(rr_event_log_head->event.interrupt));
+
+        current_replay_int_log = rr_event_log_head;
+
         rr_pop_event_head();
 
         if (!started_replay) {
@@ -2512,13 +2555,13 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
         replayed_interrupt_num++;
 
         qemu_log("[CPU %d]Replayed interrupt vector=%d, RIP on replay=0x%lx,"\
-                 "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replayed event number=%d\n",
+                 "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replay eflags=0x%lx, record eflags=0x%llx, replayed event number=%d\n",
                  cpu->cpu_index, *intno, env->eip, cpu->rr_executed_inst,
-                 rr_event_log_head->id, env->cr[0], replayed_event_num);
+                 rr_event_log_head->id, env->cr[0], env->eflags, node->event.interrupt.regs.rflags, replayed_event_num);
         printf("[CPU %d]Replayed interrupt vector=%d, RIP on replay=0x%lx,"\
-                 "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replayed event number=%d\n",
+                 "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replay eflags=0x%lx, record eflags=0x%llx replayed event number=%d\n",
                  cpu->cpu_index, *intno, env->eip, cpu->rr_executed_inst,
-                 rr_event_log_head->id, env->cr[0], replayed_event_num);
+                 rr_event_log_head->id, env->cr[0],  env->eflags, node->event.interrupt.regs.rflags, replayed_event_num);
         return;
     }
 
@@ -2759,7 +2802,17 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
 
     // printf("Step: 0x%lx Inst: %lu, ECX=%lu\n", env->eip, inst_cnt, env->regs[R_ECX]);
 
-    // qemu_log("Step: 0x%lx Inst: %lu ECX: %lu\n", env->eip, inst_cnt, env->regs[R_ECX]);
+    target_ulong rsp_value = env->regs[R_ESP] + 0x88;
+    uint64_t buffer = 0;
+    cpu_memory_rw_debug(cpu, rsp_value, &buffer, sizeof(buffer), 0);
+
+    qemu_log("Step: 0x%lx Inst: %lu eflags=0x%lx, rax=0x%lx, rbx=0x%lx, rcx=0x%lx,"
+             "rdx=0x%lx, rsi=0x%lx, rdi=0x%lx, rsp=0x%lx, rbp=0x%lx, rsp88=0x%lx\n",
+             env->eip, inst_cnt, env->eflags, env->regs[R_EAX], env->regs[R_EBX],
+             env->regs[R_ECX], env->regs[R_EDX], env->regs[R_ESI], env->regs[R_EDI],
+             env->regs[R_ESP], env->regs[R_EBP], buffer);
+
+    return;
 
     switch (bp_addr) {
         case SYSCALL_ENTRY:
@@ -2833,7 +2886,7 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
             qemu_log("[CPU-%d]check_trace e1000_clean_mid: %lu\n", cpu->cpu_index, inst_cnt);
             break;
         case COSTUMED1:
-            qemu_log("[CPU-%d]check_trace costumed1: %lu, r12=0x%lx, rbx=0x%lx, eflags=0x%lx\n", cpu->cpu_index, inst_cnt, env->regs[R_R12], env->regs[R_EBX], env->eflags);
+            qemu_log("[CPU-%d]check_trace costumed1: %lu, rax=0x%lx, rdx=0x%lx, eflags=0x%lx\n", cpu->cpu_index, inst_cnt, env->regs[R_EAX], env->regs[R_EDX], env->eflags);
             break;
         case COSTUMED2:
             qemu_log("[CPU-%d]check_trace costumed2: %lu, rbx=0x%lx\n", cpu->cpu_index, inst_cnt, env->regs[R_EBX]);
@@ -2875,6 +2928,13 @@ void append_to_queue(int type, void *opaque)
     switch (type)
     {
     case EVENT_TYPE_MMIO:
+        event_size = sizeof(rr_io_input);
+        break;
+    case EVENT_TYPE_INTERRUPT:
+        event_size = sizeof(rr_interrupt);
+        break;
+    case EVENT_TYPE_IO_IN:
+    case EVENT_TYPE_RDTSC:
         event_size = sizeof(rr_io_input);
         break;
     default:

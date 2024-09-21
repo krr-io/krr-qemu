@@ -115,6 +115,7 @@ static void insert_check_node(CPUState *cpu, unsigned long inst_cnt)
     for (int i=0; i < CPU_NB_REGS; i++) {
         cp->regs[i] = env->regs[i];
     }
+    cp->eflags = env->eflags;
     cp->next = NULL;
 
     if (check_points[cpu->cpu_index] == NULL) {
@@ -123,6 +124,12 @@ static void insert_check_node(CPUState *cpu, unsigned long inst_cnt)
         temp_cp = check_points[cpu->cpu_index];
         while (temp_cp->next != NULL) {
             temp_cp = temp_cp->next;
+        }
+
+        if (temp_cp->inst_cnt == inst_cnt) {
+            qemu_log("Ignore repetitive point inst cnt=%lu, rip=0x%lx", inst_cnt, cp->rip);
+            free(cp);
+            return;
         }
 
         temp_cp->next = cp;
@@ -146,37 +153,64 @@ void handle_rr_checkpoint(CPUState *cpu)
     insert_check_node(cpu, inst_cnt);
 }
 
-void handle_replay_rr_checkpoint(CPUState *cpu)
+static unsigned long mask_bit(unsigned long eflags, unsigned long n) {
+    return eflags & ~(1 << n);
+}
+
+void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
 {
     rr_checkpoint *node;
+    bool is_bugged = false;
 
     node = check_points[cpu->cpu_index];
     if (!node) {
         return;
     }
 
-    if (cpu->rr_executed_inst != node->inst_cnt) {
+    if (cpu->rr_executed_inst < node->inst_cnt) {
         return;
+    }
+
+    if (cpu->rr_executed_inst > node->inst_cnt) {
+        qemu_log("Check: missed checkpoint: inst=%lu, rip=0x%lx\n", node->inst_cnt, node->rip);
+        goto finish;
     }
 
     X86CPU *c = X86_CPU(cpu);
     CPUX86State *env = &c->env;
 
+    if (is_rep && env->regs[R_ECX] != node->regs[R_ECX]) {
+        return;
+    }
+
     if (env->eip != node->rip) {
+        is_bugged = true;
         qemu_log("BUG: inconsistent RIP current=0x%lx, expected=0x%lx\n", env->eip, node->rip);
+        // cpu->cause_debug = 1;
         goto finish;
     }
 
     for (int i=0; i < CPU_NB_REGS; i++) {
         if (env->regs[i] != node->regs[i]) {
+            is_bugged = true;
             qemu_log("BUG: inconsistent #%d reg, rip=0x%lx, current=0x%lx, expected=0x%lx\n",
                      i, env->eip, env->regs[i], node->regs[i]);
+            // cpu->cause_debug = 1;
         }
     }
 
-    qemu_log("[CPU-%d]checkpoint passed inst=%lu, rip=0x%lx\n",
-             cpu->cpu_index, node->inst_cnt, node->rip);
+    if (mask_bit(env->eflags, 16) != mask_bit(node->eflags, 16)) {
+        printf("BUG: inconsistent eflags current=0x%lx, expected=0x%lx\n", env->eflags, node->eflags);
+        cpu->cause_debug = 1;
+        is_bugged = true;
+    }
 
 finish:
+    if (is_bugged)
+        printf("BUGPoint: 0x%lx\n", env->eip);
+    else
+        printf("[CPU-%d]checkpoint passed inst=%lu, rip=0x%lx\n",
+             cpu->cpu_index, node->inst_cnt, node->rip);
+
     check_points[cpu->cpu_index] = node->next;
 }

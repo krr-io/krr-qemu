@@ -22,6 +22,7 @@
 #include "helper-tcg.h"
 #include "qemu/accel.h"
 #include "hw/core/accel-cpu.h"
+#include "sysemu/kernel-rr.h"
 
 #include "tcg-cpu.h"
 
@@ -31,6 +32,9 @@ static void x86_cpu_exec_enter(CPUState *cs)
 {
     X86CPU *cpu = X86_CPU(cs);
     CPUX86State *env = &cpu->env;
+
+    if (rr_in_replay())
+        return;
 
     CC_SRC = env->eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
     env->df = 1 - (2 * ((env->eflags >> 10) & 1));

@@ -36,6 +36,7 @@ void cpu_load_eflags(CPUX86State *env, int eflags, int update_mask)
     env->df = 1 - (2 * ((eflags >> 10) & 1));
     env->eflags = (env->eflags & ~update_mask) |
         (eflags & update_mask) | 0x2;
+    qemu_log("new eflags 0x%lx, 0x%x, mask=0x%x\n", env->eflags, eflags, update_mask);
 }
 
 void helper_into(CPUX86State *env, int next_eip_addend)

@@ -42,7 +42,7 @@
 #define E1000_CLEAN 0xffffffff816056a0
 #define E1000_CLEAN_MID 0xffffffff81605a02
 
-#define COSTUMED1 0xffffffff8400b270
+#define COSTUMED1 0xffffffff8142ee40
 #define COSTUMED2 0xffffffff8400b48f
 #define COSTUMED3 0xffffffff8400b365
 
@@ -136,6 +136,7 @@ typedef struct rr_checkpoint_t {
     unsigned long inst_cnt;
     unsigned long rip;
     unsigned long regs[16];
+    unsigned long eflags;
     struct rr_checkpoint_t *next;
 } rr_checkpoint;
 
@@ -229,6 +230,8 @@ void replay_ready(void);
 void rr_save_checkpoints(void);
 void rr_init_checkpoints(void);
 void rr_load_checkpoints(void);
-void handle_replay_rr_checkpoint(CPUState *cpu);
+void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep);
+uint32_t rr_get_interrupt_eflags(void);
+int is_valid_op(int op);
 
 #endif /* KERNEL_RR_H */

@@ -234,4 +234,9 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep);
 uint32_t rr_get_interrupt_eflags(void);
 int is_valid_op(int op);
 
+
+#define LOG_MSG(fmt, ...) \
+    printf(fmt, ##__VA_ARGS__); \
+    qemu_log(fmt, ##__VA_ARGS__); \
+
 #endif /* KERNEL_RR_H */

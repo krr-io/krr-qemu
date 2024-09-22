@@ -186,7 +186,7 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
     if (env->eip != node->rip) {
         is_bugged = true;
         qemu_log("BUG: inconsistent RIP current=0x%lx, expected=0x%lx\n", env->eip, node->rip);
-        // cpu->cause_debug = 1;
+        cpu->cause_debug = 1;
         goto finish;
     }
 
@@ -198,9 +198,10 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
             // cpu->cause_debug = 1;
         }
     }
+    LOG_MSG("Registers are consistent\n");
 
     if (mask_bit(env->eflags, 16) != mask_bit(node->eflags, 16)) {
-        printf("BUG: inconsistent eflags current=0x%lx, expected=0x%lx\n", env->eflags, node->eflags);
+        LOG_MSG("BUG: inconsistent eflags current=0x%lx, expected=0x%lx\n", env->eflags, node->eflags);
         cpu->cause_debug = 1;
         is_bugged = true;
     }

@@ -2419,7 +2419,7 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst) {
         qemu_log("Mismatched RDTSC, expected inst cnt %lu, found %lu, rip=0x%lx\n",
                rr_event_log_head->inst_cnt, cpu->rr_executed_inst, env->eip);
-        cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+        // cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
         cpu->cause_debug = true;
         // goto finish;
     }

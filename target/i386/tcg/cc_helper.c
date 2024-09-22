@@ -22,6 +22,7 @@
 #include "exec/helper-proto.h"
 #include "helper-tcg.h"
 #include "sysemu/kernel-rr.h"
+#include "exec/log.h"
 
 const uint8_t parity_table[256] = {
     CC_P, 0, 0, CC_P, 0, CC_P, CC_P, 0,
@@ -138,6 +139,12 @@ int is_valid_op(int op)
         case CC_OP_ADCX:
         case CC_OP_ADOX:
         case CC_OP_ADCOX:
+        case CC_OP_SHRB:
+        case CC_OP_SHRW:
+        case CC_OP_SHRL:
+        case CC_OP_SHRDB:
+        case CC_OP_SHRDW:
+        case CC_OP_SHRDL:
 #ifdef TARGET_X86_64
         case CC_OP_MULQ:
         case CC_OP_ADDQ:
@@ -150,6 +157,8 @@ int is_valid_op(int op)
         case CC_OP_SHLQ:
         case CC_OP_SARQ:
         case CC_OP_BMILGQ:
+        case CC_OP_SHRQ:
+        case CC_OP_SHRDQ:
 #endif
             return 1;
         default:
@@ -163,6 +172,7 @@ int is_valid_op(int op)
 target_ulong helper_cc_compute_all(target_ulong dst, target_ulong src1,
                                    target_ulong src2, int op)
 {
+    qemu_log("op=%d, src1=%lx src2=%lx\n", op, src1, src2);
     switch (op) {
     default: /* should never happen */
         return 0;
@@ -258,6 +268,13 @@ target_ulong helper_cc_compute_all(target_ulong dst, target_ulong src1,
     case CC_OP_ADCOX:
         return compute_all_adcox(dst, src1, src2);
 
+    case CC_OP_SHRB:
+        return compute_all_shrb(dst, src1, src2);
+    case CC_OP_SHRW:
+        return compute_all_shrw(dst, src1, src2);
+    case CC_OP_SHRL:
+        return compute_all_shrl(dst, src1, src2);
+
 #ifdef TARGET_X86_64
     case CC_OP_MULQ:
         return compute_all_mulq(dst, src1);
@@ -276,9 +293,12 @@ target_ulong helper_cc_compute_all(target_ulong dst, target_ulong src1,
     case CC_OP_DECQ:
         return compute_all_decq(dst, src1);
     case CC_OP_SHLQ:
+        qemu_log("shlq dst: %lu\n", dst);
         return compute_all_shlq(dst, src1);
     case CC_OP_SARQ:
         return compute_all_sarq(dst, src1);
+    case CC_OP_SHRQ:
+        return compute_all_shrq(dst, src1, src2);
     case CC_OP_BMILGQ:
         return compute_all_bmilgq(dst, src1);
 #endif
@@ -390,12 +410,19 @@ target_ulong helper_cc_compute_c(target_ulong dst, target_ulong src1,
     }
 }
 
-void helper_write_eflags(CPUX86State *env, target_ulong t0,
+void helper_rr_write_eflags(CPUX86State *env, target_ulong t0,
                          uint32_t update_mask)
 {
     if (!is_valid_op(env->cc_op))
         return;
 
+    qemu_log("valid cc op %d\n", env->cc_op);
+    cpu_load_eflags(env, t0, update_mask);
+}
+
+void helper_write_eflags(CPUX86State *env, target_ulong t0,
+                         uint32_t update_mask)
+{
     cpu_load_eflags(env, t0, update_mask);
 }
 

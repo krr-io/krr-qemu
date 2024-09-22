@@ -306,6 +306,7 @@ static const uint8_t cc_op_live[CC_OP_NB] = {
     [CC_OP_ADCOX] = USES_CC_DST | USES_CC_SRC | USES_CC_SRC2,
     [CC_OP_CLR] = 0,
     [CC_OP_POPCNT] = USES_CC_SRC,
+    [CC_OP_SHRB ... CC_OP_SHRQ] = USES_CC_DST | USES_CC_SRC | USES_CC_SRC2
 };
 
 static void set_cc_op(DisasContext *s, CCOp op)
@@ -1594,6 +1595,7 @@ static void gen_shift_rm_T1(DisasContext *s, MemOp ot, int op1,
             gen_extu(ot, s->T0);
             tcg_gen_shr_tl(s->tmp0, s->T0, s->tmp0);
             tcg_gen_shr_tl(s->T0, s->T0, s->T1);
+            gen_op_mov_v_reg(s, ot, s->tmp4, op1);
         }
     } else {
         tcg_gen_shl_tl(s->tmp0, s->T0, s->tmp0);
@@ -1604,6 +1606,12 @@ static void gen_shift_rm_T1(DisasContext *s, MemOp ot, int op1,
     gen_op_st_rm_T0_A0(s, ot, op1);
 
     gen_shift_flags(s, ot, s->T0, s->tmp0, s->T1, is_right);
+
+    qemu_log("arith=%d, is_right=%d, op1=%d\n", is_arith, is_right, op1);
+    if (!is_arith && is_right) {
+        tcg_gen_mov_tl(cpu_cc_src2, s->tmp4);
+        set_cc_op(s, CC_OP_SHRB + ot);
+    } 
 }
 
 static void gen_shift_rm_im(DisasContext *s, MemOp ot, int op1, int op2,
@@ -1626,6 +1634,7 @@ static void gen_shift_rm_im(DisasContext *s, MemOp ot, int op1, int op2,
                 tcg_gen_sari_tl(s->T0, s->T0, op2);
             } else {
                 gen_extu(ot, s->T0);
+                gen_op_mov_v_reg(s, ot, s->T1, op1);
                 tcg_gen_shri_tl(s->tmp4, s->T0, op2 - 1);
                 tcg_gen_shri_tl(s->T0, s->T0, op2);
             }
@@ -1638,11 +1647,18 @@ static void gen_shift_rm_im(DisasContext *s, MemOp ot, int op1, int op2,
     /* store */
     gen_op_st_rm_T0_A0(s, ot, op1);
 
+    qemu_log("arith=%d, is_right=%d, op2=%d\n", is_arith, is_right, op2);
     /* update eflags if non zero shift */
     if (op2 != 0) {
         tcg_gen_mov_tl(cpu_cc_src, s->tmp4);
         tcg_gen_mov_tl(cpu_cc_dst, s->T0);
-        set_cc_op(s, (is_right ? CC_OP_SARB : CC_OP_SHLB) + ot);
+
+        if (!is_arith && is_right) {
+            tcg_gen_mov_tl(cpu_cc_src2, s->T1);
+            set_cc_op(s, CC_OP_SHRB + ot);
+        } else {
+            set_cc_op(s, (is_right ? CC_OP_SARB : CC_OP_SHLB) + ot);
+        }
     }
 }
 
@@ -5863,6 +5879,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 opreg = (modrm & 7) | REX_B(s);
             }
 
+            qemu_log("shift %d\n", shift);
             /* simpler op */
             if (shift == 0) {
                 gen_shift(s, op, ot, opreg, OR_ECX);
@@ -7108,11 +7125,6 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_op_update1_cc(s);
             set_cc_op(s, CC_OP_BMILGB + ot);
         } else {
-            /* For bsr/bsf, only the Z bit is defined and it is related
-               to the input and not the result.  */
-            tcg_gen_mov_tl(cpu_cc_dst, s->T0);
-            set_cc_op(s, CC_OP_LOGICB + ot);
-
             /* ??? The manual says that the output is undefined when the
                input is zero, but real hardware leaves it unchanged, and
                real programs appear to depend on that.  Accomplish this
@@ -7126,6 +7138,11 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             } else {
                 tcg_gen_ctz_tl(s->T0, s->T0, cpu_regs[reg]);
             }
+
+            /* For bsr/bsf, only the Z bit is defined and it is related
+               to the input and not the result.  */
+            tcg_gen_mov_tl(cpu_cc_dst, s->T0);
+            set_cc_op(s, CC_OP_LOGICB + ot);
         }
         gen_op_mov_reg_v(s, ot, reg, s->T0);
         break;
@@ -8517,8 +8534,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
 
     qemu_log("cc op %d\n", s->cc_op);
     gen_compute_eflags(s);
-    gen_helper_write_eflags(cpu_env, cpu_cc_src,
-                        tcg_const_i32((CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C) & 0xffff));  // Write the computed flags to env->eflags
+    gen_helper_rr_write_eflags(cpu_env, cpu_cc_src,
+                               tcg_const_i32((CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C) & 0xffff));  // Write the computed flags to env->eflags
 
     return s->pc;
  illegal_op:

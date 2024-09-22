@@ -1197,6 +1197,16 @@ typedef enum {
     CC_OP_CLR, /* Z set, all other flags clear.  */
     CC_OP_POPCNT, /* Z via CC_SRC, all other flags clear.  */
 
+    CC_OP_SHRB, /* modify all flags, CC_DST = res, CC_SRC.lsb = C */
+    CC_OP_SHRW,
+    CC_OP_SHRL,
+    CC_OP_SHRQ,
+
+    CC_OP_SHRDB,
+    CC_OP_SHRDW,
+    CC_OP_SHRDL,
+    CC_OP_SHRDQ,
+
     CC_OP_NB,
 } CCOp;
 

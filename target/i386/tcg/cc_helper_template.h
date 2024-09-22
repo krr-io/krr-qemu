@@ -133,6 +133,7 @@ static int glue(compute_all_logic, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1)
     zf = (dst == 0) * CC_Z;
     sf = lshift(dst, 8 - DATA_BITS) & CC_S;
     of = 0;
+    qemu_log("pf=%d\n", pf);
     return cf | pf | af | zf | sf | of;
 }
 
@@ -201,6 +202,22 @@ static int glue(compute_all_sar, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1)
     return cf | pf | af | zf | sf | of;
 }
 
+__attribute_maybe_unused__ static int glue(compute_all_shr, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1, DATA_TYPE src2)
+{
+    int cf, pf, af, zf, sf, of;
+
+    cf = src1 & 1;
+    pf = parity_table[(uint8_t)dst];
+    af = 0; /* undefined */
+    zf = (dst == 0) * CC_Z;
+    sf = lshift(dst, 8 - DATA_BITS) & CC_S;
+    /* of is defined iff shift count == 1 */
+    of = (src2 >> (DATA_BITS - 1)) & 1 ? CC_O : 0;
+    qemu_log("compute for shr of=%d\n", of);
+    return cf | pf | af | zf | sf | of;
+}
+
+
 /* NOTE: we compute the flags like the P4. On olders CPUs, only OF and
    CF are modified and it is slower to do that.  Note as well that we
    don't truncate SRC1 for computing carry to DATA_TYPE.  */
@@ -211,7 +228,7 @@ static int glue(compute_all_mul, SUFFIX)(DATA_TYPE dst, target_long src1)
     cf = (src1 != 0);
     pf = parity_table[(uint8_t)dst];
     af = 0; /* undefined */
-    zf = (dst == 0) * CC_Z;
+    zf = 0;
     sf = lshift(dst, 8 - DATA_BITS) & CC_S;
     of = cf * CC_O;
     return cf | pf | af | zf | sf | of;

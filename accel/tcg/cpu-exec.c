@@ -1123,6 +1123,8 @@ int cpu_exec(CPUState *cpu)
                     // qemu_log("Caching tb pc=0x%lx\n", tb->pc);
                     qatomic_set(&cpu->tb_jmp_cache[tb_jmp_cache_hash_func(pc)], tb);
                 }
+            } else {
+                qemu_log("Found tb: 0x%lx\n", tb->pc);
             }
 
             if (tb->jump_next_event == EVENT_TYPE_INTERRUPT) {
@@ -1244,10 +1246,10 @@ int cpu_exec(CPUState *cpu)
                 // qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
             }
 
-            handle_replay_rr_checkpoint(cpu, tb->io_inst & INST_REP);
-
             rr_inc_inst(cpu, tb->pc, tb);
             // qemu_log("PC 0x%lx %lu\n", tb->pc, cpu->rr_executed_inst);
+
+            handle_replay_rr_checkpoint(cpu, tb->io_inst & INST_REP);
 
             cpu->last_pc = tb->pc;
 

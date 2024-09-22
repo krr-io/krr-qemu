@@ -1207,6 +1207,11 @@ typedef enum {
     CC_OP_SHRDL,
     CC_OP_SHRDQ,
 
+    CC_OP_BSRB,
+    CC_OP_BSRW,
+    CC_OP_BSRL,
+    CC_OP_BSRQ,
+
     CC_OP_NB,
 } CCOp;
 

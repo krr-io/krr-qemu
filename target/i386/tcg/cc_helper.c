@@ -145,6 +145,9 @@ int is_valid_op(int op)
         case CC_OP_SHRDB:
         case CC_OP_SHRDW:
         case CC_OP_SHRDL:
+        case CC_OP_BSRB:
+        case CC_OP_BSRW:
+        case CC_OP_BSRL:
 #ifdef TARGET_X86_64
         case CC_OP_MULQ:
         case CC_OP_ADDQ:
@@ -159,6 +162,7 @@ int is_valid_op(int op)
         case CC_OP_BMILGQ:
         case CC_OP_SHRQ:
         case CC_OP_SHRDQ:
+        case CC_OP_BSRQ:
 #endif
             return 1;
         default:
@@ -241,11 +245,11 @@ target_ulong helper_cc_compute_all(target_ulong dst, target_ulong src1,
         return compute_all_decl(dst, src1);
 
     case CC_OP_SHLB:
-        return compute_all_shlb(dst, src1);
+        return compute_all_shlb(dst, src1, src2);
     case CC_OP_SHLW:
-        return compute_all_shlw(dst, src1);
+        return compute_all_shlw(dst, src1, src2);
     case CC_OP_SHLL:
-        return compute_all_shll(dst, src1);
+        return compute_all_shll(dst, src1, src2);
 
     case CC_OP_SARB:
         return compute_all_sarb(dst, src1);
@@ -275,6 +279,20 @@ target_ulong helper_cc_compute_all(target_ulong dst, target_ulong src1,
     case CC_OP_SHRL:
         return compute_all_shrl(dst, src1, src2);
 
+    case CC_OP_SHRDB:
+        return compute_all_shrdb(dst, src1, src2);
+    case CC_OP_SHRDW:
+        return compute_all_shrdw(dst, src1, src2);
+    case CC_OP_SHRDL:
+        return compute_all_shrdl(dst, src1, src2);
+
+    case CC_OP_BSRB:
+        return compute_all_bsrb(dst, src1);
+    case CC_OP_BSRW:
+        return compute_all_bsrw(dst, src1);
+    case CC_OP_BSRL:
+        return compute_all_bsrl(dst, src1);
+
 #ifdef TARGET_X86_64
     case CC_OP_MULQ:
         return compute_all_mulq(dst, src1);
@@ -294,11 +312,15 @@ target_ulong helper_cc_compute_all(target_ulong dst, target_ulong src1,
         return compute_all_decq(dst, src1);
     case CC_OP_SHLQ:
         qemu_log("shlq dst: %lu\n", dst);
-        return compute_all_shlq(dst, src1);
+        return compute_all_shlq(dst, src1, src2);
     case CC_OP_SARQ:
         return compute_all_sarq(dst, src1);
     case CC_OP_SHRQ:
         return compute_all_shrq(dst, src1, src2);
+    case CC_OP_SHRDQ:
+        return compute_all_shrdq(dst, src1, src2);
+    case CC_OP_BSRQ:
+        return compute_all_bsrq(dst, src1);
     case CC_OP_BMILGQ:
         return compute_all_bmilgq(dst, src1);
 #endif
@@ -413,8 +435,10 @@ target_ulong helper_cc_compute_c(target_ulong dst, target_ulong src1,
 void helper_rr_write_eflags(CPUX86State *env, target_ulong t0,
                          uint32_t update_mask)
 {
-    if (!is_valid_op(env->cc_op))
+    if (!is_valid_op(env->cc_op)) {
+        qemu_log("invalid cc op %d\n", env->cc_op);
         return;
+    }
 
     qemu_log("valid cc op %d\n", env->cc_op);
     cpu_load_eflags(env, t0, update_mask);

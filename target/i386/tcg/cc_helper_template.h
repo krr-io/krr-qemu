@@ -137,6 +137,19 @@ static int glue(compute_all_logic, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1)
     return cf | pf | af | zf | sf | of;
 }
 
+static int glue(compute_all_bsr, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1)
+{
+    int cf, pf, af, zf, sf, of;
+
+    cf = 0;
+    pf = parity_table[(uint8_t)dst];
+    af = 0;
+    zf = (src1 == 0) * CC_Z;
+    sf = lshift(dst, 8 - DATA_BITS) & CC_S;
+    of = 0;
+    return cf | pf | af | zf | sf | of;
+}
+
 static int glue(compute_all_inc, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1)
 {
     int cf, pf, af, zf, sf, of;
@@ -169,7 +182,7 @@ static int glue(compute_all_dec, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1)
     return cf | pf | af | zf | sf | of;
 }
 
-static int glue(compute_all_shl, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1)
+static int glue(compute_all_shl, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1, DATA_TYPE src2)
 {
     int cf, pf, af, zf, sf, of;
 
@@ -179,7 +192,10 @@ static int glue(compute_all_shl, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1)
     zf = (dst == 0) * CC_Z;
     sf = lshift(dst, 8 - DATA_BITS) & CC_S;
     /* of is defined iff shift count == 1 */
-    of = lshift(src1 ^ dst, 12 - DATA_BITS) & CC_O;
+    if (src2 == 1)
+        of = lshift(src1 ^ dst, 12 - DATA_BITS) & CC_O;
+    else
+        of = 0;
     return cf | pf | af | zf | sf | of;
 }
 
@@ -214,6 +230,22 @@ __attribute_maybe_unused__ static int glue(compute_all_shr, SUFFIX)(DATA_TYPE ds
     /* of is defined iff shift count == 1 */
     of = (src2 >> (DATA_BITS - 1)) & 1 ? CC_O : 0;
     qemu_log("compute for shr of=%d\n", of);
+    return cf | pf | af | zf | sf | of;
+}
+
+
+__attribute_maybe_unused__ static int glue(compute_all_shrd, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1, DATA_TYPE src2)
+{
+    int cf, pf, af, zf, sf, of;
+
+    cf = src1 & 1;
+    pf = parity_table[(uint8_t)dst];
+    af = 0; /* undefined */
+    zf = (dst == 0) * CC_Z;
+    sf = lshift(dst, 8 - DATA_BITS) & CC_S;
+    /* of is defined iff shift count == 1 */
+    of = CC_O;
+    qemu_log("compute for shrd of=%d\n", of);
     return cf | pf | af | zf | sf | of;
 }
 

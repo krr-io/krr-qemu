@@ -298,7 +298,7 @@ static const uint8_t cc_op_live[CC_OP_NB] = {
     [CC_OP_LOGICB ... CC_OP_LOGICQ] = USES_CC_DST,
     [CC_OP_INCB ... CC_OP_INCQ] = USES_CC_DST | USES_CC_SRC,
     [CC_OP_DECB ... CC_OP_DECQ] = USES_CC_DST | USES_CC_SRC,
-    [CC_OP_SHLB ... CC_OP_SHLQ] = USES_CC_DST | USES_CC_SRC,
+    [CC_OP_SHLB ... CC_OP_SHLQ] = USES_CC_DST | USES_CC_SRC | USES_CC_SRC2,
     [CC_OP_SARB ... CC_OP_SARQ] = USES_CC_DST | USES_CC_SRC,
     [CC_OP_BMILGB ... CC_OP_BMILGQ] = USES_CC_DST | USES_CC_SRC,
     [CC_OP_ADCX] = USES_CC_DST | USES_CC_SRC,
@@ -306,7 +306,8 @@ static const uint8_t cc_op_live[CC_OP_NB] = {
     [CC_OP_ADCOX] = USES_CC_DST | USES_CC_SRC | USES_CC_SRC2,
     [CC_OP_CLR] = 0,
     [CC_OP_POPCNT] = USES_CC_SRC,
-    [CC_OP_SHRB ... CC_OP_SHRQ] = USES_CC_DST | USES_CC_SRC | USES_CC_SRC2
+    [CC_OP_SHRB ... CC_OP_SHRQ] = USES_CC_DST | USES_CC_SRC | USES_CC_SRC2,
+    [CC_OP_BSRB ... CC_OP_BSRQ] = USES_CC_DST | USES_CC_SRC,
 };
 
 static void set_cc_op(DisasContext *s, CCOp op)
@@ -801,6 +802,49 @@ static void gen_compute_eflags(DisasContext *s)
     gen_update_cc_op(s);
     gen_helper_cc_compute_all(cpu_cc_src, dst, src1, src2, cpu_cc_op);
     set_cc_op(s, CC_OP_EFLAGS);
+
+    if (dead) {
+        tcg_temp_free(zero);
+    }
+}
+
+static void rr_gen_compute_eflags(DisasContext *s)
+{
+    TCGv zero, dst, src1, src2;
+    int live, dead;
+
+    if (s->cc_op == CC_OP_EFLAGS) {
+        return;
+    }
+    if (s->cc_op == CC_OP_CLR) {
+        tcg_gen_movi_tl(cpu_cc_src, CC_Z | CC_P);
+        set_cc_op(s, CC_OP_EFLAGS);
+        return;
+    }
+
+    zero = NULL;
+    dst = cpu_cc_dst;
+    src1 = cpu_cc_src;
+    src2 = cpu_cc_src2;
+
+    /* Take care to not read values that are not live.  */
+    live = cc_op_live[s->cc_op] & ~USES_CC_SRCT;
+    dead = live ^ (USES_CC_DST | USES_CC_SRC | USES_CC_SRC2);
+    if (dead) {
+        zero = tcg_const_tl(0);
+        if (dead & USES_CC_DST) {
+            dst = zero;
+        }
+        if (dead & USES_CC_SRC) {
+            src1 = zero;
+        }
+        if (dead & USES_CC_SRC2) {
+            src2 = zero;
+        }
+    }
+
+    gen_update_cc_op(s);
+    gen_helper_cc_compute_all(cpu_cc_src, dst, src1, src2, cpu_cc_op);
 
     if (dead) {
         tcg_temp_free(zero);
@@ -1391,6 +1435,7 @@ static bool check_iopl(DisasContext *s)
 /* if d == OR_TMP0, it means memory operand (address in A0) */
 static void gen_op(DisasContext *s1, int op, MemOp ot, int d)
 {
+    qemu_log("gen_op op=%d\n", op);
     if (d != OR_TMP0) {
         if (s1->prefix & PREFIX_LOCK) {
             /* Lock prefix when destination is not memory.  */
@@ -1527,7 +1572,7 @@ static void gen_inc(DisasContext *s1, MemOp ot, int d, int c)
 }
 
 static void gen_shift_flags(DisasContext *s, MemOp ot, TCGv result,
-                            TCGv shm1, TCGv count, bool is_right)
+                            TCGv shm1, TCGv count, bool is_right, bool is_shiftd)
 {
     TCGv_i32 z32, s32, oldop;
     TCGv z_tl;
@@ -1551,6 +1596,9 @@ static void gen_shift_flags(DisasContext *s, MemOp ot, TCGv result,
     tcg_temp_free(z_tl);
 
     /* Get the two potential CC_OP values into temporaries.  */
+    // if (is_right && is_shiftd)
+    //     tcg_gen_movi_i32(s->tmp2_i32, CC_OP_SHRDB + ot);
+    // else
     tcg_gen_movi_i32(s->tmp2_i32, (is_right ? CC_OP_SARB : CC_OP_SHLB) + ot);
     if (s->cc_op == CC_OP_DYNAMIC) {
         oldop = cpu_cc_op;
@@ -1605,7 +1653,7 @@ static void gen_shift_rm_T1(DisasContext *s, MemOp ot, int op1,
     /* store */
     gen_op_st_rm_T0_A0(s, ot, op1);
 
-    gen_shift_flags(s, ot, s->T0, s->tmp0, s->T1, is_right);
+    gen_shift_flags(s, ot, s->T0, s->tmp0, s->T1, is_right, false);
 
     qemu_log("arith=%d, is_right=%d, op1=%d\n", is_arith, is_right, op1);
     if (!is_arith && is_right) {
@@ -1657,6 +1705,8 @@ static void gen_shift_rm_im(DisasContext *s, MemOp ot, int op1, int op2,
             tcg_gen_mov_tl(cpu_cc_src2, s->T1);
             set_cc_op(s, CC_OP_SHRB + ot);
         } else {
+            if (!is_right)
+                tcg_gen_movi_i64(cpu_cc_src2, op2);
             set_cc_op(s, (is_right ? CC_OP_SARB : CC_OP_SHLB) + ot);
         }
     }
@@ -1961,7 +2011,11 @@ static void gen_shiftd_rm_T1(DisasContext *s, MemOp ot, int op1,
     /* store */
     gen_op_st_rm_T0_A0(s, ot, op1);
 
-    gen_shift_flags(s, ot, s->T0, s->tmp0, count, is_right);
+    gen_shift_flags(s, ot, s->T0, s->tmp0, count, is_right, true);
+
+    // if (is_right)
+    //     set_cc_op(s, CC_OP_SHRDB + ot);
+
     tcg_temp_free(count);
 }
 
@@ -4774,6 +4828,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             f = (b >> 1) & 3;
 
             ot = mo_b_d(b, dflag);
+            qemu_log("op is %d %d\n", op, f);
 
             switch(f) {
             case 0: /* OP Ev, Gv */
@@ -4786,6 +4841,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                     opreg = OR_TMP0;
                 } else if (op == OP_XORL && rm == reg) {
                 xor_zero:
+                    qemu_log("xor_zero\n");
                     /* xor reg, reg optimisation */
                     set_cc_op(s, CC_OP_CLR);
                     tcg_gen_movi_tl(s->T0, 0);
@@ -7142,7 +7198,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             /* For bsr/bsf, only the Z bit is defined and it is related
                to the input and not the result.  */
             tcg_gen_mov_tl(cpu_cc_dst, s->T0);
-            set_cc_op(s, CC_OP_LOGICB + ot);
+            tcg_gen_mov_tl(cpu_cc_src, cpu_regs[reg]);
+            set_cc_op(s, CC_OP_BSRB + ot);
         }
         gen_op_mov_reg_v(s, ot, reg, s->T0);
         break;
@@ -8533,7 +8590,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     }
 
     qemu_log("cc op %d\n", s->cc_op);
-    gen_compute_eflags(s);
+    rr_gen_compute_eflags(s);
     gen_helper_rr_write_eflags(cpu_env, cpu_cc_src,
                                tcg_const_i32((CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C) & 0xffff));  // Write the computed flags to env->eflags
 

@@ -1114,12 +1114,13 @@ void hmp_savevm(Monitor *mon, const QDict *qdict)
 void hmp_rr_record(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
-    int enable_trace;
+    int trace_mode;
     bool autostart = false;
     unsigned long trace_interval;
+    int enable_trace = 0;
     // CPUState *cs;
 
-    enable_trace = qdict_get_try_int(qdict, "trace", 0);
+    trace_mode = qdict_get_try_int(qdict, "trace", 0);
     trace_interval = qdict_get_try_int(qdict, "trace_interval", 10000);
 
     if (runstate_is_running()){
@@ -1137,11 +1138,12 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
 
     printf("Snapshot taken, start recording...\n");
 
-    // if (enable_trace) {
-    //     printf("Trace is enabled, performance will be slow\n");
-    //     rr_insert_breakpoints();
-    // }
-    rr_insert_breakpoints();
+    if (trace_mode == 1) {
+        enable_trace = 1;
+    } else if (trace_mode == 2) {
+        printf("Breakpoint trace is enabled\n");
+        rr_insert_breakpoints();
+    }
     kvm_start_record(enable_trace, trace_interval);
 
     if (autostart)

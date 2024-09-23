@@ -989,11 +989,6 @@ static void do_interrupt64(CPUX86State *env, int intno, int is_int,
         eflags |= RF_MASK;
     }
 
-    if (rr_in_replay()) {
-        eflags = rr_get_interrupt_eflags();
-        qemu_log("Replayed eflags 0x%x\n", eflags);
-    }
-
     PUSHQ(esp, env->segs[R_SS].selector);
     PUSHQ(esp, env->regs[R_ESP]);
     PUSHQ(esp, eflags);
@@ -2122,7 +2117,7 @@ static inline void helper_ret_protected(CPUX86State *env, int shift,
     env->eip = new_eip;
     if (is_iret) {
         /* NOTE: 'cpl' is the _old_ CPL */
-        eflags_mask = TF_MASK | AC_MASK | ID_MASK | RF_MASK | NT_MASK;
+        eflags_mask = TF_MASK | AC_MASK | ID_MASK | RF_MASK | NT_MASK | CC_A | CC_Z | CC_S | CC_P | CC_C;
         if (cpl == 0) {
             eflags_mask |= IOPL_MASK;
         }
@@ -2133,6 +2128,7 @@ static inline void helper_ret_protected(CPUX86State *env, int shift,
         if (shift == 0) {
             eflags_mask &= 0xffff;
         }
+        qemu_log("iret newflag=0x%x\n", new_eflags);
         cpu_load_eflags(env, new_eflags, eflags_mask);
     }
     return;

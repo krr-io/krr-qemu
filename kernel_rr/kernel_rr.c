@@ -41,9 +41,6 @@ unsigned long g_ram_size = 0;
 rr_event_log *rr_event_log_head = NULL;
 rr_event_log *rr_event_cur = NULL;
 
-rr_event_log *current_replay_int_log = NULL;
-
-
 rr_event_log* rr_smp_event_log_queues[MAX_CPU_NUM];
 
 static int event_syscall_num = 0;
@@ -223,6 +220,9 @@ int replay_cpu_exec_ready(CPUState *cpu)
     while (1)
     {
         if (rr_event_log_head == NULL) {
+            if (get_cpu_num() == 1) {
+                ready = 1;
+            }
             break;
         }
 
@@ -2413,11 +2413,13 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     if (rr_event_log_head->rip != env->eip) {
         printf("Unexpected RDTSC RIP, expected 0x%lx, actual 0x%lx\n",
             rr_event_log_head->rip, env->eip);
-        abort();
+        cpu->cause_debug = true;
+        goto finish;
+        // abort();
     }
 
     if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst) {
-        qemu_log("Mismatched RDTSC, expected inst cnt %lu, found %lu, rip=0x%lx\n",
+        LOG_MSG("Mismatched RDTSC, expected inst cnt %lu, found %lu, rip=0x%lx\n",
                rr_event_log_head->inst_cnt, cpu->rr_executed_inst, env->eip);
         // cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
         cpu->cause_debug = true;
@@ -2500,11 +2502,6 @@ void rr_do_replay_rdseed(unsigned long *val)
     qemu_mutex_unlock(&replay_queue_mutex);
 }
 
-uint32_t rr_get_interrupt_eflags(void)
-{
-    return current_replay_int_log->event.interrupt.regs.rflags;
-}
-
 void rr_do_replay_intno(CPUState *cpu, int *intno)
 {
     X86CPU *x86_cpu;
@@ -2544,8 +2541,6 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
 
         append_to_queue(EVENT_TYPE_INTERRUPT, &(rr_event_log_head->event.interrupt));
 
-        current_replay_int_log = rr_event_log_head;
-
         rr_pop_event_head();
 
         if (!started_replay) {
@@ -2578,6 +2573,10 @@ uint64_t rr_num_instr_before_next_interrupt(void)
             rr_load_checkpoints();
 
             initialized_replay = 1;
+
+            if (!rr_event_log_head)
+                return 0;
+
         } else {
             printf("Replay finished\n");
             exit(0);

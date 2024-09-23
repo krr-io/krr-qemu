@@ -1141,6 +1141,7 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
     //     printf("Trace is enabled, performance will be slow\n");
     //     rr_insert_breakpoints();
     // }
+    rr_insert_breakpoints();
     kvm_start_record(enable_trace, trace_interval);
 
     if (autostart)

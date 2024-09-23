@@ -110,6 +110,10 @@ static void insert_check_node(CPUState *cpu, unsigned long inst_cnt)
     
     rr_checkpoint *cp = (rr_checkpoint *)malloc(sizeof(rr_checkpoint));
 
+    if (env->eip < 0xBFFFFFFFFFFF) {
+        return;
+    }
+
     cp->inst_cnt = inst_cnt;
     cp->rip = env->eip;
     for (int i=0; i < CPU_NB_REGS; i++) {
@@ -153,8 +157,8 @@ void handle_rr_checkpoint(CPUState *cpu)
     insert_check_node(cpu, inst_cnt);
 }
 
-static unsigned long mask_bit(unsigned long eflags, unsigned long n) {
-    return eflags & ~(1 << n);
+static unsigned long mask_bit(unsigned long eflags, unsigned long mask) {
+    return eflags & ~mask;
 }
 
 void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
@@ -172,7 +176,7 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
     }
 
     if (cpu->rr_executed_inst > node->inst_cnt) {
-        qemu_log("Check: missed checkpoint: inst=%lu, rip=0x%lx\n", node->inst_cnt, node->rip);
+        LOG_MSG("Check: missed checkpoint: inst=%lu, rip=0x%lx\n", node->inst_cnt, node->rip);
         goto finish;
     }
 
@@ -185,7 +189,7 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
 
     if (env->eip != node->rip) {
         is_bugged = true;
-        qemu_log("BUG: inconsistent RIP current=0x%lx, expected=0x%lx\n", env->eip, node->rip);
+        LOG_MSG("BUG: inconsistent RIP current=0x%lx, expected=0x%lx\n", env->eip, node->rip);
         cpu->cause_debug = 1;
         goto finish;
     }
@@ -193,25 +197,29 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
     for (int i=0; i < CPU_NB_REGS; i++) {
         if (env->regs[i] != node->regs[i]) {
             is_bugged = true;
-            qemu_log("BUG: inconsistent #%d reg, rip=0x%lx, current=0x%lx, expected=0x%lx\n",
+            LOG_MSG("BUG: inconsistent #%d reg, rip=0x%lx, current=0x%lx, expected=0x%lx\n",
                      i, env->eip, env->regs[i], node->regs[i]);
-            // cpu->cause_debug = 1;
+            cpu->cause_debug = 1;
         }
     }
-    LOG_MSG("Registers are consistent\n");
 
-    if (mask_bit(env->eflags, 16) != mask_bit(node->eflags, 16)) {
+    if (!is_bugged) {
+        LOG_MSG("Registers are consistent\n");
+    }
+
+    if (mask_bit(env->eflags, CC_O | RF_MASK) != mask_bit(node->eflags, CC_O | RF_MASK)) {
         LOG_MSG("BUG: inconsistent eflags current=0x%lx, expected=0x%lx\n", env->eflags, node->eflags);
         cpu->cause_debug = 1;
         is_bugged = true;
     }
 
 finish:
-    if (is_bugged)
-        printf("BUGPoint: 0x%lx\n", env->eip);
-    else
-        printf("[CPU-%d]checkpoint passed inst=%lu, rip=0x%lx\n",
-             cpu->cpu_index, node->inst_cnt, node->rip);
+    if (is_bugged) {
+        LOG_MSG("BUGPoint: 0x%lx\n", env->eip);
+    } else {
+        LOG_MSG("[CPU-%d]checkpoint passed inst=%lu, rip=0x%lx\n",
+                cpu->cpu_index, node->inst_cnt, node->rip);
+    }
 
     check_points[cpu->cpu_index] = node->next;
 }

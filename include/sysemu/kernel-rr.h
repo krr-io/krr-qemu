@@ -11,29 +11,30 @@
 #include "qemu/typedefs.h"
 // #include "sysemu/dma.h"
 
-
-#define STRNCPY_FROM_USER 0xffffffff8149d9a0 // info addr strncpy_from_user
-#define STRNLEN_USER 0xffffffff8149dad0 // info addr strnlen_user
+#define RR_GFU_BEGIN 0xffffffff810341f0
+#define STRNCPY_FROM_USER 0xffffffff8149dac0 // b lib/strncpy_from_user.c:42
+#define STRNLEN_USER 0xffffffff8149dc50 // info addr strnlen_user
 #define RANDOM_GEN 0xffffffff810340e0 // info addr rr_record_random
-#define PF_EXEC 0xffffffff8177a9a0 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff8177ac40 // b fault.c:1580 arch/x86/mm/fault.c:1463
-#define RR_CFU_BEGIN 0xffffffff810343c0
+#define PF_EXEC 0xffffffff8177a9b0 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff8177ac50 // b fault.c:1580 arch/x86/mm/fault.c:1463
+#define RR_CFU_BEGIN 0xffffffff81034420
 #define RR_RECORD_CFU 0xffffffff81034150 // info addr rr_record_cfu
 #define RR_GFU_NOCHECK1 0xffffffff8173e27e // b arch/x86/lib/getuser.S:127
 #define RR_RECORD_GFU 0xffffffff8173e264 // b getuser.S:103
 #define RR_GFU_NOCHECK4 0xffffffff8173e2bd // b getuser.S:162
 #define RR_GFU_NOCHECK8 0xffffffff8173e2de // b getuser.S:147
 #define RR_GFU4 0xffffffff8173e233 // b getuser.S:88
+#define PF_ENTRY 0xffffffff81800b62 // info addr asm_exc_page_fault
 
 #define SYSCALL_ENTRY 0xffffffff81800000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff8177b200 // info addr syscall_exit_to_user_mode
+#define SYSCALL_EXIT 0xffffffff8177b210 // info addr syscall_exit_to_user_mode
 #define PF_ASM_EXC 0xffffffff81800b40 // info addr asm_exc_page_fault
 
-#define IRQ_ENTRY 0xffffffff8177b110 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff8177b270 // info addr irqentry_exit
+#define IRQ_ENTRY 0xffffffff8177b120 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff8177b280 // info addr irqentry_exit
 
 #define LOCK_RELEASE 0 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff8177a220 // info addr rr_record_syscall
+#define RR_RECORD_SYSCALL 0xffffffff8177a230 // info addr rr_record_syscall
 #define RR_HANDLE_SYSCALL 0xffffffff8128ab80
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f
@@ -42,7 +43,7 @@
 #define E1000_CLEAN 0xffffffff816056a0
 #define E1000_CLEAN_MID 0xffffffff81605a02
 
-#define COSTUMED1 0xffffffff8108d241
+#define COSTUMED1 0xffffffff81800193
 #define COSTUMED2 0xffffffff8400b48f
 #define COSTUMED3 0xffffffff8400b365
 
@@ -232,6 +233,9 @@ void rr_init_checkpoints(void);
 void rr_load_checkpoints(void);
 void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep);
 int is_valid_op(int op);
+void set_should_log(int v);
+int is_verify_replay(void);
+void rr_do_replay_gfu_begin(CPUState *cpu, int post_exception);
 
 
 #define LOG_MSG(fmt, ...) \

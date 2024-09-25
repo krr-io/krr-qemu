@@ -11,7 +11,13 @@
 #include "sysemu/kvm.h"
 
 rr_checkpoint *check_points[32];
+static int verify_replay = 0;
 
+
+int is_verify_replay(void)
+{
+    return verify_replay;
+}
 
 void rr_init_checkpoints(void)
 {
@@ -68,6 +74,9 @@ static void load_cpu_checkpoints(CPUState *cpu)
             check_points[cpu->cpu_index] = new_node;
         }
 
+         qemu_log("[CPU-%d]checkpoint inst %lu, rip=0x%lx\n",
+                  cpu->cpu_index, new_node->inst_cnt, new_node->rip);
+
         if (tail_node == NULL) {
             tail_node = new_node;
         } else {
@@ -76,6 +85,9 @@ static void load_cpu_checkpoints(CPUState *cpu)
         }
         c_num++;
     }
+
+    if (c_num > 0)
+        verify_replay = 1;
 
     printf("Loaded %d checkpoints for CPU %d", c_num, cpu->cpu_index);
 }
@@ -146,6 +158,16 @@ static void insert_check_node(CPUState *cpu, unsigned long inst_cnt)
 void handle_rr_checkpoint(CPUState *cpu)
 {
     unsigned long inst_cnt;
+    unsigned long rip;
+    int r;
+
+    rip = cpu->kvm_run->debug.arch.pc;
+    if (rip == SYSCALL_ENTRY || rip == PF_ENTRY || rip == COSTUMED1) {
+        r = kvm_reset_counter(cpu);
+        if (r != 0) {
+            printf("Failed to reset counter %d\n", r);
+        }
+    }
 
     if (kvm_enabled()){
         kvm_arch_get_registers(cpu);

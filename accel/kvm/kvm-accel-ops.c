@@ -51,7 +51,8 @@ static bool rr_is_address_interceptible(target_ulong bp_addr)
         bp_addr != E1000_CLEAN_MID && \
         bp_addr != COSTUMED1 && \
         bp_addr != COSTUMED2 && \
-        bp_addr != COSTUMED3)
+        bp_addr != COSTUMED3 && \
+        bp_addr != PF_ENTRY)
         return false;
 
     return true;
@@ -69,12 +70,42 @@ static bool rr_is_address_sw(target_ulong bp_addr)
         || bp_addr == RR_GFU_NOCHECK8 \
         || bp_addr == E1000_CLEAN \
         || bp_addr == E1000_CLEAN_MID \
-        || bp_addr == COSTUMED1 || bp_addr == COSTUMED2 || bp_addr == COSTUMED3 || bp_addr == RR_RECORD_SYSCALL)
+        || bp_addr == COSTUMED1 \
+        || bp_addr == COSTUMED2 \
+        || bp_addr == COSTUMED3 || bp_addr == RR_RECORD_SYSCALL || bp_addr == PF_ENTRY)
     {
         return true;
     }
 
     return false;
+}
+
+
+void rr_insert_entry_breakpoints(void)
+{
+    CPUState *cpu;
+    int bp_ret;
+
+    CPU_FOREACH(cpu) {
+        bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for syscall: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for system call\n");
+        }
+        bp_ret = kvm_insert_breakpoint(cpu, COSTUMED1, 1, GDB_BREAKPOINT_SW);
+        if (bp_ret > 0) {
+            printf("failed to insert bp for syscall: %d\n", bp_ret);
+        } else {
+            printf("Inserted breakpoints for system call\n");
+        }
+        // bp_ret = kvm_insert_breakpoint(cpu, PF_ENTRY, 1, GDB_BREAKPOINT_SW);
+        // if (bp_ret > 0) {
+        //     printf("failed to insert bp for syscall: %d\n", bp_ret);
+        // } else {
+        //     printf("Inserted breakpoints for system call\n");
+        // }
+    }
 }
 
 
@@ -185,6 +216,7 @@ void rr_remove_breakpoints(void)
         kvm_remove_breakpoint(cpu, COSTUMED2, 1, GDB_BREAKPOINT_SW);
         kvm_remove_breakpoint(cpu, COSTUMED3, 1, GDB_BREAKPOINT_SW);
         kvm_remove_breakpoint(cpu, RR_RECORD_SYSCALL, 1, GDB_BREAKPOINT_SW);
+        kvm_remove_breakpoint(cpu, PF_ENTRY, 1, GDB_BREAKPOINT_SW);
         // kvm_remove_breakpoint(cpu, uaccess_begin, 1, GDB_BREAKPOINT_SW);
     }
 }
@@ -212,14 +244,12 @@ handle_on_bp(CPUState *cpu)
         return false;
 
     // handle_bp_points(cpu, bp_addr);
-    handle_rr_checkpoint(cpu);
+    if (cpu->singlestep_enabled == 0)
+        handle_rr_checkpoint(cpu);
 
     // return false;
 
     if (cpu->singlestep_enabled != 0) {
-
-        qemu_log("PC 0x%lx %lu\n", bp_addr, rr_get_inst_cnt(cpu));
-
         if (cpu->last_removed_addr == 0) {
             return false;
         }

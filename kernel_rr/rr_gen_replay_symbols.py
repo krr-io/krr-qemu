@@ -37,6 +37,9 @@ def filter_loc_addr(loc):
         return "0"
 
 
+def fetch_rr_gfu_begin():
+    return filter_info_addr("rr_gfu_begin")
+
 def fetch_strncpy_from_user():
     return filter_info_addr("strncpy_from_user")
 
@@ -127,6 +130,7 @@ handlers = {
     "RR_RECORD_SYSCALL": fetch_record_syscall,
     "RR_HANDLE_SYSCALL": fetch_handle_syscall,
     "LOCK_RELEASE": fetch_release,
+    "RR_GFU_BEGIN": fetch_rr_gfu_begin,
 }
 
 

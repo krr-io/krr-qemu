@@ -1140,6 +1140,7 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
 
     if (trace_mode == 1) {
         enable_trace = 1;
+        rr_insert_entry_breakpoints();
     } else if (trace_mode == 2) {
         printf("Breakpoint trace is enabled\n");
         rr_insert_breakpoints();

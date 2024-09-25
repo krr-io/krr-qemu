@@ -648,12 +648,6 @@ static void rr_handle_pending_pf_in_cfu(rr_event_log *cur_node)
 
 static void rr_handle_pending_pf_in_cfu2(rr_event_log *cur_node)
 {
-    if (cur_node->next->type == EVENT_TYPE_EXCEPTION) {
-        if (rr_event_log_head == cur_node) {
-            rr_event_log_head = cur_node->next;
-        }
-    }
-
     temp_cfu_event = cur_node;
 }
 
@@ -842,6 +836,85 @@ finish:
     return;
 }
 
+void rr_do_replay_gfu_begin(CPUState *cpu, int post_exception)
+{
+    // The breakpoint we set in record is actually end of CFU, but in replay we feed
+    // the on CFU entry. There might be interrupt or page fault happening during a CFU,
+    // which means it is queued before the CFU in the log, so we find the next CFU entry
+    // to feed in this replayed CFU.
+    rr_event_log *node;
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+    int ret;
+    bool used_temp = false;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    node = rr_event_log_head;
+    rr_event_log *cur = rr_event_log_head;
+
+    if (temp_cfu_event == NULL || !post_exception) {
+        if (cur->type != EVENT_TYPE_GFU) {
+            LOG_MSG("Current[%d] not GFU, look for next\n", rr_event_log_head->type);
+
+            if (cur->next == NULL) {
+                printf("Expected log copy from user, but got %d, ip=0x%lx\n", rr_event_log_head->type, env->eip);
+                // abort();
+                cpu->cause_debug = 1;
+                return;
+            }
+        }
+    } else {
+        used_temp = true;
+        node = temp_cfu_event;
+        LOG_MSG("Use cached event src=0x%lx\n", node->event.gfu.ptr);
+    }
+
+    if (env->regs[R_ESI] < node->event.gfu.ptr && env->regs[R_ESI] + sizeof(unsigned long) == node->event.gfu.ptr) {
+        LOG_MSG("Skip replay node and wait for next replay\n");
+        return;
+    }
+
+    ret = cpu_memory_rw_debug(cpu, node->event.gfu.ptr,
+                            &node->event.gfu.val,
+                            8, true);
+    if (ret < 0) {
+        printf("Failed to write to address %lx: %d, val=%lu\n",
+                node->event.gfu.ptr, ret, node->event.gfu.val);
+
+        if (ret == -1 && !kernel_user_access_pf) {
+            kernel_user_access_pf = true;
+            printf("Save the gfu entry for later\n");
+            rr_handle_pending_pf_in_cfu2(node);
+            goto finish;
+        } else {
+            abort();
+        }
+    } else {
+        printf("Write to address 0x%lx len %lu\n",
+                node->event.gfu.ptr,
+                node->event.cfu.len);
+        LOG_MSG("[GFU %d]Replayed gfu[0x%lx]: src_addr=0x%lx, dest_addr=%lu, val=%lu, event number=%d\n",
+                cpu->cpu_index,
+                env->eip,
+                node->event.gfu.ptr,
+                env->regs[R_R14],
+                node->event.gfu.val, replayed_event_num);
+    }
+
+    if (used_temp) {
+        temp_cfu_event = NULL;
+        replayed_event_num++;
+        return;
+    }
+
+finish:
+    rr_pop_event_head();
+}
+
+
+// Unused
 void rr_do_replay_strncpy_from_user(CPUState *cpu, int post_exception)
 {
     // The breakpoint we set in record is actually end of CFU, but in replay we feed
@@ -862,9 +935,9 @@ void rr_do_replay_strncpy_from_user(CPUState *cpu, int post_exception)
     rr_event_log *cur = rr_event_log_head;
 
     if (temp_cfu_event == NULL || !post_exception) {
-        if (cur->type != EVENT_TYPE_CFU) {
-            qemu_log("Current[%d] not CFU, look for next\n", rr_event_log_head->type);
-            while (cur->next != NULL && (cur->next->type != EVENT_TYPE_CFU || cur->next->event.cfu.src_addr != env->regs[R_ESI])) {
+        if (cur->type != EVENT_TYPE_GFU) {
+            qemu_log("Current[%d] not GFU, look for next\n", rr_event_log_head->type);
+            while (cur->next != NULL && (cur->next->type != EVENT_TYPE_GFU || cur->next->event.gfu.ptr != env->regs[R_R14])) {
                 cur = cur->next;
             }
 
@@ -875,7 +948,7 @@ void rr_do_replay_strncpy_from_user(CPUState *cpu, int post_exception)
                 return;
             }
 
-            if (cur->next->type == EVENT_TYPE_CFU) {
+            if (cur->next->type == EVENT_TYPE_GFU) {
                 node = cur->next;
                 reordered = true;
             }
@@ -883,43 +956,42 @@ void rr_do_replay_strncpy_from_user(CPUState *cpu, int post_exception)
     } else {
         used_temp = true;
         node = temp_cfu_event;
-        qemu_log("Use cached event src=0x%lx\n", node->event.cfu.src_addr);
+        LOG_MSG("Use cached event src=0x%lx\n", node->event.gfu.ptr);
     }
 
-    printf("[CPU %d]Replayed strncpy[0x%lx]: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
+    if (env->regs[R_ESI] < node->event.gfu.ptr && env->regs[R_ESI] + sizeof(unsigned long) == node->event.gfu.ptr) {
+        LOG_MSG("Skip replay node and wait for next replay\n");
+        return;
+    }
+
+    LOG_MSG("[CPU %d]Replayed strncpy[0x%lx]: src_addr=0x%lx, dest_addr=%lu, val=%lu, event number=%d\n",
             cpu->cpu_index,
             env->eip,
-            node->event.cfu.src_addr,
-            node->event.cfu.dest_addr,
-            node->event.cfu.len, replayed_event_num);
-    qemu_log("[CPU %d]Replayed strncpy[0x%lx]: src_addr=0x%lx, dest_addr=0x%lx, len=%lu, event number=%d\n",
-                cpu->cpu_index,
-                env->eip,
-                node->event.cfu.src_addr,
-                node->event.cfu.dest_addr,
-                node->event.cfu.len, replayed_event_num);
+            node->event.gfu.ptr,
+            env->regs[R_R14],
+            node->event.gfu.val, replayed_event_num);
 
-    if (node->event.cfu.len > 0) {
-        node->event.cfu.data[node->event.cfu.len - 1] = 0;
-        ret = cpu_memory_rw_debug(cpu, node->event.cfu.src_addr,
-                                node->event.cfu.data,
-                                node->event.cfu.len, true);
-        if (ret < 0) {
-            printf("Failed to write to address %lx: %d, len=%lu\n",
-                   node->event.cfu.src_addr, ret, node->event.cfu.len);
-            if (ret == -1 && !kernel_user_access_pf) {
-                kernel_user_access_pf = true;
-                printf("Save the strncpy entry for later\n");
-                rr_handle_pending_pf_in_cfu2(node);
-                goto finish;
-            } else {
-                abort();
-            }
+    // if (node->event.cfu.len > 0) {
+    //     node->event.cfu.data[node->event.cfu.len - 1] = 0;
+    ret = cpu_memory_rw_debug(cpu, node->event.gfu.ptr,
+                            &node->event.gfu.val,
+                            8, true);
+    if (ret < 0) {
+        printf("Failed to write to address %lx: %d, val=%lu\n",
+                node->event.gfu.ptr, ret, node->event.gfu.val);
+
+        if (ret == -1 && !kernel_user_access_pf) {
+            kernel_user_access_pf = true;
+            printf("Save the strncpy entry for later\n");
+            rr_handle_pending_pf_in_cfu2(node);
+            goto finish;
         } else {
-            printf("Write to address 0x%lx len %lu\n",
-                    node->event.cfu.src_addr,
-                    node->event.cfu.len);
+            abort();
         }
+    } else {
+            printf("Write to address 0x%lx len %lu\n",
+                    node->event.gfu.ptr,
+                    node->event.cfu.len);
     }
 
     if (used_temp) {
@@ -2137,12 +2209,12 @@ void rr_post_replay_exception(CPUState *cpu)
         return;
     }
 
+    LOG_MSG("Post replay exception\n");
+
     if (kernel_user_access_pf)
-        rr_do_replay_strncpy_from_user(cpu, 1);
+        rr_do_replay_gfu_begin(cpu, 1);
     else if (kernel_user_access_pf_cfu)
         rr_do_replay_cfu(cpu, 1);
-    else
-        rr_do_replay_strnlen_user(cpu);
 
     kernel_user_access_pf = false;
     kernel_user_access_pf_cfu = false;

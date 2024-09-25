@@ -3687,6 +3687,9 @@ void qemu_init(int argc, char **argv, char **envp)
             case QEMU_OPTION_kernel_replay:
                 kernel_replay_name = optarg;
                 break;
+            case QEMU_OPTION_replay_log_inst:
+                set_should_log(1);
+                break;
             case QEMU_OPTION_kernel_memlog:
                 rr_enable_mem_logs();
                 break;

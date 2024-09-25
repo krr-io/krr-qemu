@@ -1435,7 +1435,6 @@ static bool check_iopl(DisasContext *s)
 /* if d == OR_TMP0, it means memory operand (address in A0) */
 static void gen_op(DisasContext *s1, int op, MemOp ot, int d)
 {
-    qemu_log("gen_op op=%d\n", op);
     if (d != OR_TMP0) {
         if (s1->prefix & PREFIX_LOCK) {
             /* Lock prefix when destination is not memory.  */
@@ -1655,7 +1654,7 @@ static void gen_shift_rm_T1(DisasContext *s, MemOp ot, int op1,
 
     gen_shift_flags(s, ot, s->T0, s->tmp0, s->T1, is_right, false);
 
-    qemu_log("arith=%d, is_right=%d, op1=%d\n", is_arith, is_right, op1);
+    // qemu_log("arith=%d, is_right=%d, op1=%d\n", is_arith, is_right, op1);
     if (!is_arith && is_right) {
         tcg_gen_mov_tl(cpu_cc_src2, s->tmp4);
         set_cc_op(s, CC_OP_SHRB + ot);
@@ -1695,7 +1694,7 @@ static void gen_shift_rm_im(DisasContext *s, MemOp ot, int op1, int op2,
     /* store */
     gen_op_st_rm_T0_A0(s, ot, op1);
 
-    qemu_log("arith=%d, is_right=%d, op2=%d\n", is_arith, is_right, op2);
+    // qemu_log("arith=%d, is_right=%d, op2=%d\n", is_arith, is_right, op2);
     /* update eflags if non zero shift */
     if (op2 != 0) {
         tcg_gen_mov_tl(cpu_cc_src, s->tmp4);
@@ -4828,7 +4827,6 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             f = (b >> 1) & 3;
 
             ot = mo_b_d(b, dflag);
-            qemu_log("op is %d %d\n", op, f);
 
             switch(f) {
             case 0: /* OP Ev, Gv */
@@ -4841,7 +4839,6 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                     opreg = OR_TMP0;
                 } else if (op == OP_XORL && rm == reg) {
                 xor_zero:
-                    qemu_log("xor_zero\n");
                     /* xor reg, reg optimisation */
                     set_cc_op(s, CC_OP_CLR);
                     tcg_gen_movi_tl(s->T0, 0);
@@ -5935,7 +5932,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 opreg = (modrm & 7) | REX_B(s);
             }
 
-            qemu_log("shift %d\n", shift);
+            // qemu_log("shift %d\n", shift);
             /* simpler op */
             if (shift == 0) {
                 gen_shift(s, op, ot, opreg, OR_ECX);
@@ -8589,7 +8586,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         goto unknown_op;
     }
 
-    qemu_log("cc op %d\n", s->cc_op);
+    // qemu_log("cc op %d\n", s->cc_op);
     rr_gen_compute_eflags(s);
     gen_helper_rr_write_eflags(cpu_env, cpu_cc_src,
                                tcg_const_i32((CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C) & 0xffff));  // Write the computed flags to env->eflags

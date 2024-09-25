@@ -85,6 +85,10 @@ static int64_t max_advance;
 
 static bool should_log = false;
 
+void set_should_log(int v) {
+    should_log = v;
+}
+
 static bool should_log_trace(CPUState *cpu)
 {
     /*
@@ -92,13 +96,13 @@ static bool should_log_trace(CPUState *cpu)
     log out the instructions only between two events.
     */
 
-    int replayed_num = get_replayed_event_num();
+    // int replayed_num = get_replayed_event_num();
 
     // // if (cpu->rr_executed_inst > 9998)
     // //     return true;
-    if (307 <= replayed_num && replayed_num < 309) {
-        return true;
-    }
+    // if (307 <= replayed_num && replayed_num < 309) {
+    //     return true;
+    // }
     // return should_log;
     return should_log;
 }
@@ -1154,13 +1158,16 @@ int cpu_exec(CPUState *cpu)
                     rr_do_replay_cfu(cpu, 0);
                     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
-                case STRNLEN_USER:
-                    rr_do_replay_strnlen_user(cpu);
-                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-                    break;
-                case STRNCPY_FROM_USER:
-                    rr_do_replay_strncpy_from_user(cpu, 0);
-                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+                // case STRNLEN_USER:
+                //     rr_do_replay_strnlen_user(cpu);
+                //     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+                //     break;
+                // case STRNCPY_FROM_USER:
+                //     rr_do_replay_strncpy_from_user(cpu, 0);
+                //     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+                //     break;
+                case RR_GFU_BEGIN:
+                    rr_do_replay_gfu_begin(cpu, 0);
                     break;
                 case RR_RECORD_GFU:
                 case RR_GFU_NOCHECK1:
@@ -1239,7 +1246,8 @@ int cpu_exec(CPUState *cpu)
             rr_inc_inst(cpu, tb->pc, tb);
             // qemu_log("PC 0x%lx %lu\n", tb->pc, cpu->rr_executed_inst);
 
-            handle_replay_rr_checkpoint(cpu, tb->io_inst & INST_REP);
+            if (tb->jump_next_event == -1)
+                handle_replay_rr_checkpoint(cpu, tb->io_inst & INST_REP);
 
             cpu->last_pc = tb->pc;
 

@@ -133,7 +133,6 @@ static int glue(compute_all_logic, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1)
     zf = (dst == 0) * CC_Z;
     sf = lshift(dst, 8 - DATA_BITS) & CC_S;
     of = 0;
-    qemu_log("pf=%d\n", pf);
     return cf | pf | af | zf | sf | of;
 }
 
@@ -229,7 +228,6 @@ __attribute_maybe_unused__ static int glue(compute_all_shr, SUFFIX)(DATA_TYPE ds
     sf = lshift(dst, 8 - DATA_BITS) & CC_S;
     /* of is defined iff shift count == 1 */
     of = (src2 >> (DATA_BITS - 1)) & 1 ? CC_O : 0;
-    qemu_log("compute for shr of=%d\n", of);
     return cf | pf | af | zf | sf | of;
 }
 

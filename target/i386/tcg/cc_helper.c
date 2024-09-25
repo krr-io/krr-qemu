@@ -176,7 +176,7 @@ int is_valid_op(int op)
 target_ulong helper_cc_compute_all(target_ulong dst, target_ulong src1,
                                    target_ulong src2, int op)
 {
-    qemu_log("op=%d, src1=%lx src2=%lx\n", op, src1, src2);
+    // qemu_log("op=%d, src1=%lx src2=%lx\n", op, src1, src2);
     switch (op) {
     default: /* should never happen */
         return 0;
@@ -311,7 +311,6 @@ target_ulong helper_cc_compute_all(target_ulong dst, target_ulong src1,
     case CC_OP_DECQ:
         return compute_all_decq(dst, src1);
     case CC_OP_SHLQ:
-        qemu_log("shlq dst: %lu\n", dst);
         return compute_all_shlq(dst, src1, src2);
     case CC_OP_SARQ:
         return compute_all_sarq(dst, src1);
@@ -436,11 +435,11 @@ void helper_rr_write_eflags(CPUX86State *env, target_ulong t0,
                          uint32_t update_mask)
 {
     if (!is_valid_op(env->cc_op)) {
-        qemu_log("invalid cc op %d\n", env->cc_op);
+        // qemu_log("invalid cc op %d\n", env->cc_op);
         return;
     }
 
-    qemu_log("valid cc op %d\n", env->cc_op);
+    // qemu_log("valid cc op %d\n", env->cc_op);
     cpu_load_eflags(env, t0, update_mask);
 }
 

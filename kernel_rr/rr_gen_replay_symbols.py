@@ -68,7 +68,7 @@ def fetch_rr_record_cfu():
     return filter_info_addr("rr_record_cfu")
 
 def fetch_rr_cfu_begin():
-    return filter_info_addr("rr_begin_cfu")
+    return filter_info_addr("rr_cfu_begin")
 
 def fetch_gfu_nocheck1():
     return filter_loc_addr("getuser.S:127")

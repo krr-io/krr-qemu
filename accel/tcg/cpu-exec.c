@@ -84,9 +84,20 @@ static int64_t max_delay;
 static int64_t max_advance;
 
 static bool should_log = false;
+static unsigned long log_start = 0;
+static unsigned long log_end = 0;
 
 void set_should_log(int v) {
     should_log = v;
+}
+
+void set_log_bound(unsigned long start, unsigned long end)
+{
+    if (start > 0)
+        log_start = start;
+
+    if (end > 0)
+        log_end = end;
 }
 
 static bool should_log_trace(CPUState *cpu)
@@ -97,13 +108,13 @@ static bool should_log_trace(CPUState *cpu)
     */
 
     // int replayed_num = get_replayed_event_num();
+    if (log_start > 0) {
+        if (log_end == 0)
+            return cpu->rr_executed_inst > log_start;
 
-    // // if (cpu->rr_executed_inst > 9998)
-    // //     return true;
-    // if (307 <= replayed_num && replayed_num < 309) {
-    //     return true;
-    // }
-    // return should_log;
+        return cpu->rr_executed_inst > log_start && cpu->rr_executed_inst < log_end;
+    }
+
     return should_log;
 }
 
@@ -1166,6 +1177,9 @@ int cpu_exec(CPUState *cpu)
                 //     rr_do_replay_strncpy_from_user(cpu, 0);
                 //     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                 //     break;
+                case RR_PTE_BEGIN:
+                    rr_do_replay_pte(cpu);
+                    break;     
                 case RR_GFU_BEGIN:
                     rr_do_replay_gfu_begin(cpu, 0);
                     break;

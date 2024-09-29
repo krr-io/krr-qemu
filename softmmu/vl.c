@@ -501,6 +501,23 @@ static QemuOptsList qemu_action_opts = {
     },
 };
 
+
+static QemuOptsList qemu_replay_log_bound_opts = {
+    .name = "replay-log-bound",
+    .merge_lists = true,
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_replay_log_bound_opts.head),
+    .desc = {
+        {
+            .name = "start",
+            .type = QEMU_OPT_NUMBER,
+        },{
+            .name = "end",
+            .type = QEMU_OPT_NUMBER,
+        },
+        { /* end of list */ }
+    },
+};
+
 const char *qemu_get_vm_name(void)
 {
     return qemu_name;
@@ -2836,6 +2853,7 @@ void qemu_init(int argc, char **argv, char **envp)
     qemu_add_opts(&qemu_semihosting_config_opts);
     qemu_add_opts(&qemu_fw_cfg_opts);
     qemu_add_opts(&qemu_action_opts);
+    qemu_add_opts(&qemu_replay_log_bound_opts);
     module_call_init(MODULE_INIT_OPTS);
 
     error_init(argv[0]);
@@ -3689,6 +3707,17 @@ void qemu_init(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_replay_log_inst:
                 set_should_log(1);
+                break;
+            case QEMU_OPTION_replay_log_bound:
+                opts = qemu_opts_parse_noisily(qemu_find_opts("replay-log-bound"),
+                                               optarg, false);
+                if (!opts) {
+                    exit(1);
+                }
+                unsigned long start = qemu_opt_get_number(opts, "start", 0);
+                unsigned long end = qemu_opt_get_number(opts, "end", 0);
+                printf("start=%lu, end=%lu\n", start, end);
+                set_log_bound(start, end);
                 break;
             case QEMU_OPTION_kernel_memlog:
                 rr_enable_mem_logs();

@@ -456,6 +456,7 @@ target_ulong helper_read_eflags(CPUX86State *env)
     eflags = cpu_cc_compute_all(env, CC_OP);
     eflags |= (env->df & DF_MASK);
     eflags |= env->eflags & ~(VM_MASK | RF_MASK);
+    // eflags |= TF_MASK;
     return eflags;
 }
 

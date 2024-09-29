@@ -50,6 +50,7 @@ static int event_io_input_num = 0;
 static int event_rdtsc_num = 0;
 static int event_cfu_num = 0;
 static int event_gfu_num = 0;
+static int event_pte_num = 0;
 static int event_random_num = 0;
 static int event_dma_done = 0; // Unused
 static int event_strnlen = 0;
@@ -276,7 +277,7 @@ static int get_total_events_num(void)
     return event_interrupt_num + event_syscall_num + event_exception_num + \
            event_cfu_num + event_random_num + event_io_input_num + event_rdtsc_num + \
            event_dma_done + event_gfu_num + event_strnlen + event_rdseed_num + \
-           event_release;
+           event_release + event_pte_num;
 }
 
 static void rr_init_ram_bitmaps(void) {
@@ -836,6 +837,44 @@ finish:
     return;
 }
 
+void rr_do_replay_pte(CPUState *cpu)
+{
+    rr_event_log *node;
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+    int ret;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    if (rr_event_log_head->type != EVENT_TYPE_PTE) {
+        LOG_MSG("Current[%d] not PTE\n", rr_event_log_head->type);
+        cpu->cause_debug = 1;
+        return;
+    }
+
+    node = rr_event_log_head;
+
+    ret = cpu_memory_rw_debug(cpu, node->event.gfu.ptr,
+                              &node->event.gfu.val,
+                              sizeof(unsigned long), true);
+    if (ret < 0) {
+        printf("Failed to write to address %lx: %d, val=%lu\n",
+                node->event.gfu.ptr, ret, node->event.gfu.val);
+        cpu->cause_debug = 1;
+        return;
+    } else {
+        LOG_MSG("[GFU %d]Replayed pte[0x%lx]: pte_addr=0x%lx, val=%lx, event number=%d\n",
+                cpu->cpu_index,
+                env->eip,
+                node->event.gfu.ptr,
+                node->event.gfu.val,
+                replayed_event_num);
+    }
+
+    rr_pop_event_head();
+}
+
 void rr_do_replay_gfu_begin(CPUState *cpu, int post_exception)
 {
     // The breakpoint we set in record is actually end of CFU, but in replay we feed
@@ -1105,6 +1144,10 @@ rr_event_log_new_from_event(rr_event_log event, int record_mode)
         memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
         event_rdtsc_num++;
         break;
+    case EVENT_TYPE_PTE:
+        memcpy(&event_record->event.gfu, &event.event.gfu, sizeof(rr_gfu));
+        event_pte_num++;
+        break;
     case EVENT_TYPE_GFU:
         memcpy(&event_record->event.gfu, &event.event.gfu, sizeof(rr_gfu));
         event_gfu_num++;
@@ -1201,6 +1244,10 @@ static void rr_log_event(rr_event_log *event_record, int event_num, int *syscall
                     event_record->event.io_input.value, event_record->event.io_input.rip,
                     event_record->event.io_input.inst_cnt, event_record->event.io_input.id,
                     event_num);
+            break;
+        case EVENT_TYPE_PTE:
+            qemu_log("PTE: val=%lx, number=%d\n",
+                    event_record->event.gfu.val, event_num);
             break;
         case EVENT_TYPE_GFU:
             qemu_log("GFU: val=%lu, ptr=0x%lx, number=%d\n",
@@ -1435,6 +1482,11 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
         memcpy(&event_record->event.io_input, event, copied_size);
         event_rdtsc_num++;
         break;
+    case EVENT_TYPE_PTE:
+        copied_size = sizeof(rr_gfu);
+        memcpy(&event_record->event.gfu, event, copied_size);
+        event_pte_num++;
+        break;
     case EVENT_TYPE_GFU:
         copied_size = sizeof(rr_gfu);
         memcpy(&event_record->event.gfu, event, copied_size);
@@ -1556,10 +1608,12 @@ void rr_print_events_stat(void)
     printf("=== Event Stats ===\n");
 
     sprintf(msg, "Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\nRandom: %d\n"
-            "IO Input: %d\nRDTSC: %d\nStrnlen: %d\nRDSEED: %d\nInst Sync: %d\nDMA Buf Size: %lu\nTotal Replay Events: %d\nTime(s): %.2f\n",
+            "IO Input: %d\nRDTSC: %d\nStrnlen: %d\nRDSEED: %d\nPTE: %d\nInst Sync: %d\n"
+            "DMA Buf Size: %lu\nTotal Replay Events: %d\nTime(s): %.2f\n",
             event_interrupt_num, event_syscall_num, event_exception_num,
-            event_cfu_num, event_gfu_num, event_random_num, event_io_input_num, event_rdtsc_num, event_strnlen,
-            event_rdseed_num, event_sync_inst, get_dma_buf_size(), total_event_number, duration / 1000);
+            event_cfu_num, event_gfu_num, event_random_num, event_io_input_num,
+            event_rdtsc_num, event_strnlen, event_rdseed_num, event_pte_num,
+            event_sync_inst, get_dma_buf_size(), total_event_number, duration / 1000);
 
     printf("%s", msg);
 
@@ -1593,6 +1647,7 @@ static void persist_event(rr_event_log *event, FILE *fptr)
     case EVENT_TYPE_RDTSC:
         fwrite(&event->event.io_input, sizeof(rr_io_input), 1, fptr);
         break;
+    case EVENT_TYPE_PTE:
     case EVENT_TYPE_GFU:
         fwrite(&event->event.gfu, sizeof(rr_gfu), 1, fptr);
         break;
@@ -1657,6 +1712,7 @@ static void load_event(rr_event_log *event, int type, FILE *fptr)
         event->inst_cnt = event->event.io_input.inst_cnt;
         event->rip = event->event.io_input.rip;
         break;
+    case EVENT_TYPE_PTE:
     case EVENT_TYPE_GFU:
         if (!fread(&event->event.gfu, sizeof(rr_gfu), 1, fptr))
             goto error;
@@ -2188,10 +2244,10 @@ void rr_do_replay_exception(CPUState *cpu, int user_mode)
 
     sync_spin_inst_cnt(cpu, rr_event_log_head);
 
-    // printf("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
-    //        rr_event_log_head->event.exception.exception_index,
-    //        rr_event_log_head->event.exception.cr2,
-    //        rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code, replayed_event_num);
+    LOG_MSG("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, eflags=0x%lx, event number=%d\n", 
+           rr_event_log_head->event.exception.exception_index,
+           rr_event_log_head->event.exception.cr2,
+           rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code, env->eflags, replayed_event_num);
 
     // qemu_log("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
     //         rr_event_log_head->event.exception.exception_index,

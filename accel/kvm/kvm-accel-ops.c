@@ -244,8 +244,8 @@ handle_on_bp(CPUState *cpu)
         return false;
 
     // handle_bp_points(cpu, bp_addr);
-    if (cpu->singlestep_enabled == 0)
-        handle_rr_checkpoint(cpu);
+    // if (cpu->singlestep_enabled == 0)
+    handle_rr_checkpoint(cpu);
 
     // return false;
 

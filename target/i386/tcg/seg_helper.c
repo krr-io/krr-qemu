@@ -989,6 +989,9 @@ static void do_interrupt64(CPUX86State *env, int intno, int is_int,
         eflags |= RF_MASK;
     }
 
+    if (has_error_code)
+        eflags &= ~(CC_Z);
+
     PUSHQ(esp, env->segs[R_SS].selector);
     PUSHQ(esp, env->regs[R_ESP]);
     PUSHQ(esp, eflags);

@@ -17,6 +17,7 @@
 #define EVENT_TYPE_RELEASE   11
 #define EVENT_TYPE_INST_SYNC 12
 #define EVENT_TYPE_MMIO      13
+#define EVENT_TYPE_PTE       14
 
 #define CFU_BUFFER_SIZE     4096
 

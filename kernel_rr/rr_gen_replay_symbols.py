@@ -109,6 +109,18 @@ def fetch_handle_syscall():
 def fetch_release():
     return filter_loc_addr("arch/x86/kernel/rr_serialize.c:116")
 
+def fetch_rr_record_pte_clear():
+    return filter_info_addr("rr_record_pte_clear")
+
+def fetch_rr_read_pte():
+    return filter_info_addr("rr_read_pte")
+
+def fetch_rr_iret():
+    return filter_loc_addr("entry_64.S:702")
+
+def fetch_rr_sysret():
+    return filter_info_addr("entry_64.S:226")
+
 handlers = {
     "STRNCPY_FROM_USER": fetch_strncpy_from_user,
     "STRNLEN_USER": fetch_strnlen_user,
@@ -131,6 +143,10 @@ handlers = {
     "RR_HANDLE_SYSCALL": fetch_handle_syscall,
     "LOCK_RELEASE": fetch_release,
     "RR_GFU_BEGIN": fetch_rr_gfu_begin,
+    "RR_PTE_CLEAR": fetch_rr_record_pte_clear,
+    "RR_PTE_READ": fetch_rr_read_pte,
+    "RR_IRET": fetch_rr_iret,
+    "RR_SYSRET": fetch_rr_sysret,
 }
 
 

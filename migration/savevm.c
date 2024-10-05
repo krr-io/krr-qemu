@@ -1301,7 +1301,7 @@ int qemu_savevm_state_iterate(QEMUFile *f, bool postcopy)
             !se->ops->is_active_iterate(se->opaque)) {
             continue;
         }
-        printf("save %s\n", se->idstr);
+        // printf("save %s\n", se->idstr);
         /*
          * In the postcopy phase, any device that doesn't know how to
          * do postcopy should have saved it's state in the _complete

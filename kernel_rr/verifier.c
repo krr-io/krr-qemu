@@ -10,8 +10,20 @@
 
 #include "sysemu/kvm.h"
 
+typedef struct rr_checkpoint_t {
+    unsigned long inst_cnt;
+    unsigned long rip;
+    unsigned long regs[16];
+    unsigned long crs[5];
+    SegmentCache segs[6];
+    unsigned long eflags;
+    struct rr_checkpoint_t *next;
+} rr_checkpoint;
+
+
 rr_checkpoint *check_points[32];
 static int verify_replay = 0;
+static int passed = 0;
 
 
 int is_verify_replay(void)
@@ -131,6 +143,15 @@ static void insert_check_node(CPUState *cpu, unsigned long inst_cnt)
     for (int i=0; i < CPU_NB_REGS; i++) {
         cp->regs[i] = env->regs[i];
     }
+
+    for (int i=0; i < 5; i++) {
+        cp->crs[i] = env->cr[i];
+    }
+
+    for (int i=0; i < 6; i++) {
+        memcpy(&cp->segs[i], &env->segs[i], sizeof(SegmentCache));
+    }
+
     cp->eflags = env->eflags;
     cp->next = NULL;
 
@@ -162,7 +183,7 @@ void handle_rr_checkpoint(CPUState *cpu)
     int r;
 
     rip = cpu->kvm_run->debug.arch.pc;
-    if (rip == SYSCALL_ENTRY || rip == PF_ENTRY || rip == COSTUMED1) {
+    if (rip == SYSCALL_ENTRY || rip == PF_ENTRY || rip == COSTUMED1 || rip == RR_IRET) {
         r = kvm_reset_counter(cpu);
         if (r != 0) {
             printf("Failed to reset counter %d\n", r);
@@ -211,9 +232,27 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
 
     if (env->eip != node->rip) {
         is_bugged = true;
-        LOG_MSG("BUG: inconsistent RIP current=0x%lx, expected=0x%lx\n", env->eip, node->rip);
+        LOG_MSG("BUG: inconsistent RIP current=0x%lx, expected=0x%lx, inst=%lu\n",
+                env->eip, node->rip, node->inst_cnt);
         cpu->cause_debug = 1;
         goto finish;
+    }
+
+    for (int i=0; i < 5; i++) {
+        if (i == 1)
+            continue;
+
+        if (node->rip == SYSCALL_ENTRY || node->rip == SYSCALL_ENTRY + 3)
+            continue;
+
+        if (env->cr[i] != node->crs[i]) {
+            is_bugged = true;
+            LOG_MSG("BUG: inconsistent CR%d, rip=0x%lx, current=0x%lx, expected=0x%lx\n",
+                     i, env->eip, env->cr[i], node->crs[i]);
+            cpu->cause_debug = 1;
+            // exit(1);
+            goto finish;
+        }
     }
 
     for (int i=0; i < CPU_NB_REGS; i++) {
@@ -222,6 +261,23 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
             LOG_MSG("BUG: inconsistent #%d reg, rip=0x%lx, current=0x%lx, expected=0x%lx\n",
                      i, env->eip, env->regs[i], node->regs[i]);
             cpu->cause_debug = 1;
+            // exit(1);
+            goto finish;
+        }
+    }
+
+    for (int i=0; i < 6; i++) {
+        if (env->segs[i].base != node->segs[i].base) {
+            is_bugged = true;
+            LOG_MSG("BUG: inconsistent SEG%d, rip=0x%lx, current=0x%lx, expected=0x%lx\n",
+                     i, env->eip, env->segs[i].base, node->segs[i].base);
+            exit(1);
+        }
+        if (env->segs[i].selector != node->segs[i].selector) {
+            is_bugged = true;
+            LOG_MSG("BUG: inconsistent SEG%d, rip=0x%lx, current=%u, expected=%u\n",
+                     i, env->eip, env->segs[i].selector, node->segs[i].selector);
+            exit(1);
         }
     }
 
@@ -231,7 +287,7 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
 
     if (mask_bit(env->eflags, CC_O | RF_MASK) != mask_bit(node->eflags, CC_O | RF_MASK)) {
         LOG_MSG("BUG: inconsistent eflags current=0x%lx, expected=0x%lx\n", env->eflags, node->eflags);
-        cpu->cause_debug = 1;
+        // cpu->cause_debug = 1;
         is_bugged = true;
     }
 
@@ -241,6 +297,7 @@ finish:
     } else {
         LOG_MSG("[CPU-%d]checkpoint passed inst=%lu, rip=0x%lx\n",
                 cpu->cpu_index, node->inst_cnt, node->rip);
+        passed++;
     }
 
     check_points[cpu->cpu_index] = node->next;

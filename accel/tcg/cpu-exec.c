@@ -1098,10 +1098,10 @@ int cpu_exec(CPUState *cpu)
                 cpu->cflags_next_tb = -1;
             }
 
-            if (cpu->rr_executed_inst == -1 && !breaked) {
-                cpu->cause_debug = 1;
-                breaked = true;
-            }
+            // if (cpu->rr_executed_inst > 10365049 && !breaked && pc == 0xffffffff81034380) {
+            //     cpu->cause_debug = 1;
+            //     breaked = true;
+            // }
 
             if (cpu->interrupt_replayed) {
                 cpu->interrupt_replayed = 0;
@@ -1116,6 +1116,15 @@ int cpu_exec(CPUState *cpu)
             }
 
             rr_check_for_breakpoint(pc, cpu);
+
+
+            if (pc < 0xBFFFFFFFFFFF) {
+                rr_event_log *event = rr_get_next_event();
+                if (event->type == EVENT_TYPE_INTERRUPT && event->event.interrupt.rip == pc) {
+                    cpu->force_interrupt = true;
+                    continue;
+                }
+            }
 
             tb = tb_lookup(cpu, pc, cs_base, flags, cflags);
             if (tb == NULL) {
@@ -1169,27 +1178,20 @@ int cpu_exec(CPUState *cpu)
                     rr_do_replay_cfu(cpu, 0);
                     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
-                // case STRNLEN_USER:
-                //     rr_do_replay_strnlen_user(cpu);
-                //     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-                //     break;
-                // case STRNCPY_FROM_USER:
-                //     rr_do_replay_strncpy_from_user(cpu, 0);
-                //     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-                //     break;
-                case RR_PTE_BEGIN:
+                case RR_PTE_CLEAR:
+                case RR_PTE_READ:
                     rr_do_replay_pte(cpu);
                     break;     
                 case RR_GFU_BEGIN:
                     rr_do_replay_gfu_begin(cpu, 0);
                     break;
-                case RR_RECORD_GFU:
-                case RR_GFU_NOCHECK1:
-                case RR_GFU_NOCHECK4:
-                case RR_GFU_NOCHECK8:
-                case RR_GFU4:
-                    rr_do_replay_gfu(cpu);
-                    break;
+                // case RR_RECORD_GFU:
+                // case RR_GFU_NOCHECK1:
+                // case RR_GFU_NOCHECK4:
+                // case RR_GFU_NOCHECK8:
+                // case RR_GFU4:
+                //     rr_do_replay_gfu(cpu);
+                //     break;
                 case RANDOM_GEN:
                     rr_do_replay_rand(cpu, 0);
                     break;
@@ -1210,7 +1212,6 @@ int cpu_exec(CPUState *cpu)
 
                     break;
                 case SYSCALL_ENTRY:
-                case SYSCALL_EXIT:
                 case IRQ_ENTRY:
                 case IRQ_EXIT:
                 case E1000_CLEAN:
@@ -1284,6 +1285,7 @@ int cpu_exec(CPUState *cpu)
         // qemu_log("exit interrupt\n");
     }
 
+    rr_gdb_set_stopped(0);
     cpu_exec_exit(cpu);
     rcu_read_unlock();
 

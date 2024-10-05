@@ -27,55 +27,21 @@
 
 #include "kvm-cpus.h"
 #include "sysemu/kernel-rr.h"
+#include "migration/snapshot.h"
 
 
 static bool rr_is_address_interceptible(target_ulong bp_addr)
 {
-    if (bp_addr != SYSCALL_ENTRY && \
-        bp_addr != SYSCALL_EXIT && \
-        bp_addr != PF_ASM_EXC && \
-        bp_addr != PF_EXEC_END && \
-        bp_addr != STRNCPY_FROM_USER && \
-        bp_addr != STRNLEN_USER && \
-        bp_addr != RR_RECORD_GFU && \
-        bp_addr != RR_RECORD_CFU && \
-        bp_addr != IRQ_ENTRY && \
-        bp_addr != IRQ_EXIT && \
-        bp_addr != RR_GFU_NOCHECK4 && \
-        bp_addr != RR_GFU_NOCHECK8 && \
-        bp_addr != RR_HANDLE_SYSCALL && \
-        bp_addr != RR_RECORD_SYSCALL && \
-        bp_addr != RR_HANDLE_IRQ && \
-        bp_addr != RR_RECORD_IRQ && \
-        bp_addr != E1000_CLEAN && \
-        bp_addr != E1000_CLEAN_MID && \
-        bp_addr != COSTUMED1 && \
-        bp_addr != COSTUMED2 && \
-        bp_addr != COSTUMED3 && \
-        bp_addr != PF_ENTRY)
-        return false;
+    if (addr_in_debug_points(bp_addr))
+        return true;
 
-    return true;
+    return false;
 }
 
 static bool rr_is_address_sw(target_ulong bp_addr)
 {
-    if (bp_addr == SYSCALL_ENTRY \
-        || bp_addr == SYSCALL_EXIT \
-        || bp_addr == IRQ_ENTRY \
-        || bp_addr == IRQ_EXIT \
-        || bp_addr == RR_RECORD_CFU \
-        || bp_addr == RR_RECORD_GFU \
-        || bp_addr == RR_GFU_NOCHECK4 \
-        || bp_addr == RR_GFU_NOCHECK8 \
-        || bp_addr == E1000_CLEAN \
-        || bp_addr == E1000_CLEAN_MID \
-        || bp_addr == COSTUMED1 \
-        || bp_addr == COSTUMED2 \
-        || bp_addr == COSTUMED3 || bp_addr == RR_RECORD_SYSCALL || bp_addr == PF_ENTRY)
-    {
+    if (addr_in_debug_points(bp_addr))
         return true;
-    }
 
     return false;
 }
@@ -84,27 +50,9 @@ static bool rr_is_address_sw(target_ulong bp_addr)
 void rr_insert_entry_breakpoints(void)
 {
     CPUState *cpu;
-    int bp_ret;
 
     CPU_FOREACH(cpu) {
-        bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for syscall: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for system call\n");
-        }
-        bp_ret = kvm_insert_breakpoint(cpu, COSTUMED1, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for syscall: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for system call\n");
-        }
-        // bp_ret = kvm_insert_breakpoint(cpu, PF_ENTRY, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for syscall: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for system call\n");
-        // }
+        rr_do_insert_entry_breakpoints(cpu);
     }
 }
 
@@ -115,89 +63,7 @@ void rr_insert_breakpoints(void)
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
-        // bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for syscall: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for system call\n");
-        // }
-
-        // bp_ret = kvm_insert_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for pf: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for syscall exit\n");
-        // }
-
-        // bp_ret = kvm_insert_breakpoint(cpu, IRQ_ENTRY, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for irq entry: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for irq entry\n");
-        // }
-
-        // bp_ret = kvm_insert_breakpoint(cpu, IRQ_EXIT, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for irq exit: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for irq exit\n");
-        // }
-
-        bp_ret = kvm_insert_breakpoint(cpu, COSTUMED1, 1, GDB_BREAKPOINT_SW);
-        if (bp_ret > 0) {
-            printf("failed to insert bp for e1000 clean: %d\n", bp_ret);
-        } else {
-            printf("Inserted breakpoints for e1000 clean\n");
-        }
-
-        // bp_ret = kvm_insert_breakpoint(cpu, COSTUMED2, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for e1000 clean mid\n");
-        // }
-
-        // bp_ret = kvm_insert_breakpoint(cpu, COSTUMED3, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for e1000 clean mid\n");
-        // }
-
-        // bp_ret = kvm_insert_breakpoint(cpu, RR_RECORD_SYSCALL, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for e1000 clean mid: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for e1000 clean mid\n");
-        // }
-
-        // bp_ret = kvm_insert_breakpoint(cpu, PF_EXEC_END, 1, GDB_BREAKPOINT_HW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for pf end: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for pf end\n");
-        // }
-
-        // bp_ret = kvm_insert_breakpoint(cpu, RR_RECORD_GFU, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for gfu: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for gfu\n");
-        // }
-
-        // bp_ret = kvm_insert_breakpoint(cpu, RR_GFU_NOCHECK4, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for gfu: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for gfu\n");
-        // }
-
-        // bp_ret = kvm_insert_breakpoint(cpu, RR_GFU_NOCHECK8, 1, GDB_BREAKPOINT_SW);
-        // if (bp_ret > 0) {
-        //     printf("failed to insert bp for gfu: %d\n", bp_ret);
-        // } else {
-        //     printf("Inserted breakpoints for gfu\n");
-        // }
+        rr_do_insert_breakpoints(cpu);
     }
 }
 
@@ -206,18 +72,7 @@ void rr_remove_breakpoints(void)
     CPUState *cpu;
 
     CPU_FOREACH(cpu) {
-        kvm_remove_breakpoint(cpu, SYSCALL_ENTRY, 1, GDB_BREAKPOINT_SW);
-        kvm_remove_breakpoint(cpu, SYSCALL_EXIT, 1, GDB_BREAKPOINT_SW);
-        kvm_remove_breakpoint(cpu, IRQ_ENTRY, 1, GDB_BREAKPOINT_SW);
-        kvm_remove_breakpoint(cpu, IRQ_EXIT, 1, GDB_BREAKPOINT_SW);
-        kvm_remove_breakpoint(cpu, E1000_CLEAN, 1, GDB_BREAKPOINT_SW);
-        kvm_remove_breakpoint(cpu, E1000_CLEAN_MID, 1, GDB_BREAKPOINT_SW);
-        kvm_remove_breakpoint(cpu, COSTUMED1, 1, GDB_BREAKPOINT_SW);
-        kvm_remove_breakpoint(cpu, COSTUMED2, 1, GDB_BREAKPOINT_SW);
-        kvm_remove_breakpoint(cpu, COSTUMED3, 1, GDB_BREAKPOINT_SW);
-        kvm_remove_breakpoint(cpu, RR_RECORD_SYSCALL, 1, GDB_BREAKPOINT_SW);
-        kvm_remove_breakpoint(cpu, PF_ENTRY, 1, GDB_BREAKPOINT_SW);
-        // kvm_remove_breakpoint(cpu, uaccess_begin, 1, GDB_BREAKPOINT_SW);
+        rr_do_remove_breakpoints(cpu);
     }
 }
 
@@ -303,28 +158,32 @@ handle_on_bp(CPUState *cpu)
 
 static void start_record(void)
 {
-    // bool autostart = false;
-
-    // if (runstate_is_running()){
-    //     autostart = true;
-    //     vm_stop(RUN_STATE_PAUSED);
-    // }
+    Error *err = NULL;
 
     if (rr_get_ignore_record())
         return;
 
-    vm_stop(RUN_STATE_PAUSED);
+    printf("start record\n");
+    // vm_stop(RUN_STATE_PAUSED);
+    pause_all_vcpus();
     rr_ivshmem_set_rr_enabled(1);
-    kvm_start_record(0, 0);
 
-    vm_start();
+    printf("Paused VM, start taking snapshot\n");
+    rr_save_snapshot("test1", &err);
+
+    rr_insert_entry_breakpoints();
+
+    kvm_start_record(1, 1000);
+
+    resume_all_vcpus();
+    // vm_start();
 }
 
 static void end_record(void)
 {
-    if (rr_in_record())
+    if (rr_in_record()) {
         kvm_end_record();
-    else
+    } else
         rr_get_result();
 }
 

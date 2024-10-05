@@ -2929,7 +2929,7 @@ int kvm_cpu_exec(CPUState *cpu)
         }
 #endif
 
-        if (run_ret < 0) {
+        if (run_ret < 0 && run->exit_reason != KVM_EXIT_SYSTEM_EVENT) {
             if (run_ret == -199) {
                 ret = EXCP_DEBUG;
                 break;

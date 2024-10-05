@@ -74,6 +74,8 @@ typedef struct {
     int id;
     unsigned long val;
     unsigned long ptr;
+    int err;
+    int size;
 } rr_gfu;
 
 typedef struct {

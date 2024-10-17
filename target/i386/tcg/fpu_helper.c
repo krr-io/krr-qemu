@@ -2549,13 +2549,13 @@ static void do_xsave_fpu(CPUX86State *env, target_ulong ptr, uintptr_t ra)
 static void do_xsave_mxcsr(CPUX86State *env, target_ulong ptr, uintptr_t ra)
 {
     update_mxcsr_from_sse_status(env);
-    if (rr_in_replay()) {
-        cpu_stl_data_ra(env, ptr, env->mxcsr, ra);
-        cpu_stl_data_ra(env, ptr, 0x0000ffff, ra);
-    } else {
+    // if (rr_in_replay()) {
+    //     cpu_stl_data_ra(env, ptr, env->mxcsr, ra);
+    //     cpu_stl_data_ra(env, ptr, 0x0000ffff, ra);
+    // } else {
         cpu_stl_data_ra(env, ptr + XO(legacy.mxcsr), env->mxcsr, ra);
         cpu_stl_data_ra(env, ptr + XO(legacy.mxcsr_mask), 0x0000ffff, ra);
-    }
+    // }
 }
 
 static void do_xsave_sse(CPUX86State *env, target_ulong ptr, uintptr_t ra)
@@ -2659,9 +2659,15 @@ static void do_xsave(CPUX86State *env, target_ulong ptr, uint64_t rfbm,
     rfbm &= env->xcr0;
     opt &= rfbm;
 
+    opt |= (env->xcr0 | XSTATE_FP_MASK);
+
     if (rr_in_replay()) {
         opt &= ~(XSTATE_FP_MASK | XSTATE_BNDCSR_MASK);
-        rfbm &= ~(XSTATE_FP_MASK | XSTATE_BNDCSR_MASK);
+        rfbm &= ~(XSTATE_BNDCSR_MASK);
+
+        if (env->xcr0 & XSTATE_FP_MASK) {
+            opt |= XSTATE_FP_MASK;
+        }
     }
 
     if (opt & XSTATE_FP_MASK) {

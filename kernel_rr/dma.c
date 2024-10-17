@@ -224,6 +224,8 @@ void dma_enqueue(rr_dma_queue* q, rr_dma_entry *entry) {
 rr_dma_entry* dma_dequeue(rr_dma_queue* q) {
     if (q->front == NULL) {
         printf("Queue is empty\n");
+        // rr_set_trap();
+
         return NULL; // or any other error code
     }
 

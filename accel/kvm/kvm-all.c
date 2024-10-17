@@ -3569,6 +3569,17 @@ int kvm_reset_counter(CPUState *cs)
     return r;
 }
 
+
+int kvm_reset_interval(CPUState *cs, unsigned long interval)
+{
+    int r;
+
+    r = kvm_vcpu_ioctl(cs, KVM_RESET_INTERVAL, &interval);
+
+    return r;
+}
+
+
 int kvm_start_record(int enable_trace, unsigned long trace_interval)
 {
     int ret;

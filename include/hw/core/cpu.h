@@ -450,6 +450,7 @@ struct CPUState {
     unsigned long last_replayed_inst;
     unsigned int is_rep_io_inst;
     int interrupt_replayed;
+    int force_singlestep;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

@@ -31,4 +31,5 @@ int rr_get_vcpu_events(void);
 int rr_get_vcpu_mem_logs(void);
 int rr_signal_dma_finish(void);
 int kvm_reset_counter(CPUState *cs);
+int kvm_reset_interval(CPUState *cs, unsigned long interval);
 #endif /* KVM_CPUS_H */

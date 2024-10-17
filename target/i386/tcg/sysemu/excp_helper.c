@@ -413,6 +413,7 @@ static int handle_mmu_fault(CPUState *cs, vaddr addr, int size,
         int next = rr_get_next_event_type();
         if (rr_in_replay() && next != EVENT_TYPE_EXCEPTION) {
             printf("Expected next event exception, but %d, addr=0x%lx\n", next, addr);
+            cs->cause_debug = 1;
         }
 
         if (env->intercept_exceptions & (1 << EXCP0E_PAGE)) {

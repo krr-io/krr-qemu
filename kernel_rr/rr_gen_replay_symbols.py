@@ -119,7 +119,10 @@ def fetch_rr_iret():
     return filter_loc_addr("entry_64.S:702")
 
 def fetch_rr_sysret():
-    return filter_info_addr("entry_64.S:226")
+    return filter_loc_addr("entry_64.S:226")
+
+def fetch_rr_read_pte_once():
+    return filter_info_addr("rr_read_pte_once")
 
 handlers = {
     "STRNCPY_FROM_USER": fetch_strncpy_from_user,
@@ -147,6 +150,7 @@ handlers = {
     "RR_PTE_READ": fetch_rr_read_pte,
     "RR_IRET": fetch_rr_iret,
     "RR_SYSRET": fetch_rr_sysret,
+    "RR_PTE_READ_ONCE": fetch_rr_read_pte_once,
 }
 
 

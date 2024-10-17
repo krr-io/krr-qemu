@@ -877,24 +877,6 @@ static void ide_dma_cb(void *opaque, int ret)
     bool stay_active = false;
     int32_t prep_size = 0;
 
-    // if (rr_in_replay()) {
-    //     return;
-    //     // qemu_log("ide_dma_cb called\n");
-    // }
-
-    // if (rr_in_record())
-    //     rr_signal_dma_finish();
-
-    if (rr_in_replay() && s->dma_cmd == IDE_DMA_READ) {
-        // rr_pop_next_event_type(EVENT_TYPE_DMA_DONE);
-        rr_replay_dma_entry();
-        // inc_replayed_number();
-        // qemu_log("Replayed DMA Done\n");
-        // printf("Replayed DMA Done\n");
-        // rr_pop_event_head();
-        return;
-    }
-
     if (ret == -EINVAL) {
         ide_dma_error(s);
         return;
@@ -917,6 +899,21 @@ static void ide_dma_cb(void *opaque, int ret)
         stay_active = true;
     } else {
         n = s->io_buffer_size >> 9;
+    }
+
+    if (s->dma_cmd == IDE_DMA_READ && ret == 1) {
+        if (rr_in_record()) {
+            // To record DMA start cmd, we insert a dummy
+            // event so in the replay, we know the right point
+            // to write the DMA data.
+            rr_dma_done e = {};
+            append_to_queue(EVENT_TYPE_DMA_DONE, &e);
+        }
+    }
+
+    if (rr_in_replay() && s->dma_cmd == IDE_DMA_READ && ret == 1) {
+        rr_do_replay_dma();
+        return;
     }
 
     sector_num = ide_get_sector(s);

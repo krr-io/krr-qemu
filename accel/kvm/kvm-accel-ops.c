@@ -104,6 +104,10 @@ handle_on_bp(CPUState *cpu)
 
     // return false;
 
+    if (cpu->singlestep_enabled && cpu->force_singlestep) {
+        return true;
+    }
+
     if (cpu->singlestep_enabled != 0) {
         if (cpu->last_removed_addr == 0) {
             return false;
@@ -133,7 +137,7 @@ handle_on_bp(CPUState *cpu)
             return false;
         }
 
-        handle_bp_points(cpu, bp_addr);
+        // handle_bp_points(cpu, bp_addr);
 
         if (rr_is_address_sw(bp_addr)) {
             bp_type = GDB_BREAKPOINT_SW;
@@ -159,6 +163,7 @@ handle_on_bp(CPUState *cpu)
 static void start_record(void)
 {
     Error *err = NULL;
+    int interval;
 
     if (rr_get_ignore_record())
         return;
@@ -171,9 +176,14 @@ static void start_record(void)
     printf("Paused VM, start taking snapshot\n");
     rr_save_snapshot("test1", &err);
 
-    rr_insert_entry_breakpoints();
+    interval = get_checkpoint_interval();
 
-    kvm_start_record(1, 1000);
+    if (interval == 0) {
+        kvm_start_record(0, 0);
+    } else {
+        rr_insert_entry_breakpoints();
+        kvm_start_record(1, interval);
+    }
 
     resume_all_vcpus();
     // vm_start();
@@ -182,6 +192,7 @@ static void start_record(void)
 static void end_record(void)
 {
     if (rr_in_record()) {
+        pause_all_vcpus();
         kvm_end_record();
     } else
         rr_get_result();

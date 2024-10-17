@@ -1098,7 +1098,7 @@ int cpu_exec(CPUState *cpu)
                 cpu->cflags_next_tb = -1;
             }
 
-            // if (cpu->rr_executed_inst > 10365049 && !breaked && pc == 0xffffffff81034380) {
+            // if (cpu->rr_executed_inst == 12182705) {
             //     cpu->cause_debug = 1;
             //     breaked = true;
             // }
@@ -1163,6 +1163,11 @@ int cpu_exec(CPUState *cpu)
                 last_tb = NULL;
             }
 #endif
+
+            // if (addr_in_debug_points(tb->pc)) {
+            //     rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst);
+            // }
+
             /* See if we can patch the calling TB. */
             if (last_tb) {
                 tb_add_jump(last_tb, tb_exit, tb);
@@ -1180,6 +1185,7 @@ int cpu_exec(CPUState *cpu)
                     break;
                 case RR_PTE_CLEAR:
                 case RR_PTE_READ:
+                case RR_PTE_READ_ONCE:
                     rr_do_replay_pte(cpu);
                     break;     
                 case RR_GFU_BEGIN:
@@ -1208,7 +1214,7 @@ int cpu_exec(CPUState *cpu)
                     break;
                 case RR_RECORD_SYSCALL:
                     sync_syscall_spin_cnt(cpu);
-                    rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
 
                     break;
                 case SYSCALL_ENTRY:
@@ -1222,7 +1228,7 @@ int cpu_exec(CPUState *cpu)
                 // case RR_HANDLE_IRQ:
                 // case RR_RECORD_IRQ:
                 // case PF_ASM_EXC:
-                    rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
+                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
                 case LOCK_RELEASE:
                     rr_do_replay_release(cpu);

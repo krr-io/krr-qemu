@@ -45,11 +45,12 @@ static void save_cpu_checkpoints(CPUState *cpu)
     rr_checkpoint *head = check_points[cpu->cpu_index];
     int c_num = 0;
 
+    sprintf(fname, "checkpoint-%d", cpu->cpu_index);
+    remove(fname);
+
     if (!head)
         return;
 
-    sprintf(fname, "checkpoint-%d", cpu->cpu_index);
-    remove(fname);
     fptr = fopen(fname, "a");
 
     while (head) {
@@ -86,8 +87,8 @@ static void load_cpu_checkpoints(CPUState *cpu)
             check_points[cpu->cpu_index] = new_node;
         }
 
-         qemu_log("[CPU-%d]checkpoint inst %lu, rip=0x%lx\n",
-                  cpu->cpu_index, new_node->inst_cnt, new_node->rip);
+        //  qemu_log("[CPU-%d]checkpoint inst %lu, rip=0x%lx\n",
+        //           cpu->cpu_index, new_node->inst_cnt, new_node->rip);
 
         if (tail_node == NULL) {
             tail_node = new_node;
@@ -164,7 +165,7 @@ static void insert_check_node(CPUState *cpu, unsigned long inst_cnt)
         }
 
         if (temp_cp->inst_cnt == inst_cnt) {
-            qemu_log("Ignore repetitive point inst cnt=%lu, rip=0x%lx", inst_cnt, cp->rip);
+            // qemu_log("Ignore repetitive point inst cnt=%lu, rip=0x%lx", inst_cnt, cp->rip);
             free(cp);
             return;
         }
@@ -172,8 +173,10 @@ static void insert_check_node(CPUState *cpu, unsigned long inst_cnt)
         temp_cp->next = cp;
     }
 
-    qemu_log("[CPU-%d]checkpoint inst=%lu, rip=0x%lx\n", cpu->cpu_index, inst_cnt, env->eip);
+    // qemu_log("[CPU-%d]checkpoint inst=%lu, rip=0x%lx\n", cpu->cpu_index, inst_cnt, env->eip);
 }
+
+bool set = false;
 
 
 void handle_rr_checkpoint(CPUState *cpu)
@@ -196,6 +199,16 @@ void handle_rr_checkpoint(CPUState *cpu)
     } else {
         inst_cnt = cpu->rr_executed_inst;
     }
+
+    // if ((rip == 0xffff88800517f510 || rip == 0xffffffff81059b45 || rip == 0xffffffff817fe679) && cpu->singlestep_enabled) {
+    //     if(set) {
+    //         kvm_reset_interval(cpu, 2);
+    //         set = true;
+    //     }
+    // } else if(set) {
+    //     kvm_reset_interval(cpu, 800);
+    //     set = false;
+    // }
 
     insert_check_node(cpu, inst_cnt);
 }
@@ -225,6 +238,7 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
 
     X86CPU *c = X86_CPU(cpu);
     CPUX86State *env = &c->env;
+    unsigned long cr_mask;
 
     if (is_rep && env->regs[R_ECX] != node->regs[R_ECX]) {
         return;
@@ -235,6 +249,9 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
         LOG_MSG("BUG: inconsistent RIP current=0x%lx, expected=0x%lx, inst=%lu\n",
                 env->eip, node->rip, node->inst_cnt);
         cpu->cause_debug = 1;
+#ifndef RR_DEBUG
+        exit(1);
+#endif
         goto finish;
     }
 
@@ -245,12 +262,16 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
         if (node->rip == SYSCALL_ENTRY || node->rip == SYSCALL_ENTRY + 3)
             continue;
 
-        if (env->cr[i] != node->crs[i]) {
+        cr_mask = 0;
+
+        if (mask_bit(env->cr[i], cr_mask) != mask_bit(node->crs[i], cr_mask)) {
             is_bugged = true;
             LOG_MSG("BUG: inconsistent CR%d, rip=0x%lx, current=0x%lx, expected=0x%lx\n",
                      i, env->eip, env->cr[i], node->crs[i]);
             cpu->cause_debug = 1;
-            // exit(1);
+#ifndef RR_DEBUG
+            exit(1);
+#endif
             goto finish;
         }
     }
@@ -261,7 +282,9 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
             LOG_MSG("BUG: inconsistent #%d reg, rip=0x%lx, current=0x%lx, expected=0x%lx\n",
                      i, env->eip, env->regs[i], node->regs[i]);
             cpu->cause_debug = 1;
-            // exit(1);
+#ifndef RR_DEBUG
+            exit(1);
+#endif
             goto finish;
         }
     }
@@ -271,13 +294,19 @@ void handle_replay_rr_checkpoint(CPUState *cpu, int is_rep)
             is_bugged = true;
             LOG_MSG("BUG: inconsistent SEG%d, rip=0x%lx, current=0x%lx, expected=0x%lx\n",
                      i, env->eip, env->segs[i].base, node->segs[i].base);
+            cpu->cause_debug = 1;
+#ifndef RR_DEBUG
             exit(1);
+#endif
         }
         if (env->segs[i].selector != node->segs[i].selector) {
             is_bugged = true;
             LOG_MSG("BUG: inconsistent SEG%d, rip=0x%lx, current=%u, expected=%u\n",
                      i, env->eip, env->segs[i].selector, node->segs[i].selector);
+            cpu->cause_debug = 1;
+#ifndef RR_DEBUG
             exit(1);
+#endif
         }
     }
 
@@ -297,6 +326,8 @@ finish:
     } else {
         LOG_MSG("[CPU-%d]checkpoint passed inst=%lu, rip=0x%lx\n",
                 cpu->cpu_index, node->inst_cnt, node->rip);
+        // if (node->inst_cnt == 12545680)
+        //     cpu->cause_debug = 1;
         passed++;
     }
 

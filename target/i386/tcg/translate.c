@@ -8426,6 +8426,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                     || (prefixes & (PREFIX_REPZ | PREFIX_REPNZ))) {
                     goto illegal_op;
                 }
+                s->io_inst |= INST_REP;
                 gen_lea_modrm(env, s, modrm);
                 tcg_gen_concat_tl_i64(s->tmp1_i64, cpu_regs[R_EAX],
                                       cpu_regs[R_EDX]);
@@ -8713,7 +8714,7 @@ static void i386_tr_init_disas_context(DisasContextBase *dcbase, CPUState *cpu)
 
     if (rr_in_replay()) {
         if (cpl == 3) {
-            qemu_log("[cpu %d]Entered User Mode\n", cpu->cpu_index);
+            LOG_MSG("[cpu %d]Entered User Mode\n", cpu->cpu_index);
             dcbase->in_user_mode = true;
         } else {
             dcbase->in_user_mode = false;

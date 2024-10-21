@@ -4280,6 +4280,15 @@ SRST
     Start right away with a saved state (``loadvm`` in monitor)
 ERST
 
+DEF("replay-log-inst", HAS_ARG, QEMU_OPTION_replay_log_inst, \
+    "-replay-log-inst [tag|id]\n" \
+    "                log out every instruction\n",
+    QEMU_ARCH_ALL)
+SRST
+``-replay-log-inst 1``
+    Start right away with a saved state (``loadvm`` in monitor)
+ERST
+
 DEF("checkpoint-interval", HAS_ARG, QEMU_OPTION_checkpoint_interval, \
     "-checkpoint-interval [tag|id]\n" \
     "                start right away with a saved state (loadvm in monitor)\n",

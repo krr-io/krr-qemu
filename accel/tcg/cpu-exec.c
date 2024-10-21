@@ -1164,9 +1164,6 @@ int cpu_exec(CPUState *cpu)
             }
 #endif
 
-            // if (addr_in_debug_points(tb->pc)) {
-            //     rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst);
-            // }
 
             /* See if we can patch the calling TB. */
             if (last_tb) {
@@ -1266,6 +1263,10 @@ int cpu_exec(CPUState *cpu)
 
             rr_inc_inst(cpu, tb->pc, tb);
             // qemu_log("PC 0x%lx %lu\n", tb->pc, cpu->rr_executed_inst);
+
+            if (addr_in_extra_debug_points(tb->pc)) {
+                rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst);
+            }
 
             if (tb->jump_next_event == -1)
                 handle_replay_rr_checkpoint(cpu, tb->io_inst & INST_REP);

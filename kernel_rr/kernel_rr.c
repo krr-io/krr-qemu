@@ -113,12 +113,23 @@ static long syscall_spin_cnt = 0;
 rr_event_guest_queue_header *queue_header = NULL;
 rr_event_guest_queue_header *initial_queue_header = NULL;
 
-// 0xffffffff8102ed44, 0xffffffff810314c8, 0xffffffff8102ed4e, 0xffffffff8102ed52
+// 0xffffffff8102e2be, 0xffffffff8103009f, 0xffffffff8102e2c2
 #define DEBUG_POINTS_NUM 10
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, 0xffffffff81032c76};
-static int point_index = 4;
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, 0xffffffff814359c7, 0xffffffff814596a0, 0xffffffff8140c225};
+static int point_index = 5;
 static int checkpoint_interval = -1;
+static int trace_mode = 0;
 
+
+void set_trace_mode(int mode)
+{
+    trace_mode = mode;
+}
+
+int get_trace_mode(void)
+{
+    return trace_mode;
+}
 
 void set_checkpoint_interval(int interval)
 {
@@ -179,6 +190,16 @@ void add_debug_point(unsigned long addr)
 int addr_in_debug_points(unsigned long addr)
 {
     for (size_t i = 0; i < DEBUG_POINTS_NUM; i++) {
+        if (debug_points[i] == addr) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int addr_in_extra_debug_points(unsigned long addr)
+{
+    for (size_t i = point_index; i < DEBUG_POINTS_NUM; i++) {
         if (debug_points[i] == addr) {
             return 1;
         }
@@ -2733,6 +2754,59 @@ finish:
     return;
 }
 
+void rr_do_replay_rdpmc(CPUState *cpu, unsigned long *val)
+{
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    qemu_mutex_lock(&replay_queue_mutex);
+
+    if (rr_event_log_head->id != cpu->cpu_index) {
+        qemu_log("Unmatched cpu id: current=%d, head=%d\n",
+                 cpu->cpu_index, rr_event_log_head->id);
+        cpu->cause_debug = 1;
+        goto finish;
+    }
+
+    if (rr_event_log_head->type != EVENT_TYPE_IO_IN) {
+        printf("Expected %d event, found %d, rip=0x%lx, cpu_id=%d\n",
+                EVENT_TYPE_IO_IN, rr_event_log_head->type, env->eip, cpu->cpu_index);
+        qemu_log("Expected %d event, found %d, rip=0x%lx, cpu_id=%d\n",
+                 EVENT_TYPE_IO_IN, rr_event_log_head->type, env->eip, cpu->cpu_index);
+        cpu->cause_debug = 1;
+        goto finish;
+    }
+
+    // if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst) {
+    //     qemu_log("Mismatched RDPMC, expected inst cnt %lu, found %lu, rip=0x%lx, actual_rip=0x%lx\n",
+    //              rr_event_log_head->inst_cnt, cpu->rr_executed_inst, rr_event_log_head->rip, env->eip);
+    //     cpu->cause_debug = 1;
+    // }
+
+    if (rr_event_log_head->rip != env->eip) {
+        printf("Unexpected RDPMC RIP, expected 0x%lx, actual 0x%lx\n",
+            rr_event_log_head->rip, env->eip);
+        abort();
+    }
+
+    *val = rr_event_log_head->event.io_input.value;
+
+    LOG_MSG("[CPU %d]Replayed RDPMC=0x%lx, inst_cnt=%lu, cpu_id=%d, rip=0x%lx, replayed event number=%d\n",
+             cpu->cpu_index, *val, cpu->rr_executed_inst,
+             rr_event_log_head->id, rr_event_log_head->rip, replayed_event_num);
+
+
+    append_to_queue(EVENT_TYPE_IO_IN, &(rr_event_log_head->event.io_input));
+
+finish:
+    rr_pop_event_head();
+
+    qemu_mutex_unlock(&replay_queue_mutex);
+}
+
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
 {
     // X86CPU *x86_cpu;
@@ -3158,11 +3232,14 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
     uint64_t buffer = 0;
     cpu_memory_rw_debug(cpu, rsi_value, &buffer, sizeof(buffer), 0);
 
-    qemu_log("Step: 0x%lx Inst: %lu eflags=0x%lx, rax=0x%lx, rbx=0x%lx, rcx=0x%lx,"
-             "rdx=0x%lx, rsi=0x%lx, rdi=0x%lx, rsp=0x%lx, rbp=0x%lx, buffer=0x%lx\n",
-             env->eip, inst_cnt, env->eflags, env->regs[R_EAX], env->regs[R_EBX],
-             env->regs[R_ECX], env->regs[R_EDX], env->regs[R_ESI], env->regs[R_EDI],
-             env->regs[R_ESP], env->regs[R_EBP], buffer);
+    qemu_log("Step: 0x%lx Inst: %lu, rax=0x%lx, rdx=0x%lx, xcr0=0x%lx, buffer=0x%lx\n",
+             env->eip, inst_cnt, env->regs[R_EAX], env->regs[R_EDX], env->xcr0, buffer);
+
+    // qemu_log("Step: 0x%lx Inst: %lu eflags=0x%lx, rax=0x%lx, rbx=0x%lx, rcx=0x%lx,"
+    //          "rdx=0x%lx, rsi=0x%lx, rdi=0x%lx, rsp=0x%lx, rbp=0x%lx, buffer=0x%lx\n",
+    //          env->eip, inst_cnt, env->eflags, env->regs[R_EAX], env->regs[R_EBX],
+    //          env->regs[R_ECX], env->regs[R_EDX], env->regs[R_ESI], env->regs[R_EDI],
+    //          env->regs[R_ESP], env->regs[R_EBP], buffer);
 
     return;
 

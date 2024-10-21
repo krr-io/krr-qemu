@@ -80,7 +80,8 @@ void rr_remove_breakpoints(void)
 __attribute_maybe_unused__ static void
 handle_bp_points(CPUState *cpu, target_ulong bp_addr)
 {
-    rr_handle_kernel_entry(cpu, bp_addr, rr_get_inst_cnt(cpu));
+    if (addr_in_extra_debug_points(bp_addr) && !cpu->singlestep_enabled)
+        rr_handle_kernel_entry(cpu, bp_addr, rr_get_inst_cnt(cpu));
 }
 
 
@@ -98,7 +99,7 @@ handle_on_bp(CPUState *cpu)
     if (!rr_in_record())
         return false;
 
-    // handle_bp_points(cpu, bp_addr);
+    handle_bp_points(cpu, bp_addr);
     // if (cpu->singlestep_enabled == 0)
     handle_rr_checkpoint(cpu);
 
@@ -164,6 +165,7 @@ static void start_record(void)
 {
     Error *err = NULL;
     int interval;
+    int trace_mode;
 
     if (rr_get_ignore_record())
         return;
@@ -178,7 +180,13 @@ static void start_record(void)
 
     interval = get_checkpoint_interval();
 
+    trace_mode = get_trace_mode();
+
     if (interval == 0) {
+        if (trace_mode == 2) {
+            printf("Breakpoint trace is enabled\n");
+            rr_insert_breakpoints();
+        }
         kvm_start_record(0, 0);
     } else {
         rr_insert_entry_breakpoints();

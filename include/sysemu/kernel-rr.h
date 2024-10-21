@@ -10,8 +10,8 @@
 
 #include "qemu/typedefs.h"
 
-// #define RR_DEBUG 1
-// #define RR_LOG_DEBUG 1
+#define RR_DEBUG 1
+#define RR_LOG_DEBUG 1
 // #include "sysemu/dma.h"
 
 #define RR_GFU_BEGIN 0xffffffff810325a0
@@ -99,6 +99,7 @@ void rr_post_replay_exception(CPUState *cpu);
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc);
 void rr_do_replay_gfu(CPUState *cpu);
 void rr_do_replay_mmio(unsigned long *input);
+void rr_do_replay_rdpmc(CPUState *cpu, unsigned long *val);
 
 int rr_get_next_event_type(void);
 unsigned long rr_get_next_event_rip(void);
@@ -141,6 +142,9 @@ int get_cpu_num(void);
 int get_record_net(void);
 void set_record_net(int val);
 unsigned long get_dma_buf_size(void);
+void set_trace_mode(int mode);
+int get_trace_mode(void);
+int addr_in_extra_debug_points(unsigned long addr);
 
 typedef uint8_t dma_data;
 

@@ -4280,6 +4280,33 @@ SRST
     Start right away with a saved state (``loadvm`` in monitor)
 ERST
 
+DEF("checkpoint-interval", HAS_ARG, QEMU_OPTION_checkpoint_interval, \
+    "-checkpoint-interval [tag|id]\n" \
+    "                start right away with a saved state (loadvm in monitor)\n",
+    QEMU_ARCH_ALL)
+SRST
+``-checkpoint-interval 1``
+    Start right away with a saved state (``loadvm`` in monitor)
+ERST
+
+DEF("trace-mode", HAS_ARG, QEMU_OPTION_trace_mode, \
+    "-trace-mode [tag|id]\n" \
+    "                start right away with a saved state (loadvm in monitor)\n",
+    QEMU_ARCH_ALL)
+SRST
+``-trace-mode 1``
+    Start right away with a saved state (``loadvm`` in monitor)
+ERST
+
+DEF("replay-log-bound", HAS_ARG, QEMU_OPTION_replay_log_bound, \
+    "-replay-log-bound [tag|id]\n" \
+    "                log out every instruction\n",
+    QEMU_ARCH_ALL)
+SRST
+``-replay-log-bound 1``
+    Start right away with a saved state (``loadvm`` in monitor)
+ERST
+
 DEF("ignore-record", HAS_ARG, QEMU_OPTION_ignore_record, \
     "-ignore-record [tag|id]\n" \
     "                start right away with a saved state (loadvm in monitor)\n",

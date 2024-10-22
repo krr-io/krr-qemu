@@ -4316,6 +4316,16 @@ SRST
     Start right away with a saved state (``loadvm`` in monitor)
 ERST
 
+DEF("record-skipsave", HAS_ARG, QEMU_OPTION_record_skipsave, \
+    "-record-skipsave [tag|id]\n" \
+    "                skip saving logs to disk\n",
+    QEMU_ARCH_ALL)
+SRST
+``"-record-skipsave 1``
+    Start right away with a saved state (``loadvm`` in monitor)
+ERST
+
+
 DEF("ignore-record", HAS_ARG, QEMU_OPTION_ignore_record, \
     "-ignore-record [tag|id]\n" \
     "                start right away with a saved state (loadvm in monitor)\n",

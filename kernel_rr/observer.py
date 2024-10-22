@@ -36,7 +36,7 @@ benchmarks = {
 
 benchmark = "fillseq"
 
-cpu_nums = ["1", "2", "4", "8"]
+cpu_nums = ["1", "2", "4", "8", "16", "32"]
 current_cpu_num = 1
 replace_old = False
 

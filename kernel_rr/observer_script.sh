@@ -7,7 +7,7 @@ shift
 shift
 shift
 
-basedir="/home/silver"
+basedir="/users/sishuaig/sdbdir"
 
 env_vars="KRR_SMP_IMG=${basedir}/bzImage KRR_UNI_IMG=${basedir}/uni-guest/bzImage \
   KRR_DISK=${basedir}/rootfs-bypass.qcow2 BL_IMG=${basedir}/normal-guest/bzImage \
@@ -24,6 +24,7 @@ exec_qemu() {
 
   env $env_vars python3 observer.py --mode=${mode} --test=${test} --benchmark=${benchmark} --gen_script_only="true" --startfrom=$cpu_num
 
+  sleep 1
   rm -f /dev/shm/ivshmem
   modprobe -r kvm_intel;modprobe -r kvm;modprobe kvm_intel;modprobe kvm
   sync
@@ -67,7 +68,7 @@ exec_qemu() {
         if [ $timer -ge $missing_duration ]; then
             echo "File has been missing for $missing_duration seconds. Killing qemu process."
             # Kill the qemu process
-            pkill qemu
+            kill -9 $(pgrep qemu)
             # Reset the timer after action
             timer=0
             return 1
@@ -90,7 +91,7 @@ do
     fi
   done
 
-  env $env_vars python3 observer.py --mode=${mode} --test=${test} --benchmark=${benchmark} --parseonly="true" --startfrom=$cpu_num
+  env $env_vars python3 observer.py --mode=${mode} --test=${test} --benchmark=${benchmark} --parseonly="true" --startfrom=$i
 
   echo "Done trial $i"
 done

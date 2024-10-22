@@ -91,6 +91,7 @@ volatile int current_owner = -1;
 
 static int exit_record = 0;
 static int ignore_record = 0;
+static int skip_save = 0;
 
 static void rr_read_shm_events(void);
 static void rr_reset_ivshmem(void);
@@ -120,6 +121,11 @@ static int point_index = 5;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
 
+
+void set_skip_save(int skip)
+{
+    skip_save = skip;
+}
 
 void set_trace_mode(int mode)
 {
@@ -2171,7 +2177,7 @@ void rr_get_result(void)
     unsigned long result_buffer = 0;
     int ret;
     CPUState *cpu;
-    char buffer[4096 * 8];
+    char buffer[4096];
     remove("rr-result.txt");
     FILE *f = fopen("rr-result.txt", "w");
 
@@ -2179,7 +2185,7 @@ void rr_get_result(void)
     printf("Result buffer 0x%lx\n", result_buffer);
 
     CPU_FOREACH(cpu) {
-        ret = cpu_memory_rw_debug(cpu, result_buffer, &buffer, 4096 * 8, false);
+        ret = cpu_memory_rw_debug(cpu, result_buffer, &buffer, 4096, false);
 
         fprintf(f, "%s", buffer);
 
@@ -2224,11 +2230,13 @@ void rr_post_record(void)
 
     rr_print_events_stat();
 
-    rr_save_events();
-    rr_dma_post_record();
-    rr_network_dma_post_record();
+    if (!skip_save){
+        rr_save_events();
+        rr_dma_post_record();
+        rr_network_dma_post_record();
 
-    rr_save_checkpoints();
+        rr_save_checkpoints();
+    }
 
     printf("Getting result\n");
     rr_get_result();

@@ -3719,6 +3719,9 @@ void qemu_init(int argc, char **argv, char **envp)
                 printf("start=%lu, end=%lu\n", start, end);
                 set_log_bound(start, end);
                 break;
+            case QEMU_OPTION_record_skipsave:
+                set_skip_save(1);
+                break;
             case QEMU_OPTION_kernel_memlog:
                 rr_enable_mem_logs();
                 break;

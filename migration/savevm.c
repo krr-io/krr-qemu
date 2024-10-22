@@ -1479,8 +1479,15 @@ int qemu_savevm_state_complete_precopy_non_iterable(QEMUFile *f,
         if ((!se->ops || !se->ops->save_state) && !se->vmsd) {
             continue;
         }
+        if (!se->vmsd) {
+            continue;
+        }
+
         if (se->vmsd && !vmstate_save_needed(se->vmsd, se->opaque)) {
             trace_savevm_section_skip(se->idstr, se->section_id);
+            continue;
+        }
+        if (!strcmp(se->vmsd->name, "nvme")) {
             continue;
         }
 
@@ -1713,7 +1720,13 @@ int qemu_save_device_state(QEMUFile *f)
         if ((!se->ops || !se->ops->save_state) && !se->vmsd) {
             continue;
         }
+        if (!se->vmsd) {
+            continue;
+        }
         if (se->vmsd && !vmstate_save_needed(se->vmsd, se->opaque)) {
+            continue;
+        }
+        if (!strcmp(se->vmsd->name, "nvme")) {
             continue;
         }
 

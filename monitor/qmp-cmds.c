@@ -46,6 +46,7 @@
 #include "hw/rdma/rdma.h"
 #include "accel/kvm/kvm-cpus.h"
 #include "sysemu/kernel-rr.h"
+#include "migration/snapshot.h"
 
 NameInfo *qmp_query_name(Error **errp)
 {
@@ -116,6 +117,9 @@ void qmp_rr_record(Error **errp)
     rr_ivshmem_set_rr_enabled(1);
 
     printf("Paused VM, start taking snapshot\n");
+    rr_save_snapshot("test1", errp);
+
+    printf("Paused VM, start taking snapshot\n");
 
     printf("Snapshot taken, start recording...\n");
 
@@ -127,7 +131,12 @@ void qmp_rr_record(Error **errp)
 
 void qmp_rr_end_record(Error **errp)
 {
-    kvm_end_record();
+    vm_stop(RUN_STATE_PAUSED);
+    if (rr_in_record())
+        kvm_end_record();
+    else
+        rr_get_result();
+    vm_start();
 }
 
 void qmp_system_powerdown(Error **errp)

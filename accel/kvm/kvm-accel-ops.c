@@ -167,8 +167,11 @@ static void start_record(void)
     int interval;
     int trace_mode;
 
-    if (rr_get_ignore_record())
+    if (rr_get_ignore_record()) {
+        FILE* file = fopen("/dev/shm/record", "w");
+        fclose(file);
         return;
+    }
 
     printf("start record\n");
     // vm_stop(RUN_STATE_PAUSED);

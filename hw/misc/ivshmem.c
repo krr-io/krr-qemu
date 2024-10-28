@@ -915,6 +915,7 @@ static void ivshmem_common_realize(PCIDevice *dev, Error **errp)
 
     // printf("ivsh name %s\n", memory_region_name(s->ivshmem_bar2))
     vmstate_register_ram(s->ivshmem_bar2, DEVICE(s));
+    printf("ivshmem will be out of rr snapshot\n");
     qemu_ram_unset_migratable(s->ivshmem_bar2->ram_block);
     pci_register_bar(PCI_DEVICE(s), 2,
                      PCI_BASE_ADDRESS_SPACE_MEMORY |

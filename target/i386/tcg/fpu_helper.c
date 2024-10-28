@@ -2656,7 +2656,7 @@ static void do_xsave(CPUX86State *env, target_ulong ptr, uint64_t rfbm,
     }
 
     if (rr_in_replay()) {
-        rfbm &= ~(XSTATE_BNDCSR_MASK | XSTATE_FP_MASK);
+        rfbm &= ~(XSTATE_BNDCSR_MASK | XSTATE_FP_MASK | XSTATE_YMM_MASK);
     }
 
     /* Never save anything not enabled by XCR0.  */

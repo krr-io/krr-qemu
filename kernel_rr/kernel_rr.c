@@ -116,7 +116,7 @@ rr_event_guest_queue_header *initial_queue_header = NULL;
 
 // 0xffffffff8102e2be, 0xffffffff8103009f, 0xffffffff8102e2c2
 #define DEBUG_POINTS_NUM 10
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, 0xffffffff814359c7, 0xffffffff814596a0, 0xffffffff8140c225};
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, 0xffffffff8114a52a};
 static int point_index = 5;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
@@ -2252,7 +2252,7 @@ void replay_ready(void)
 {
     printf("replay initial queue header enabled=%d, current_byte=%lu\n",
            initial_queue_header->rr_enabled, initial_queue_header->current_byte);
-    // memcpy(ivshmem_base_addr, initial_queue_header, sizeof(rr_event_guest_queue_header));
+    memcpy(ivshmem_base_addr, initial_queue_header, sizeof(rr_event_guest_queue_header));
 }
 
 // void rr_pre_replay(void)
@@ -2353,9 +2353,9 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
         //         wait_see_next = false;
         //     }
         // } else if (rr_event_log_head->inst_cnt == cpu->rr_executed_inst) {
-        //     if (env->eip < 0xBFFFFFFFFFFF) {
-        //         env->eip = rr_event_log_head->rip;
-        //     }
+            // if (env->eip < 0xBFFFFFFFFFFF) {
+            //     env->eip = rr_event_log_head->rip;
+            // }
 
         //     if (env->eip == rr_event_log_head->rip) {
         //         matched = true;
@@ -2959,6 +2959,12 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
         env->regs[R_R14] = rr_event_log_head->event.interrupt.regs.r14;
         env->regs[R_R15] = rr_event_log_head->event.interrupt.regs.r15;
         // env->eflags = rr_event_log_head->event.interrupt.regs.rflags;
+
+        // Interrupt address is in user mode, we should replay the rip
+        // because of the rseq handling on next return to user mode.
+        if (rr_event_log_head->rip < 0xBFFFFFFFFFFF) {
+            env->eip = rr_event_log_head->rip;
+        }
 
         sync_spin_inst_cnt(cpu, rr_event_log_head);
 

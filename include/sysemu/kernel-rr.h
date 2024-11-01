@@ -10,7 +10,7 @@
 
 #include "qemu/typedefs.h"
 
-#define RR_DEBUG 1
+// #define RR_DEBUG 1
 // #define RR_LOG_DEBUG 1
 // #include "sysemu/dma.h"
 
@@ -18,8 +18,8 @@
 #define STRNCPY_FROM_USER 0xffffffff8146be50 // b lib/strncpy_from_user.c:42
 #define STRNLEN_USER 0xffffffff8146bfe0 // info addr strnlen_user
 #define RANDOM_GEN 0xffffffff81031330 // info addr rr_record_random
-#define PF_EXEC 0xffffffff8182dab0 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff8182dd50 // b fault.c:1580 arch/x86/mm/fault.c:1463
+#define PF_EXEC 0xffffffff8182da80 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff8182dd20 // b fault.c:1580 arch/x86/mm/fault.c:1463
 #define RR_CFU_BEGIN 0xffffffff81031410
 #define RR_RECORD_CFU 0xffffffff810314f0 // info addr rr_record_cfu
 #define RR_GFU_NOCHECK1 0xffffffff817e7dde // b arch/x86/lib/getuser.S:127
@@ -36,15 +36,15 @@
 #define RR_IRET 0xffffffff81a00eed // b arch/x86/entry/entry_64.S:702
 #define RR_SYSRET 0xffffffff81a00193 // b arch/x86/entry/entry_64.S:226
 #define SYSCALL_ENTRY 0xffffffff81a00000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff8182e310 // info addr syscall_exit_to_user_mode
+#define SYSCALL_EXIT 0xffffffff8182e2e0 // info addr syscall_exit_to_user_mode
 #define PF_ASM_EXC 0xffffffff81a00b40 // info addr asm_exc_page_fault
 #define INT_ASM_EXC 0xffffffff81a00b00 // info addr asm_exc_int3
 
-#define IRQ_ENTRY 0xffffffff8182e220 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff8182e380 // info addr irqentry_exit
+#define IRQ_ENTRY 0xffffffff8182e1f0 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff8182e350 // info addr irqentry_exit
 
 #define LOCK_RELEASE 0 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff8182d330 // info addr rr_record_syscall
+#define RR_RECORD_SYSCALL 0xffffffff8182d300 // info addr rr_record_syscall
 #define RR_HANDLE_SYSCALL 0xffffffff8128ab80
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f
@@ -254,6 +254,9 @@ void set_checkpoint_interval(int interval);
 int get_checkpoint_interval(void);
 unsigned long replay_get_inst_cnt(void);
 void rr_do_replay_dma(void);
+void rr_handle_queue_full(void);
+void rr_rotate_shm_queue(void);
+int replay_finished(void);
 
 #ifdef RR_LOG_DEBUG
 #define LOG_MSG(fmt, ...) \

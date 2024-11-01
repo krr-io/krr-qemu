@@ -255,6 +255,10 @@ static void *kvm_vcpu_thread_fn(void *arg)
             if (r == EXCP_RR_CP) {
                 handle_rr_checkpoint(cpu);
             }
+
+            if (r == EXCP_QUEUE_FULL) {
+                rr_handle_queue_full();
+            }
         }
         qemu_wait_io_event(cpu);
     } while (!cpu->unplug || cpu_can_run(cpu));

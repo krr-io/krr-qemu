@@ -2950,6 +2950,11 @@ int kvm_cpu_exec(CPUState *cpu)
                 break;
             }
 
+            if (run_ret == -103) {
+                ret = EXCP_QUEUE_FULL;
+                break;
+            }
+
             if (run_ret == -EINTR || run_ret == -EAGAIN) {
                 DPRINTF("io window exit\n");
                 kvm_eat_signals(cpu);

@@ -569,6 +569,8 @@ void helper_vmcall(CPUX86State *env)
         case KVM_HC_RR_GETUSER:
             rr_do_replay_gfu(cs);
             return;
+        case 102:
+            rr_rotate_shm_queue();
     }
     return;
 }

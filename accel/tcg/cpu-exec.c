@@ -1147,6 +1147,11 @@ int cpu_exec(CPUState *cpu)
                 continue;
             }
 
+            if (rr_inject_exception(cpu)) {
+                rr_do_replay_exception(cpu, 1);
+                break;
+            }
+
             if (tb->jump_next_event == EVENT_TYPE_EXCEPTION) {
                  tb->jump_next_event = -1;
                 rr_do_replay_exception(cpu, 1);

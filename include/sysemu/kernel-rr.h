@@ -10,41 +10,42 @@
 
 #include "qemu/typedefs.h"
 
-// #define RR_DEBUG 1
-// #define RR_LOG_DEBUG 1
+#define RR_DEBUG 1
+#define RR_LOG_DEBUG 1
 // #include "sysemu/dma.h"
 
-#define RR_GFU_BEGIN 0xffffffff810313a0
-#define STRNCPY_FROM_USER 0xffffffff8146be50 // b lib/strncpy_from_user.c:42
-#define STRNLEN_USER 0xffffffff8146bfe0 // info addr strnlen_user
-#define RANDOM_GEN 0xffffffff81031330 // info addr rr_record_random
-#define PF_EXEC 0xffffffff8182da80 // info addr exc_page_fault
-#define PF_EXEC_END 0xffffffff8182dd20 // b fault.c:1580 arch/x86/mm/fault.c:1463
-#define RR_CFU_BEGIN 0xffffffff81031410
-#define RR_RECORD_CFU 0xffffffff810314f0 // info addr rr_record_cfu
-#define RR_GFU_NOCHECK1 0xffffffff817e7dde // b arch/x86/lib/getuser.S:127
-#define RR_RECORD_GFU 0xffffffff817e7dc4 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff817e7e1d // b getuser.S:162
-#define RR_GFU_NOCHECK8 0xffffffff817e7e3e // b getuser.S:147
-#define RR_GFU4 0xffffffff817e7d93 // b getuser.S:88
+#define RR_GFU_BEGIN 0xffffffff81031720
+#define STRNCPY_FROM_USER 0xffffffff8146cf90 // b lib/strncpy_from_user.c:42
+#define STRNLEN_USER 0xffffffff8146d120 // info addr strnlen_user
+#define RANDOM_GEN 0xffffffff810316b0 // info addr rr_record_random
+#define PF_EXEC 0xffffffff8182ed20 // info addr exc_page_fault
+#define PF_EXEC_END 0xffffffff8182efc0 // b fault.c:1580 arch/x86/mm/fault.c:1463
+#define RR_CFU_BEGIN 0xffffffff81031790
+#define RR_RECORD_CFU 0xffffffff81031870 // info addr rr_record_cfu
+#define RR_GFU_NOCHECK1 0xffffffff817e8f6e // b arch/x86/lib/getuser.S:127
+#define RR_RECORD_GFU 0xffffffff817e8f54 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff817e8fad // b getuser.S:162
+#define RR_GFU_NOCHECK8 0xffffffff817e8fce // b getuser.S:147
+#define RR_GFU4 0xffffffff817e8f23 // b getuser.S:88
 #define PF_ENTRY 0xffffffff81a00b40 // info addr asm_exc_page_fault
-#define RR_PTE_CLEAR 0xffffffff810317b0 // info addr rr_record_pte_clear
-#define RR_PTE_READ 0xffffffff81031820 // info addr rr_read_pte
+#define RR_PTE_CLEAR 0xffffffff81031b30 // info addr rr_record_pte_clear
+#define RR_PTE_READ 0xffffffff81031ba0 // info addr rr_read_pte
 #define RR_GFU_CALL_BEGIN 0xffffffff810346b0
-#define RR_PTE_READ_ONCE 0xffffffff81031890
+#define RR_PTE_READ_ONCE 0xffffffff81031c10
 
 #define RR_IRET 0xffffffff81a00eed // b arch/x86/entry/entry_64.S:702
 #define RR_SYSRET 0xffffffff81a00193 // b arch/x86/entry/entry_64.S:226
 #define SYSCALL_ENTRY 0xffffffff81a00000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff8182e2e0 // info addr syscall_exit_to_user_mode
+#define SYSCALL_EXIT 0xffffffff8182f580 // info addr syscall_exit_to_user_mode
 #define PF_ASM_EXC 0xffffffff81a00b40 // info addr asm_exc_page_fault
 #define INT_ASM_EXC 0xffffffff81a00b00 // info addr asm_exc_int3
+#define INT_ASM_DEBUG 0xffffffff81a00b70 // info addr asm_exc_debug
 
-#define IRQ_ENTRY 0xffffffff8182e1f0 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff8182e350 // info addr irqentry_exit
+#define IRQ_ENTRY 0xffffffff8182f490 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff8182f5f0 // info addr irqentry_exit
 
 #define LOCK_RELEASE 0 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff8182d300 // info addr rr_record_syscall
+#define RR_RECORD_SYSCALL 0xffffffff8182e5a0 // info addr rr_record_syscall
 #define RR_HANDLE_SYSCALL 0xffffffff8128ab80
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f
@@ -257,6 +258,7 @@ void rr_do_replay_dma(void);
 void rr_handle_queue_full(void);
 void rr_rotate_shm_queue(void);
 int replay_finished(void);
+int rr_inject_exception(CPUState *cpu);
 
 #ifdef RR_LOG_DEBUG
 #define LOG_MSG(fmt, ...) \

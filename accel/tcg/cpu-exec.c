@@ -1193,6 +1193,9 @@ int cpu_exec(CPUState *cpu)
                 case RR_GFU_BEGIN:
                     rr_do_replay_gfu_begin(cpu, 0);
                     break;
+                case RR_PAGE_MAP:
+                    rr_do_replay_page_map(cpu);
+                    break;
                 // case RR_RECORD_GFU:
                 // case RR_GFU_NOCHECK1:
                 // case RR_GFU_NOCHECK4:
@@ -1217,7 +1220,6 @@ int cpu_exec(CPUState *cpu)
                 case RR_RECORD_SYSCALL:
                     sync_syscall_spin_cnt(cpu);
                     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-
                     break;
                 case SYSCALL_ENTRY:
                 case IRQ_ENTRY:

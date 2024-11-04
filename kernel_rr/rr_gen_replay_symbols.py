@@ -124,6 +124,10 @@ def fetch_rr_sysret():
 def fetch_rr_read_pte_once():
     return filter_info_addr("rr_read_pte_once")
 
+def fetch_rr_page_map():
+    return filter_info_addr("rr_record_page_map")
+
+
 handlers = {
     "STRNCPY_FROM_USER": fetch_strncpy_from_user,
     "STRNLEN_USER": fetch_strnlen_user,
@@ -151,6 +155,7 @@ handlers = {
     "RR_IRET": fetch_rr_iret,
     "RR_SYSRET": fetch_rr_sysret,
     "RR_PTE_READ_ONCE": fetch_rr_read_pte_once,
+    "RR_PAGE_MAP": fetch_rr_page_map,
 }
 
 

@@ -1004,6 +1004,11 @@ void rr_do_replay_pte(CPUState *cpu)
         reordered = try_reorder(rr_event_log_head, EVENT_TYPE_PTE, env->regs[R_EDI], &node);
     }
 
+    if (node == NULL) {
+        cpu->cause_debug = true;
+        return;
+    }
+
     if (node->event.gfu.ptr != env->regs[R_EDI]) {
         LOG_MSG("Skip gfu: logged ptr[0x%lx] != actual ptr[0x%lx]\n", rr_event_log_head->event.gfu.ptr, env->regs[R_EDI]);
         return;
@@ -3065,10 +3070,11 @@ void rr_do_replay_rdseed(unsigned long *val)
     qemu_log("Replaying rdseed %lu\n", rr_event_log_head->event.gfu.val);
 
     *val = rr_event_log_head->event.gfu.val;
-    rr_pop_event_head();
 
     qemu_log("Replayed rdseed=%lu, replayed event number=%d\n", *val, replayed_event_num);
     printf("Replayed rdseed=%lu, replayed event number=%d\n", *val, replayed_event_num);
+
+    rr_pop_event_head();
 
     qemu_mutex_unlock(&replay_queue_mutex);
 }
@@ -3118,6 +3124,16 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
 
         append_to_queue(EVENT_TYPE_INTERRUPT, &(rr_event_log_head->event.interrupt));
 
+        /*
+        qemu_log("[CPU %d]Replayed interrupt vector=%d, RIP on replay=0x%lx,"\
+                 "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replay eflags=0x%lx, record eflags=0x%llx, replayed event number=%d\n",
+                 cpu->cpu_index, *intno, env->eip, cpu->rr_executed_inst,
+                 rr_event_log_head->id, env->cr[0], env->eflags, node->event.interrupt.regs.rflags, replayed_event_num); */
+        printf("[CPU %d]Replayed interrupt vector=%d, RIP on replay=0x%lx,"\
+                 "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replay eflags=0x%lx, record eflags=0x%llx replayed event number=%d\n",
+                 cpu->cpu_index, *intno, env->eip, cpu->rr_executed_inst,
+                 rr_event_log_head->id, env->cr[0],  env->eflags, node->event.interrupt.regs.rflags, replayed_event_num);
+
         rr_pop_event_head();
 
         if (!started_replay) {
@@ -3126,17 +3142,41 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
 
         replayed_interrupt_num++;
 
-        qemu_log("[CPU %d]Replayed interrupt vector=%d, RIP on replay=0x%lx,"\
-                 "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replay eflags=0x%lx, record eflags=0x%llx, replayed event number=%d\n",
-                 cpu->cpu_index, *intno, env->eip, cpu->rr_executed_inst,
-                 rr_event_log_head->id, env->cr[0], env->eflags, node->event.interrupt.regs.rflags, replayed_event_num);
-        printf("[CPU %d]Replayed interrupt vector=%d, RIP on replay=0x%lx,"\
-                 "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replay eflags=0x%lx, record eflags=0x%llx replayed event number=%d\n",
-                 cpu->cpu_index, *intno, env->eip, cpu->rr_executed_inst,
-                 rr_event_log_head->id, env->cr[0],  env->eflags, node->event.interrupt.regs.rflags, replayed_event_num);
         return;
     }
 
+}
+
+void rr_do_replay_page_map(CPUState *cpu)
+{
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+    int ret;
+    rr_event_log *node = rr_event_log_head;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    if (node->type != EVENT_TYPE_CFU) {
+        cpu->cause_debug = true;
+        printf("Expected CFU, current %d\n", node->type);
+        return;
+    }
+
+    if (node->event.cfu.src_addr != env->regs[R_ESI]) {
+        cpu->cause_debug = true;
+        printf("src_addr(0x%lx) != expected(0x%lx)", node->event.cfu.src_addr, env->regs[R_ESI]);
+        return;
+    }
+
+    ret = cpu_memory_rw_debug(cpu, node->event.cfu.src_addr,
+                              node->event.cfu.data,
+                              node->event.cfu.len, true);
+    if (ret < 0) {
+        printf("Failed too write to %lx\n", node->event.cfu.src_addr);
+    }
+
+    rr_pop_event_head();
 }
 
 

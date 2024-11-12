@@ -31,18 +31,24 @@ def get_compressed_file_size(file_path):
 def write_to_csv(data, csv_file_path):
     headers = list(data.keys())
     rows = [data.values()]
-    
-    with open(csv_file_path, 'w', newline='') as file:
+    newfile = False
+    if not os.path.exists(csv_file_path):
+        newfile = True
+
+    with open(csv_file_path, 'a', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(headers)
+        if newfile:
+            writer.writerow(headers)
         writer.writerows(rows)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 4:
         print("Usage: python script.py <benchmark>")
         sys.exit(1)
     
-    benchmark_name = sys.argv[1]
+    mode = sys.argv[1]
+    cores = sys.argv[2]
+    benchmark_name = sys.argv[3]
     rr_cost_file_path = 'rr-cost.txt'
     kernel_rr_log_files = [
         'kernel_rr.log',
@@ -52,8 +58,8 @@ if __name__ == "__main__":
     
     rr_cost_data = read_rr_cost_file(rr_cost_file_path)
     
-    rr_cost_data = {'benchmark': benchmark_name, **rr_cost_data}
-    
+    rr_cost_data = {"mode": mode, "cores": cores, 'benchmark': benchmark_name, **rr_cost_data}
+
     for log_file in kernel_rr_log_files:
         rr_cost_data[f"{log_file}_size_bytes"] = get_file_size(log_file)
         rr_cost_data[f"{log_file}_compressed_size_bytes"] = get_compressed_file_size(log_file)

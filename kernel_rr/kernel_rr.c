@@ -32,6 +32,8 @@
 #include <time.h>
 
 
+#define RESULT_BUF_SIZE 1024
+
 const char *kernel_rr_log = "kernel_rr.log";
 
 __attribute_maybe_unused__ static int g_rr_in_replay = 0;
@@ -2133,7 +2135,7 @@ static void rr_load_events(void) {
     rr_event_log loaded_node;
     rr_event_entry_header entry_header;
     int loaded_event = 0;
-    unsigned long max_events = 500000;
+    unsigned long max_events = 2000000;
 
     if (event_loader == NULL) {
         event_loader = (rr_event_loader *)malloc(sizeof(rr_event_loader));
@@ -2293,7 +2295,7 @@ void rr_get_result(void)
     unsigned long result_buffer = 0;
     int ret;
     CPUState *cpu;
-    char buffer[4096];
+    char buffer[RESULT_BUF_SIZE];
     remove("rr-result.txt");
     FILE *f = fopen("rr-result.txt", "w");
 
@@ -2301,7 +2303,7 @@ void rr_get_result(void)
     printf("Result buffer 0x%lx\n", result_buffer);
 
     CPU_FOREACH(cpu) {
-        ret = cpu_memory_rw_debug(cpu, result_buffer, &buffer, 4096, false);
+        ret = cpu_memory_rw_debug(cpu, result_buffer, &buffer, RESULT_BUF_SIZE, false);
 
         fprintf(f, "%s", buffer);
 
@@ -2345,6 +2347,9 @@ void rr_post_record(void)
 
     rr_read_shm_events_info();
 
+    printf("Getting result\n");
+    rr_get_result();
+
     rr_read_shm_events();
 
     for (int i=0;i<2; i++) {
@@ -2366,9 +2371,6 @@ void rr_post_record(void)
 
         rr_save_checkpoints();
     }
-
-    printf("Getting result\n");
-    rr_get_result();
 
     rr_reset_ivshmem();
     remove("/dev/shm/record");

@@ -63,6 +63,12 @@ void helper_outw(CPUX86State *env, uint32_t port, uint32_t data)
 
 target_ulong helper_inw(CPUX86State *env, uint32_t port)
 {
+    unsigned long input = 0;
+    if (rr_in_replay()) {
+        rr_do_replay_io_input(env_cpu(env), &input);
+        return input;
+    }
+
     return address_space_lduw(&address_space_io, port,
                               cpu_get_mem_attrs(env), NULL);
 }

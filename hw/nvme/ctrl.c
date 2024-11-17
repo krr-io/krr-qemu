@@ -6296,6 +6296,9 @@ static uint64_t nvme_mmio_read(void *opaque, hwaddr addr, unsigned size)
     NvmeCtrl *n = (NvmeCtrl *)opaque;
     uint8_t *ptr = (uint8_t *)&n->bar;
 
+    // if (rr_in_record() && get_kernel_only())
+    //     check_kernel_access();
+
     trace_pci_nvme_mmio_read(addr, size);
 
     if (unlikely(addr & (sizeof(uint32_t) - 1))) {
@@ -6464,6 +6467,9 @@ static void nvme_mmio_write(void *opaque, hwaddr addr, uint64_t data,
                             unsigned size)
 {
     NvmeCtrl *n = (NvmeCtrl *)opaque;
+
+    // if (rr_in_record() && get_kernel_only())
+    //     check_kernel_access();
 
     trace_pci_nvme_mmio_write(addr, data, size);
 

@@ -128,7 +128,7 @@ static rr_event_loader *event_loader;
 
 // 0xffffffff8102e2be, 0xffffffff8103009f, 0xffffffff8102e2c2
 #define DEBUG_POINTS_NUM 10
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff81a010f3, 0xffffffff81031740, 0xffffffff81a00fd0, 0xffffffff81a010b0};
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff81031edf};
 static int point_index = 6;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
@@ -249,6 +249,7 @@ void check_kernel_access(void)
 
         if (env->eip > 0xBFFFFFFFFFFF) {
             printf("Kernel access to device on 0x%lx\n", env->eip);
+            abort();
         }
     }
 }
@@ -2910,6 +2911,7 @@ void rr_do_replay_mmio(unsigned long *input)
     printf("Replayed mmio input=0x%lx, inst_cnt=%lu, replayed event number=%d\n",
             *input, inst_cnt, replayed_event_num);
 
+    append_to_queue(EVENT_TYPE_MMIO, &(rr_event_log_head->event.io_input));
     rr_pop_event_head();
 
 finish:

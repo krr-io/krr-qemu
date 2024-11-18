@@ -128,13 +128,13 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
         total_buf_size += sg->sg[i].len;
         total_buf_cnt++;
 
-        if (cb == nvme_cb_func) {
-            total_nvme_size += sg->sg[i].len;
-            total_nvme_cnt++;
-            free(sgd->buf);
-            free(sgd);
-            return;
-        }
+        // if (cb == nvme_cb_func) {
+        //     total_nvme_size += sg->sg[i].len;
+        //     total_nvme_cnt++;
+        //     free(sgd->buf);
+        //     free(sgd);
+        //     return;
+        // }
 
         pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
 

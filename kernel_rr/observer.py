@@ -285,7 +285,7 @@ def gen_script(cpu_num):
     "root=/dev/sda rw init=/lib/systemd/systemd tsc=reliable console=ttyS0 noavx benchmark={benchmark}" \
     -hda {disk_image} \
     {ivshmem} -vnc :00 -D rec.log {extra_dev} -exit-record 1 \
-    -qmp unix:{socket_path},server=on,wait=off -checkpoint-interval 0 -record-skipsave {extra_arg}
+    -qmp unix:{socket_path},server=on,wait=off -checkpoint-interval 0 -record-skipsave 1 {extra_arg}
     """.format(
         qemu_binary=qemu_binary, kernel_image=kernel_image,
         benchmark=benchmark,

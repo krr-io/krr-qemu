@@ -13,7 +13,7 @@ env_vars="KRR_SMP_IMG=${basedir}/bzImage KRR_UNI_IMG=${basedir}/uni-guest/bzImag
   KRR_DISK=${basedir}/rootfs-bypass.qcow2 BL_IMG=${basedir}/normal-guest/bzImage \
   KBUILD_DISK=${basedir}/rootfs-kbuild.qcow2 "
 
-missing_duration=60
+missing_duration=100
 file="/dev/shm/record"
 result="./rr-result.txt"
 
@@ -92,6 +92,6 @@ do
   done
 
   env $env_vars python3 observer.py --mode=${mode} --test=${test} --benchmark=${benchmark} --parseonly="true" --startfrom=$i
-
+  #python3 get_cost.py $mode $i $benchmark
   echo "Done trial $i"
 done

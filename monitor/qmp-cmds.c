@@ -109,6 +109,9 @@ void qmp_rr_record(Error **errp)
 {
     bool autostart = false;
 
+    if (rr_get_ignore_record())
+        return;
+
     if (runstate_is_running()){
         autostart = true;
         vm_stop(RUN_STATE_PAUSED);

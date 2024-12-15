@@ -65,6 +65,7 @@
 #define KVM_HC_RR_RANDOM			15
 #define KVM_HC_RR_GETUSER			16
 
+// #define SG_NUM  8192 # For NVMe device.
 #define SG_NUM  1024
 
 #define MAX_CPU_NUM 32
@@ -73,6 +74,7 @@
 #define IO_INST_REP_OUT 2
 #define STO_INST_REP 4
 #define INST_REP 8
+#define IO_INST_REP_IN 16
 
 
 int rr_in_replay(void);
@@ -148,6 +150,7 @@ void set_trace_mode(int mode);
 int get_trace_mode(void);
 int addr_in_extra_debug_points(unsigned long addr);
 void set_skip_save(int skip);
+void rr_cause_debug(void);
 
 typedef uint8_t dma_data;
 

@@ -127,8 +127,8 @@ typedef struct rr_event_loader_t {
 static rr_event_loader *event_loader;
 
 // 0xffffffff8102e2be, 0xffffffff8103009f, 0xffffffff8102e2c2
-#define DEBUG_POINTS_NUM 10
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff81031edf};
+#define DEBUG_POINTS_NUM 15
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff810acd60, 0xffffffff810ace87, 0xffffffff815b3282, 0xffffffff815b32fb};
 static int point_index = 6;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
@@ -254,6 +254,14 @@ void check_kernel_access(void)
     }
 }
 
+void rr_cause_debug(void)
+{
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        cpu->cause_debug = 1;
+    }
+}
 
 
 void rr_fake_call(void){return;}
@@ -2788,7 +2796,7 @@ void rr_do_replay_syscall(CPUState *cpu)
 
     // env->kernelgsbase = rr_event_log_head->event.syscall.kernel_gsbase;
     // env->segs[R_GS].base = rr_event_log_head->event.syscall.msr_gsbase;
-    env->cr[3] = rr_event_log_head->event.syscall.cr3;
+    // env->cr[3] = rr_event_log_head->event.syscall.cr3;
 
     cpu->rr_executed_inst--;
 
@@ -2830,27 +2838,35 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
         goto finish;
     }
 
-    if (env->eip == cpu->last_replayed_addr && (cpu->rr_executed_inst - 1 == cpu->last_replayed_inst || cpu->rr_executed_inst - 2 == cpu->last_replayed_inst)) {
-        qemu_log("Repetitive inst, skip\n");
-        goto finish;
-    }
-
     if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst) {
-        qemu_log("Mismatched IO Input, expected inst cnt %lu, found %lu, rip=0x%lx, actual_rip=0x%lx\n",
-                 rr_event_log_head->inst_cnt, cpu->rr_executed_inst, rr_event_log_head->rip, env->eip);
-        //  cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
-        //  abort();
-        cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
-        cpu->cause_debug = 1;
+        if (env->eip == cpu->last_replayed_addr && \
+            (cpu->rr_executed_inst == cpu->last_replayed_inst || cpu->rr_executed_inst - 1 == cpu->last_replayed_inst)){
+            /*
+            Here for repetitive instructions.
+            */
+        } else {
+            LOG_MSG("Mismatched IO Input, expected inst cnt %lu, found %lu, rip=0x%lx, actual_rip=0x%lx\n",
+                    rr_event_log_head->inst_cnt, cpu->rr_executed_inst, rr_event_log_head->rip, env->eip);
+            //  cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+            //  abort();
+            cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+            cpu->cause_debug = 1;
+        }
     }
 
     if (rr_event_log_head->rip != env->eip) {
-        printf("Unexpected IO Input RIP, expected 0x%lx, actual 0x%lx\n",
+        LOG_MSG("Unexpected IO Input RIP, expected 0x%lx, actual 0x%lx\n",
             rr_event_log_head->rip, env->eip);
-        abort();
+        // abort();
+        cpu->cause_debug = 1;
+        goto finish;
     }
 
     *input = rr_event_log_head->event.io_input.value;
+
+    // if (*input == 0x10000010410040) {
+    //     cpu->cause_debug = 1;
+    // }
 
     LOG_MSG("[CPU %d]Replayed io input=0x%lx, inst_cnt=%lu, cpu_id=%d, rip=0x%lx, replayed event number=%d\n",
              cpu->cpu_index, *input, cpu->rr_executed_inst,
@@ -2877,8 +2893,7 @@ void rr_do_replay_mmio(unsigned long *input)
     qemu_mutex_lock(&replay_queue_mutex);
 
     if (rr_event_log_head->type != EVENT_TYPE_MMIO) {
-        printf("Expected %d event, found %d\n", EVENT_TYPE_MMIO, rr_event_log_head->type);
-        qemu_log("Expected %d event, found %d\n", EVENT_TYPE_MMIO, rr_event_log_head->type);
+        LOG_MSG("Expected %d event, found %d\n", EVENT_TYPE_MMIO, rr_event_log_head->type);
         
         CPU_FOREACH(cpu) {
             cpu->cause_debug = 1;
@@ -3407,11 +3422,20 @@ int rr_inc_inst(CPUState *cpu, unsigned long next_pc, TranslationBlock *tb)
     X86CPU *c = X86_CPU(cpu);
     CPUX86State *env = &c->env;
 
-    if (next_pc != cpu->last_pc || (tb->io_inst & IO_INST_REP) || (!(tb->io_inst & INST_REP))) {
-        cpu->rr_executed_inst++;
+    if (tb->io_inst & IO_INST_REP) {
+        qemu_log("IO_INST_REP\n");
     }
 
-    if ((tb->io_inst & IO_INST_REP_OUT) && env->regs[R_ECX] == 1) {
+    if (next_pc != cpu->last_pc || (!(tb->io_inst & INST_REP))) {
+        cpu->rr_executed_inst++;
+    } else if (tb->io_inst & IO_INST_REP_OUT) {
+        if (env->regs[R_ECX] == 1)
+            cpu->rr_executed_inst++;
+        cpu->rr_executed_inst++;
+    } else if ((tb->io_inst & IO_INST_REP_IN) && env->regs[R_ECX] == 1) {
+        qemu_log("rep in, inc\n");
+        // if (env->regs[R_ECX] == 1)
+        //     cpu->rr_executed_inst++;
         cpu->rr_executed_inst++;
     }
 

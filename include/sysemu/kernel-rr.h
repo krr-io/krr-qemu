@@ -65,8 +65,8 @@
 #define KVM_HC_RR_RANDOM			15
 #define KVM_HC_RR_GETUSER			16
 
-// #define SG_NUM  8192 # For NVMe device.
-#define SG_NUM  1024
+#define SG_NUM  8192 /* For NVMe device. */
+// #define SG_NUM  1024
 
 #define MAX_CPU_NUM 32
 

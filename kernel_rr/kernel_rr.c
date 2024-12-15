@@ -1376,7 +1376,7 @@ rr_event_log_new_from_event(rr_event_log event, int record_mode)
     case EVENT_TYPE_INTERRUPT:
         event_record->inst_cnt = event.inst_cnt;
         memcpy(&event_record->event.interrupt, &event.event.interrupt, sizeof(rr_interrupt));
-        qemu_log("%s event\n", interrupt_title_name);
+        // qemu_log("%s event\n", interrupt_title_name);
         if (!record_mode)
             event_interrupt_num++;
         else

@@ -128,7 +128,7 @@ static rr_event_loader *event_loader;
 
 // 0xffffffff8102e2be, 0xffffffff8103009f, 0xffffffff8102e2c2
 #define DEBUG_POINTS_NUM 15
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff810acd60, 0xffffffff810ace87, 0xffffffff815b3282, 0xffffffff815b32fb};
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff81031b60};
 static int point_index = 6;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
@@ -337,6 +337,11 @@ rr_debug(void) {
 int replay_cpu_exec_ready(CPUState *cpu)
 {
     int ready = 0;
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
 
     qemu_mutex_lock(&replay_queue_mutex);
 
@@ -361,9 +366,10 @@ int replay_cpu_exec_ready(CPUState *cpu)
             break;
         }
 
-        qemu_log("[%d]Start waiting\n", cpu->cpu_index);
+        qemu_log("[%d]Start waiting, current rip=0x%lx\n", cpu->cpu_index, env->eip);
 
         qemu_cond_wait(cpu->replay_cond, &replay_queue_mutex);
+        qemu_log("CPU %d wake up, current rip=0x%lx\n", cpu->cpu_index, env->eip);
 
         // smp_rmb();
 
@@ -372,7 +378,6 @@ int replay_cpu_exec_ready(CPUState *cpu)
             printf("[%d]CPU Exit \n", cpu->cpu_index);
             break;
         }
-        qemu_log("CPU %d wake up\n", cpu->cpu_index);
     }
 
     if (replay_finished()) {
@@ -1415,6 +1420,7 @@ rr_merge_user_interrupt_of_guest_and_hypervisor(rr_interrupt *guest_interrupt)
     guest_interrupt->inst_cnt = vcpu_event_head->inst_cnt;
     guest_interrupt->rip = vcpu_event_head->rip;
     guest_interrupt->ecx = vcpu_event_head->event.interrupt.ecx;
+    memcpy(&guest_interrupt->regs, &vcpu_event_head->event.interrupt.regs, sizeof(struct kvm_regs));
 
     rr_smp_event_log_queues[guest_interrupt->id] = vcpu_event_head->next;
 }
@@ -2920,12 +2926,16 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
             Here for repetitive instructions.
             */
         } else {
-            LOG_MSG("Mismatched IO Input, expected inst cnt %lu, found %lu, rip=0x%lx, actual_rip=0x%lx\n",
-                    rr_event_log_head->inst_cnt, cpu->rr_executed_inst, rr_event_log_head->rip, env->eip);
-            //  cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
-            //  abort();
-            cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
-            cpu->cause_debug = 1;
+            if (abs_value(cpu->rr_executed_inst, rr_event_log_head->inst_cnt) <= 2) {
+                cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+            } else {
+                LOG_MSG("Mismatched IO Input, expected inst cnt %lu, found %lu, rip=0x%lx, actual_rip=0x%lx\n",
+                        rr_event_log_head->inst_cnt, cpu->rr_executed_inst, rr_event_log_head->rip, env->eip);
+                //  cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+                //  abort();
+                cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+                cpu->cause_debug = 1;
+            }
         }
     }
 
@@ -3064,9 +3074,6 @@ finish:
 
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
 {
-    // X86CPU *x86_cpu;
-    // CPUArchState *env;
-
     qemu_mutex_lock(&replay_queue_mutex);
 
     if (rr_event_log_head->type != EVENT_TYPE_RDTSC) {
@@ -3078,32 +3085,11 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
         // rr_pop_event_head();
         goto finish;
     }
-  
-    // x86_cpu = X86_CPU(cpu);
-    // env = &x86_cpu->env;
-
-    // if (rr_event_log_head->rip != env->eip) {
-    //     printf("Unexpected RDTSC RIP, expected 0x%lx, actual 0x%lx\n",
-    //         rr_event_log_head->rip, env->eip);
-    //     cpu->cause_debug = true;
-    //     goto finish;
-    //     // abort();
-    // }
-
-    // if (rr_event_log_head->inst_cnt != cpu->rr_executed_inst) {
-    //     LOG_MSG("Mismatched RDTSC, expected inst cnt %lu, found %lu, rip=0x%lx\n",
-    //            rr_event_log_head->inst_cnt, cpu->rr_executed_inst, env->eip);
-    //     // cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
-    //     cpu->cause_debug = true;
-    //     // goto finish;
-    // }
 
     *tsc = rr_event_log_head->event.io_input.value;
 
     LOG_MSG("[CPU %d]Replayed rdtsc=%lx, inst=%lu, replayed event number=%d\n",
             cpu->cpu_index, *tsc, rr_event_log_head->event.io_input.inst_cnt, replayed_event_num);
-
-    // append_to_queue(EVENT_TYPE_RDTSC, &(rr_event_log_head->event.io_input));
 
 finish:
     rr_pop_event_head();
@@ -3118,14 +3104,18 @@ void rr_do_replay_release(CPUState *cpu)
 
     qemu_mutex_lock(&replay_queue_mutex);
 
-    if (rr_event_log_head->type != EVENT_TYPE_RELEASE) {
-        printf("Unexpected %d, expected lock release, inst_cnt=%lu\n",
-               rr_event_log_head->type, cpu->rr_executed_inst);
-        cpu->cause_debug = true;
+    // if (rr_event_log_head->type != EVENT_TYPE_RELEASE) {
+    //     printf("Unexpected %d, expected lock release, inst_cnt=%lu\n",
+    //            rr_event_log_head->type, cpu->rr_executed_inst);
+    //     cpu->cause_debug = true;
+    //     goto finish;
+    //     // abort();
+    // } else {
+    //     rr_pop_event_head();
+    // }
+
+    if (rr_event_log_head && rr_event_log_head->id == cpu->cpu_index) {
         goto finish;
-        // abort();
-    } else {
-        rr_pop_event_head();
     }
 
     qemu_log("[CPU %d]Replayed release, replayed event number=%d\n",
@@ -3216,7 +3206,9 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
 
         sync_spin_inst_cnt(cpu, rr_event_log_head);
 
-        append_to_queue(EVENT_TYPE_INTERRUPT, &(rr_event_log_head->event.interrupt));
+        if (rr_event_log_head->event.interrupt.from == 0) {
+            append_to_queue(EVENT_TYPE_INTERRUPT, &(rr_event_log_head->event.interrupt));
+        }
 
         /*
         qemu_log("[CPU %d]Replayed interrupt vector=%d, RIP on replay=0x%lx,"\
@@ -3293,7 +3285,6 @@ uint64_t rr_num_instr_before_next_interrupt(void)
             rr_dma_pre_replay();
             rr_dma_network_pre_replay();
             initialize_replay();
-            rr_load_checkpoints();
 
             initialized_replay = 1;
 

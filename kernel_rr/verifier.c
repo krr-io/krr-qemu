@@ -102,7 +102,7 @@ static void load_cpu_checkpoints(CPUState *cpu)
     if (c_num > 0)
         verify_replay = 1;
 
-    printf("Loaded %d checkpoints for CPU %d", c_num, cpu->cpu_index);
+    printf("Loaded %d checkpoints for CPU %d\n", c_num, cpu->cpu_index);
 }
 
 void rr_save_checkpoints(void)
@@ -191,6 +191,10 @@ void handle_rr_checkpoint(CPUState *cpu)
         if (r != 0) {
             printf("Failed to reset counter %d\n", r);
         }
+    }
+
+    if (get_lock_owner() != cpu->cpu_index) {
+        return;
     }
 
     if (kvm_enabled()){

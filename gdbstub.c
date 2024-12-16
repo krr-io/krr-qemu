@@ -533,6 +533,7 @@ static int gdb_continue_partial(char *newstates)
                 trace_gdbstub_op_stepping(cpu->cpu_index);
                 cpu_single_step(cpu, gdbserver_state.sstep_flags);
                 cpu_resume(cpu);
+                rr_gdb_set_stopped(0);
                 flag = 1;
                 break;
             case 'c':

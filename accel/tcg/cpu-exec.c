@@ -112,7 +112,7 @@ static bool should_log_trace(CPUState *cpu)
         if (log_end == 0)
             return cpu->rr_executed_inst > log_start;
 
-        return cpu->rr_executed_inst > log_start && cpu->rr_executed_inst < log_end;
+        return cpu->rr_executed_inst >= log_start && cpu->rr_executed_inst < log_end;
     }
 
     return should_log;

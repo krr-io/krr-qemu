@@ -29,6 +29,30 @@
 #include "sysemu/kernel-rr.h"
 #include "migration/snapshot.h"
 
+// checkpoint mutex
+static QemuMutex cp_mutex;
+static QemuCond cp_cond;
+
+static int in_single_step = -1;
+static bool started_bp_handle = false;
+
+
+static void cp_mutex_lock_init(void)
+{
+    qemu_mutex_init(&cp_mutex);
+    qemu_cond_init(&cp_cond);
+}
+
+__attribute_maybe_unused__ static void cp_mutex_lock(void)
+{
+    qemu_mutex_lock(&cp_mutex);
+}
+
+__attribute_maybe_unused__ static void cp_mutex_unlock(void)
+{
+    qemu_mutex_unlock(&cp_mutex);
+}
+
 
 static bool rr_is_address_interceptible(target_ulong bp_addr)
 {
@@ -53,6 +77,7 @@ void rr_insert_entry_breakpoints(void)
 
     CPU_FOREACH(cpu) {
         rr_do_insert_entry_breakpoints(cpu);
+        return;
     }
 }
 
@@ -64,6 +89,7 @@ void rr_insert_breakpoints(void)
 
     CPU_FOREACH(cpu) {
         rr_do_insert_breakpoints(cpu);
+        return;
     }
 }
 
@@ -73,6 +99,7 @@ void rr_remove_breakpoints(void)
 
     CPU_FOREACH(cpu) {
         rr_do_remove_breakpoints(cpu);
+        return;
     }
 }
 
@@ -93,25 +120,40 @@ handle_on_bp(CPUState *cpu)
     int bp_type;
     target_ulong bp_addr;
     int ret;
+    bool handled = false;
 
     bp_addr = cpu->kvm_run->debug.arch.pc;
 
     if (!rr_in_record())
         return false;
 
-    handle_bp_points(cpu, bp_addr);
-    // if (cpu->singlestep_enabled == 0)
-    handle_rr_checkpoint(cpu);
+    cp_mutex_lock();
+    if (started_bp_handle) {
+        handled = true;
+        goto end;
+    }
 
-    // return false;
+    if (in_single_step >= 0 && in_single_step != cpu->cpu_index) {
+        handled = true;
+        goto end;
+    }
+
+    started_bp_handle = true;
+
+    cp_mutex_unlock();
+    pause_all_vcpus();
+    cp_mutex_lock();
 
     if (cpu->singlestep_enabled && cpu->force_singlestep) {
-        return true;
+        handled = true;
+        goto finish;
     }
+
+    handle_rr_checkpoint(cpu);
 
     if (cpu->singlestep_enabled != 0) {
         if (cpu->last_removed_addr == 0) {
-            return false;
+            goto finish;
         }
 
         bp_type = GDB_BREAKPOINT_HW;
@@ -120,22 +162,26 @@ handle_on_bp(CPUState *cpu)
             bp_type = GDB_BREAKPOINT_SW;
         }
 
+        cp_mutex_unlock();
+
         if (cpu->last_removed_addr > 0) {
-            if (kvm_insert_breakpoint(cpu, cpu->last_removed_addr, 1, bp_type) != 0) {
-                printf("failed to insert bp\n");
+            ret = kvm_insert_breakpoint(cpu, cpu->last_removed_addr, 1, bp_type);
+            if (ret != 0) {
+                printf("failed to insert bp %d\n", ret);
                 abort();
             }
+            cpu_single_step(cpu, 0);
+            cpu->last_removed_addr = 0;
         }
 
-        cpu_single_step(cpu, 0);
-
-        cpu->last_removed_addr = 0;
+        cp_mutex_lock();
+        in_single_step = -1;
     } else {
         
         bp_type = GDB_BREAKPOINT_HW;
 
         if (!rr_is_address_interceptible(bp_addr)) {
-            return false;
+            goto finish;
         }
 
         // handle_bp_points(cpu, bp_addr);
@@ -144,20 +190,28 @@ handle_on_bp(CPUState *cpu)
             bp_type = GDB_BREAKPOINT_SW;
         }
 
-        // printf("bptype for %lx=%d\n", bp_addr, bp_type);
-
-        cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
-
+        in_single_step = cpu->cpu_index;
+        cp_mutex_unlock();
         ret = kvm_remove_breakpoint(cpu, bp_addr, 1, bp_type);
         if (ret != 0) {
             printf("failed to remove bp 0x%lx: %d\n", bp_addr, ret);
             abort();
         }
-
+        cpu_single_step(cpu, SSTEP_ENABLE | SSTEP_NOIRQ);
         cpu->last_removed_addr = bp_addr;
+        cp_mutex_lock();
+        
     }
 
-    return true;
+    handled = true;
+
+finish:
+    resume_all_vcpus();
+    started_bp_handle = false;
+
+end:
+    cp_mutex_unlock();
+    return handled;
 }
 
 
@@ -213,6 +267,9 @@ static void *kvm_vcpu_thread_fn(void *arg)
 {
     CPUState *cpu = arg;
     int r;
+
+    cp_mutex_lock_init();
+
     // __attribute_maybe_unused__ unsigned long inst_cnt;
 
     rcu_register_thread();

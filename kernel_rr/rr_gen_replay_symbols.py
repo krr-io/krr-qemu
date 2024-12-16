@@ -107,7 +107,7 @@ def fetch_handle_syscall():
     return filter_info_addr("rr_handle_syscall")
 
 def fetch_release():
-    return filter_loc_addr("arch/x86/kernel/rr_serialize.c:116")
+    return filter_loc_addr("arch/x86/kernel/rr_serialize.c:126")
 
 def fetch_rr_record_pte_clear():
     return filter_info_addr("rr_record_pte_clear")

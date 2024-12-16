@@ -28,11 +28,11 @@
 #define RR_GFU_NOCHECK8 0xffffffff817fbfce // b getuser.S:147
 #define RR_GFU4 0xffffffff817fbf23 // b getuser.S:88
 #define PF_ENTRY 0xffffffff81a00b40 // info addr asm_exc_page_fault
-#define RR_PTE_CLEAR 0xffffffff81031b30 // info addr rr_record_pte_clear
-#define RR_PTE_READ 0xffffffff81031ba0 // info addr rr_read_pte
+#define RR_PTE_CLEAR 0xffffffff81031f50 // info addr rr_record_pte_clear
+#define RR_PTE_READ 0xffffffff81031fc0 // info addr rr_read_pte
 #define RR_GFU_CALL_BEGIN 0xffffffff810346b0
-#define RR_PTE_READ_ONCE 0xffffffff81031c10
-#define RR_PAGE_MAP 0xffffffff81031cd0
+#define RR_PTE_READ_ONCE 0xffffffff81032030
+#define RR_PAGE_MAP 0xffffffff810320f0
 
 #define RR_IRET 0xffffffff81a00eed // b arch/x86/entry/entry_64.S:702
 #define RR_SYSRET 0xffffffff81a00193 // b arch/x86/entry/entry_64.S:226
@@ -47,9 +47,9 @@
 #define RR_IO_URING_BEGIN 0xffffffff81032210
 #define RR_IO_URING_RECORD_ENTRY 0xffffffff81032220
 
-#define LOCK_RELEASE 0 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff81841aa0 // info addr rr_record_syscall
-#define RR_HANDLE_SYSCALL 0xffffffff8128ab80
+#define LOCK_RELEASE 0xffffffff81031733 // info addr rr_record_release
+#define RR_RECORD_SYSCALL 0xffffffff8103176e // info addr rr_record_syscall
+#define RR_HANDLE_SYSCALL 0xffffffff81031740
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f
 #define RR_RECORD_EXCP 0xffffffff810350d1

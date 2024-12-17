@@ -3426,7 +3426,7 @@ int rr_inc_inst(CPUState *cpu, unsigned long next_pc, TranslationBlock *tb)
         qemu_log("IO_INST_REP\n");
     }
 
-    if (next_pc != cpu->last_pc || (!(tb->io_inst & INST_REP))) {
+    if (next_pc != cpu->last_pc) {
         cpu->rr_executed_inst++;
     } else if (tb->io_inst & IO_INST_REP_OUT) {
         if (env->regs[R_ECX] == 1)

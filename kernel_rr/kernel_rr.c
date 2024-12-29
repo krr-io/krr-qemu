@@ -1034,7 +1034,7 @@ void rr_do_replay_pte(CPUState *cpu)
         cpu->cause_debug = 1;
         return;
     } else {
-        LOG_MSG("[GFU %d]Replayed pte[0x%lx]: pte_addr=0x%lx, val=%lx, event number=%d\n",
+        LOG_MSG("[CPU %d]Replayed pte[0x%lx]: pte_addr=0x%lx, val=%lx, event number=%d\n",
                 cpu->cpu_index,
                 env->eip,
                 node->event.gfu.ptr,
@@ -1044,6 +1044,81 @@ void rr_do_replay_pte(CPUState *cpu)
 
     if (!reordered)
         rr_pop_event_head();
+}
+
+void rr_do_replay_io_uring_read_tail(CPUState *cpu)
+{
+    rr_event_log *node;
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+    int ret;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    node = rr_event_log_head;
+
+    if (node->type != EVENT_TYPE_GFU) {
+        LOG_MSG("Unexpected event %d, expected GFU\n", node->type);
+        cpu->cause_debug = true;
+        return;
+    }
+
+    ret = cpu_memory_rw_debug(cpu, node->event.gfu.ptr,
+                              &node->event.gfu.val,
+                              node->event.gfu.size, true);
+    if (ret < 0) {
+        printf("Failed to write to address %lx: %d, val=%lu\n",
+                node->event.gfu.ptr, ret, node->event.gfu.val);
+        cpu->cause_debug = 1;
+        return;
+    } else {
+        LOG_MSG("[CPU %d]Replayed io_uring read[0x%lx]: addr=0x%lx, val=%lx, event number=%d\n",
+                cpu->cpu_index,
+                env->eip,
+                node->event.gfu.ptr,
+                node->event.gfu.val,
+                replayed_event_num);
+    }
+
+    rr_pop_event_head();
+}
+
+void rr_do_replay_io_uring_read_entry(CPUState *cpu)
+{
+    rr_event_log *node;
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+    int ret;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    node = rr_event_log_head;
+
+    if (node->type != EVENT_TYPE_CFU) {
+        LOG_MSG("Unexpected event %d, expected CFU\n", node->type);
+        cpu->cause_debug = true;
+        return;
+    }
+
+    ret = cpu_memory_rw_debug(cpu, node->event.cfu.src_addr,
+                              node->event.cfu.data,
+                              node->event.cfu.len, true);
+    if (ret < 0) {
+        printf("Failed to write to address %lx: %d\n",
+                node->event.cfu.src_addr, ret);
+        cpu->cause_debug = 1;
+        return;
+    } else {
+        LOG_MSG("[CPU %d]Replayed io_uring read entry[0x%lx]: addr=0x%lx, event number=%d\n",
+                cpu->cpu_index,
+                env->eip,
+                node->event.cfu.src_addr,
+                replayed_event_num);
+    }
+
+    rr_pop_event_head();
 }
 
 void rr_do_replay_gfu_call_begin(CPUState *cpu)

@@ -1221,6 +1221,12 @@ int cpu_exec(CPUState *cpu)
                     sync_syscall_spin_cnt(cpu);
                     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
+                case RR_IO_URING_BEGIN:
+                    rr_do_replay_io_uring_read_tail(cpu);
+                    break;
+                case RR_IO_URING_RECORD_ENTRY:
+                    rr_do_replay_io_uring_read_entry(cpu);
+                    break;
                 case SYSCALL_ENTRY:
                 case IRQ_ENTRY:
                 case IRQ_EXIT:
@@ -1299,7 +1305,7 @@ int cpu_exec(CPUState *cpu)
         // qemu_log("exit interrupt\n");
     }
 
-    rr_gdb_set_stopped(0);
+    // rr_gdb_set_stopped(0);
     cpu_exec_exit(cpu);
     rcu_read_unlock();
 

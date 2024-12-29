@@ -127,6 +127,12 @@ def fetch_rr_read_pte_once():
 def fetch_rr_page_map():
     return filter_info_addr("rr_record_page_map")
 
+def fetch_rr_begin_record_io_uring():
+    return filter_info_addr("rr_begin_record_io_uring")
+
+def fetch_rr_record_io_uring_entry():
+    return filter_info_addr("rr_record_io_uring_entry")
+
 
 handlers = {
     "STRNCPY_FROM_USER": fetch_strncpy_from_user,
@@ -156,6 +162,8 @@ handlers = {
     "RR_SYSRET": fetch_rr_sysret,
     "RR_PTE_READ_ONCE": fetch_rr_read_pte_once,
     "RR_PAGE_MAP": fetch_rr_page_map,
+    "RR_IO_URING_BEGIN": fetch_rr_begin_record_io_uring,
+    "RR_IO_URING_RECORD_ENTRY": fetch_rr_record_io_uring_entry,
 }
 
 

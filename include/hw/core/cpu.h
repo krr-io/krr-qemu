@@ -451,6 +451,9 @@ struct CPUState {
     unsigned int is_rep_io_inst;
     int interrupt_replayed;
     int force_singlestep;
+
+    unsigned long rr_break_inst;
+    int force_cal_eflags;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

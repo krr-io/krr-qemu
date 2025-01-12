@@ -105,7 +105,7 @@ void rr_post_replay_exception(CPUState *cpu);
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc);
 void rr_do_replay_gfu(CPUState *cpu);
 void rr_do_replay_mmio(unsigned long *input);
-void rr_do_replay_rdpmc(CPUState *cpu, unsigned long *val);
+void rr_do_replay_rdpmc(CPUState *cpu, unsigned long long *val);
 
 int rr_get_next_event_type(void);
 unsigned long rr_get_next_event_rip(void);
@@ -143,6 +143,7 @@ void sync_syscall_spin_cnt(CPUState *cpu);
 void dump_cpus_state(void);
 void kvm_prep_buf_event(void);
 void try_replay_dma(CPUState *cs, int user_ctx);
+int replay_get_current_owner(void);
 int get_lock_owner(void);
 int get_cpu_num(void);
 int get_record_net(void);
@@ -153,6 +154,21 @@ int get_trace_mode(void);
 int addr_in_extra_debug_points(unsigned long addr);
 void set_skip_save(int skip);
 void rr_cause_debug(void);
+void set_snapshot_period(int val);
+void set_restore_snapshot_id(int val);
+void replay_snapshot_checkpoint(void);
+void rr_restore_snapshot(void);
+int replay_find_nearest_snapshot(unsigned long inst_cnt);
+void set_initial_replay_snapshot(const char *initial_snapshot);
+void restore_snapshot_by_id(int ss_id);
+
+void krr_note_breakpoint(CPUState *cpu);
+int krr_reverse_stepi(void);
+int is_in_reverse_continue(void);
+int is_reverse_bp_hit(CPUState *cpu);
+void reset_in_reverse_continue(void);
+int krr_reverse_continue(void);
+unsigned long get_total_executed_inst(void);
 
 typedef uint8_t dma_data;
 

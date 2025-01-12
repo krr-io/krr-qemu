@@ -477,7 +477,7 @@ static bool stub_can_reverse(void)
 #ifdef CONFIG_USER_ONLY
     return false;
 #else
-    return replay_mode == REPLAY_MODE_PLAY;
+    return rr_in_replay() || replay_mode == REPLAY_MODE_PLAY;
 #endif
 }
 
@@ -1904,17 +1904,31 @@ static void handle_backward(GArray *params, void *user_ctx)
     if (params->len == 1) {
         switch (get_param(params, 0)->opcode) {
         case 's':
-            if (replay_reverse_step()) {
-                gdb_continue();
+            if (rr_in_replay()) {
+                if (krr_reverse_stepi()) {
+                    rr_gdb_set_stopped(0);
+                    gdb_continue();
+                }
             } else {
-                put_packet("E14");
+                if (replay_reverse_step()) {
+                    gdb_continue();
+                } else {
+                    put_packet("E14");
+                }
             }
             return;
         case 'c':
-            if (replay_reverse_continue()) {
-                gdb_continue();
+            if (rr_in_replay()) {
+                if (krr_reverse_continue()) {
+                    rr_gdb_set_stopped(0);
+                    gdb_continue();
+                }
             } else {
-                put_packet("E14");
+                if (replay_reverse_continue()) {
+                    gdb_continue();
+                } else {
+                    put_packet("E14");
+                }
             }
             return;
         }

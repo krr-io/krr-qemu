@@ -87,8 +87,8 @@ static void load_cpu_checkpoints(CPUState *cpu)
             check_points[cpu->cpu_index] = new_node;
         }
 
-        //  qemu_log("[CPU-%d]checkpoint inst %lu, rip=0x%lx\n",
-        //           cpu->cpu_index, new_node->inst_cnt, new_node->rip);
+         LOG_MSG("[CPU-%d]checkpoint inst %lu, rip=0x%lx\n",
+                  cpu->cpu_index, new_node->inst_cnt, new_node->rip);
 
         if (tail_node == NULL) {
             tail_node = new_node;

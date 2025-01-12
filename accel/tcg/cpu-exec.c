@@ -314,6 +314,14 @@ static bool check_for_breakpoints(CPUState *cpu, target_ulong pc,
         return true;
     }
 
+    if (cpu->rr_break_inst > 0 && cpu->rr_executed_inst == cpu->rr_break_inst) {
+        printf("[CPU-%d]Hit the break inst\n", cpu->cpu_index);
+        cpu->rr_break_inst = 0;
+        cpu->exception_index = EXCP_DEBUG;
+        reset_in_reverse_continue();
+        return true;
+    }
+
     if (likely(QTAILQ_EMPTY(&cpu->breakpoints))) {
         return false;
     }
@@ -329,6 +337,14 @@ static bool check_for_breakpoints(CPUState *cpu, target_ulong pc,
      */
     if (cpu->singlestep_enabled) {
         return false;
+    }
+
+    if (is_in_reverse_continue() && !is_reverse_bp_hit(cpu)) {
+        return false;
+    }
+
+    if (is_reverse_bp_hit(cpu)) {
+        reset_in_reverse_continue();
     }
 
     QTAILQ_FOREACH(bp, &cpu->breakpoints, entry) {
@@ -353,6 +369,7 @@ static bool check_for_breakpoints(CPUState *cpu, target_ulong pc,
 
             if (match_bp) {
                 cpu->exception_index = EXCP_DEBUG;
+                krr_note_breakpoint(cpu);
                 return true;
             }
         } else if (((pc ^ bp->pc) & TARGET_PAGE_MASK) == 0) {
@@ -1271,6 +1288,8 @@ int cpu_exec(CPUState *cpu)
                 // qemu_log("\nExecute TB:\n");
                 // qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
             }
+
+            replay_snapshot_checkpoint();
 
             // handle_replay_rr_checkpoint(cpu, tb->io_inst & INST_REP);
 

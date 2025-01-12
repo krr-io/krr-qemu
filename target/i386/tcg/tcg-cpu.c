@@ -33,8 +33,10 @@ static void x86_cpu_exec_enter(CPUState *cs)
     X86CPU *cpu = X86_CPU(cs);
     CPUX86State *env = &cpu->env;
 
-    if (rr_in_replay())
+    if (rr_in_replay() && !cs->force_cal_eflags)
         return;
+
+    cs->force_cal_eflags = 0;
 
     CC_SRC = env->eflags & (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
     env->df = 1 - (2 * ((env->eflags >> 10) & 1));

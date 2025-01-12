@@ -4325,6 +4325,23 @@ SRST
     Start right away with a saved state (``loadvm`` in monitor)
 ERST
 
+DEF("snapshot-period", HAS_ARG, QEMU_OPTION_snapshot_period, \
+    "-snapshot-period [tag|id]\n" \
+    "                snapshot period by instructions\n",
+    QEMU_ARCH_ALL)
+SRST
+``"-record-skipsave 1``
+    Start right away with a saved state (``loadvm`` in monitor)
+ERST
+
+DEF("restore-snapshot-id", HAS_ARG, QEMU_OPTION_restore_snapshot_id, \
+    "-restore-snapshot-id [tag|id]\n" \
+    "                snapshot id to restore\n",
+    QEMU_ARCH_ALL)
+SRST
+``"-record-skipsave 1``
+    Start right away with a saved state (``loadvm`` in monitor)
+ERST
 
 DEF("ignore-record", HAS_ARG, QEMU_OPTION_ignore_record, \
     "-ignore-record [tag|id]\n" \

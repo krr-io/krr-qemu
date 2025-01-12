@@ -2791,6 +2791,8 @@ void qmp_x_exit_preconfig(Error **errp)
 
         rr_load_checkpoints();
 
+        rr_restore_snapshot();
+
         // if (load_snapshot(kernel_replay_name, NULL, false, NULL, &error_fatal)) {
         //     // vm_start();
         //     printf("Loaded snapshot %s\n", kernel_replay_name);
@@ -3706,6 +3708,7 @@ void qemu_init(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_kernel_replay:
                 kernel_replay_name = optarg;
+                set_initial_replay_snapshot(kernel_replay_name);
                 break;
             case QEMU_OPTION_replay_log_inst:
                 set_should_log(1);
@@ -3720,6 +3723,12 @@ void qemu_init(int argc, char **argv, char **envp)
                 unsigned long end = qemu_opt_get_number(opts, "end", 0);
                 printf("start=%lu, end=%lu\n", start, end);
                 set_log_bound(start, end);
+                break;
+            case QEMU_OPTION_snapshot_period:
+                set_snapshot_period(atoi(optarg));
+                break;
+            case QEMU_OPTION_restore_snapshot_id:
+                set_restore_snapshot_id(atoi(optarg));
                 break;
             case QEMU_OPTION_record_skipsave:
                 set_skip_save(1);

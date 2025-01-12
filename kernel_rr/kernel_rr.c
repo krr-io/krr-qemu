@@ -42,9 +42,33 @@ __attribute_maybe_unused__ static int g_rr_in_record = 0;
 unsigned long g_ram_size = 0;
 
 rr_event_log *rr_event_log_head = NULL;
+rr_event_log *rr_event_log_start = NULL;
 rr_event_log *rr_event_cur = NULL;
 
 rr_event_log* rr_smp_event_log_queues[MAX_CPU_NUM];
+
+
+typedef struct rr_replay_info_node_t {
+    unsigned long cpu_inst_list[MAX_CPU_NUM];
+    unsigned long total_inst_cnt;
+    int cur_event_num;
+    int cur_event_type;
+    struct rr_replay_info_node_t *next;
+    int lock_owner;
+} rr_replay_info_node;
+
+typedef struct rr_replay_info_t {
+    FILE *fptr;
+    int cur_node_id;
+    rr_replay_info_node *replay_info_head;
+    unsigned long next_checkpoint_inst;
+} rr_replay_info;
+static rr_replay_info *replay_info;
+static int snapshot_period = 0;
+static int restore_snapshot_id = -1;
+static const char *replay_snapshot_info_path = "replay-snapshot-info";
+static const char *replay_initial_snapshot;
+
 
 static int event_syscall_num = 0;
 static int event_exception_num = 0;
@@ -64,7 +88,7 @@ static int event_sync_inst = 0;
 static int started_replay = 0;
 static int initialized_replay = 0;
 
-static int replayed_interrupt_num = 0;
+// static int replayed_interrupt_num = 0;
 
 static int replayed_event_num = 0;
 static int total_event_number = 0;
@@ -104,6 +128,8 @@ static void interrupt_check(rr_event_log *event);
 static void rr_read_shm_events_info(void);
 static void init_lock_owner(void);
 static void rr_sync_header(void);
+static void replay_save_snapshot(rr_replay_info *cur_replay_info);
+static void replay_save_progress_info(rr_replay_info_node *info_node);
 
 static clock_t replay_start_time;
 static long long record_start_time;
@@ -126,9 +152,9 @@ typedef struct rr_event_loader_t {
 
 static rr_event_loader *event_loader;
 
-// 0xffffffff8102e2be, 0xffffffff8103009f, 0xffffffff8102e2c2
+
 #define DEBUG_POINTS_NUM 15
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff81031b60};
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff81002abe};
 static int point_index = 6;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
@@ -311,19 +337,125 @@ int get_cpu_num(void)
     return cpu_cnt;
 }
 
+void set_initial_replay_snapshot(const char *initial_snapshot)
+{
+    replay_initial_snapshot = initial_snapshot;
+}
+
+void set_restore_snapshot_id(int val)
+{
+    restore_snapshot_id = val;
+}
+
+void rr_restore_snapshot(void)
+{
+    if (restore_snapshot_id >= 0) {
+        restore_snapshot_by_id(restore_snapshot_id);
+    }
+}
+
+void restore_snapshot_by_id(int ss_id)
+{
+    char fname[32];
+    CPUState *cpu;
+    Error *error = NULL;
+    int cur_id = 0;
+    rr_replay_info_node *node = replay_info->replay_info_head;
+
+    printf("restoring snapshot %d\n", ss_id);
+
+    if (ss_id == 0) {
+        strcpy(fname, replay_initial_snapshot);
+    } else {
+        sprintf(fname, "replay-snapshot.%d", ss_id);
+    }
+
+    rr_load_snapshot(fname, &error);
+    if (error != NULL) {
+        printf("Failed to restore snapshot %s\n", fname);
+        abort();
+    }
+
+    if (replay_info == NULL) {
+        printf("Did not load replay info, skip\n");
+        return;
+    }
+
+    while(cur_id < ss_id) {
+        node = node->next;
+        cur_id++;
+    }
+
+    printf("Found node with id %d\n", cur_id);
+
+    replayed_event_num = 0;
+    rr_event_log_head = rr_event_log_start;
+    while(replayed_event_num < node->cur_event_num) {
+        rr_pop_event_head();
+    }
+
+    CPU_FOREACH(cpu) {
+        cpu->rr_executed_inst = node->cpu_inst_list[cpu->cpu_index];
+        LOG_MSG("[CPU-%d]Restored snapshot, event number=%d, CPU inst=%lu\n",
+                cpu->cpu_index, replayed_event_num, cpu->rr_executed_inst);
+    }
+    current_owner = node->lock_owner;
+}
+
+static void initialize_replay_snapshots(void)
+{
+    rr_replay_info_node node;
+    rr_replay_info_node *new_node, *tail_node = NULL;
+    int node_num = 0;
+    CPUState *cpu;
+
+    replay_info = (rr_replay_info *)malloc(sizeof(rr_replay_info));
+    replay_info->cur_node_id = 1;
+    replay_info->replay_info_head = NULL;
+    replay_info->fptr = NULL;
+
+    if (snapshot_period > 0) {
+        printf("Reinitialize replay snapshot info\n");
+        remove(replay_snapshot_info_path);
+        replay_info->fptr = fopen(replay_snapshot_info_path, "a");
+        replay_info->next_checkpoint_inst = snapshot_period;
+    } else {
+        replay_info->next_checkpoint_inst = -1;
+
+        replay_info->fptr = fopen(replay_snapshot_info_path, "r");
+        if (!replay_info->fptr) {
+            printf("Did not find replay snapshot info, skip\n");
+            return;
+        }
+
+        new_node = (rr_replay_info_node *)malloc(sizeof(rr_replay_info_node));
+        CPU_FOREACH(cpu) {
+            new_node->cpu_inst_list[cpu->cpu_index] = 0;
+        }
+        new_node->cur_event_num = 0;
+        replay_info->replay_info_head = new_node;
+        tail_node = new_node;
+
+        while(fread(&node, sizeof(rr_replay_info_node), 1, replay_info->fptr)) {
+            new_node = (rr_replay_info_node *)malloc(sizeof(rr_replay_info_node));
+            memcpy(new_node, &node, sizeof(rr_replay_info_node));
+            new_node->next = NULL;
+
+            node_num++;
+            tail_node->next = new_node;
+            tail_node = tail_node->next;
+            printf("Loaded %lu, %d type=%d\n", new_node->cpu_inst_list[0], new_node->cur_event_num, new_node->cur_event_type);
+        }
+
+        printf("Loaded %d replay snapshot nodes\n", node_num);
+    }
+}
+
 static void initialize_replay(void) {
     qemu_mutex_init(&replay_queue_mutex);
     qemu_cond_init(&replay_cond);
 
-    // CPUState *cs;
-
-    // CPU_FOREACH(cs) {
-    //     cs->rr_executed_inst = 0;
-    //     cpu_cnt++;
-    //     printf("found cpu %d\n", cs->cpu_index);
-    //     // qemu_mutex_init(&cs->replay_mutex);
-    //     // qemu_cond_init(&cs->replay_cond);
-    // }
+    initialize_replay_snapshots();
 
     printf("Initialized replay, cpu number=%d\n", cpu_cnt);
     replay_start_time = clock();
@@ -366,7 +498,15 @@ int replay_cpu_exec_ready(CPUState *cpu)
             break;
         }
 
-        qemu_log("[%d]Start waiting, current rip=0x%lx\n", cpu->cpu_index, env->eip);
+        LOG_MSG("[%d]Start waiting, current rip=0x%lx\n", cpu->cpu_index, env->eip);
+
+        qemu_mutex_lock(&cpu->work_mutex);
+        if (!QSIMPLEQ_EMPTY(&cpu->work_list)) {
+            ready = 1;
+            qemu_mutex_unlock(&cpu->work_mutex);
+            break;
+        }
+        qemu_mutex_unlock(&cpu->work_mutex);
 
         qemu_cond_wait(cpu->replay_cond, &replay_queue_mutex);
         qemu_log("CPU %d wake up, current rip=0x%lx\n", cpu->cpu_index, env->eip);
@@ -1937,8 +2077,8 @@ static void append_event_shm(void *event, int type)
 void rr_pop_event_head(void) {
     rr_event_cur = rr_event_log_head;
     rr_event_log_head = rr_event_log_head->next;
-    free(rr_event_cur);
-    rr_event_cur = NULL;
+    // free(rr_event_cur);
+    // rr_event_cur = NULL;
 
     replayed_event_num++;
 }
@@ -2267,6 +2407,7 @@ static void rr_load_events(void) {
 
     rr_print_events_stat();
     rr_log_all_events(rr_event_log_head);
+    rr_event_log_start = rr_event_log_head;
 
     printf("Loaded events\n");
 }
@@ -2911,9 +3052,7 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
     }
 
     if (rr_event_log_head->type != EVENT_TYPE_IO_IN) {
-        printf("Expected %d event, found %d, rip=0x%lx, cpu_id=%d\n",
-                EVENT_TYPE_IO_IN, rr_event_log_head->type, env->eip, cpu->cpu_index);
-        qemu_log("Expected %d event, found %d, rip=0x%lx, cpu_id=%d\n",
+        LOG_MSG("Expected %d event, found %d, rip=0x%lx, cpu_id=%d\n",
                  EVENT_TYPE_IO_IN, rr_event_log_head->type, env->eip, cpu->cpu_index);
         cpu->cause_debug = 1;
         goto finish;
@@ -3019,7 +3158,7 @@ finish:
     return;
 }
 
-void rr_do_replay_rdpmc(CPUState *cpu, unsigned long *val)
+void rr_do_replay_rdpmc(CPUState *cpu, unsigned long long *val)
 {
     X86CPU *x86_cpu;
     CPUArchState *env;
@@ -3037,9 +3176,7 @@ void rr_do_replay_rdpmc(CPUState *cpu, unsigned long *val)
     }
 
     if (rr_event_log_head->type != EVENT_TYPE_IO_IN) {
-        printf("Expected %d event, found %d, rip=0x%lx, cpu_id=%d\n",
-                EVENT_TYPE_IO_IN, rr_event_log_head->type, env->eip, cpu->cpu_index);
-        qemu_log("Expected %d event, found %d, rip=0x%lx, cpu_id=%d\n",
+        LOG_MSG("Expected %d event, found %d, rip=0x%lx, cpu_id=%d\n",
                  EVENT_TYPE_IO_IN, rr_event_log_head->type, env->eip, cpu->cpu_index);
         cpu->cause_debug = 1;
         goto finish;
@@ -3059,7 +3196,7 @@ void rr_do_replay_rdpmc(CPUState *cpu, unsigned long *val)
 
     *val = rr_event_log_head->event.io_input.value;
 
-    LOG_MSG("[CPU %d]Replayed RDPMC=0x%lx, inst_cnt=%lu, cpu_id=%d, rip=0x%lx, replayed event number=%d\n",
+    LOG_MSG("[CPU %d]Replayed RDPMC=0x%llx, inst_cnt=%lu, cpu_id=%d, rip=0x%lx, replayed event number=%d\n",
              cpu->cpu_index, *val, cpu->rr_executed_inst,
              rr_event_log_head->id, rr_event_log_head->rip, replayed_event_num);
 
@@ -3077,8 +3214,7 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     qemu_mutex_lock(&replay_queue_mutex);
 
     if (rr_event_log_head->type != EVENT_TYPE_RDTSC) {
-        printf("Expected %d event, found %d", EVENT_TYPE_RDTSC, rr_event_log_head->type);
-        qemu_log("Expected %d event, found %d, inst_cnt=%lu\n",
+        LOG_MSG("Expected %d event, found %d, inst_cnt=%lu\n",
                  EVENT_TYPE_RDTSC, rr_event_log_head->type, cpu->rr_executed_inst);
         // abort();
         cpu->cause_debug = true;
@@ -3225,8 +3361,6 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
         if (!started_replay) {
             started_replay = 1;
         }
-
-        replayed_interrupt_num++;
 
         return;
     }
@@ -3704,6 +3838,11 @@ int get_lock_owner(void) {
     return cpu_id;
 }
 
+int replay_get_current_owner(void)
+{
+    return current_owner;
+}
+
 static void init_lock_owner(void)
 {
     int cpu_id = 0;
@@ -3715,6 +3854,12 @@ void set_count_syscall(int val)
 {
     count_syscall = val;
 }
+
+void set_snapshot_period(int val)
+{
+    snapshot_period = val;
+}
+
 
 void rr_rotate_shm_queue(void)
 {
@@ -3753,4 +3898,87 @@ void rr_handle_queue_full(void)
     rr_log_all_events(rr_event_log_head);
 
     rr_cleanup_local_queue();
+}
+
+unsigned long get_total_executed_inst(void)
+{
+    CPUState *cs;
+    unsigned long total_executed_inst = 0;
+
+    CPU_FOREACH(cs) {
+        total_executed_inst += cs->rr_executed_inst;
+    }
+
+    return total_executed_inst;
+}
+
+void replay_snapshot_checkpoint(void)
+{
+    unsigned long total_executed_inst;
+
+    if (!replay_info->fptr) {
+        return;
+    }
+
+    total_executed_inst = get_total_executed_inst();
+    if (total_executed_inst != replay_info->next_checkpoint_inst) {
+        return;
+    }
+
+    qemu_mutex_lock_iothread();
+    replay_save_snapshot(replay_info);
+    qemu_mutex_unlock_iothread();
+
+    replay_info->next_checkpoint_inst += snapshot_period;
+}
+
+static void replay_save_snapshot(rr_replay_info *cur_replay_info)
+{
+    char fname[20];
+    CPUState *cpu;
+    rr_replay_info_node *replay_info_node;
+
+    sprintf(fname, "replay-snapshot.%d", cur_replay_info->cur_node_id);
+
+    rr_save_snapshot(fname, NULL);
+
+    replay_info_node = (rr_replay_info_node *)malloc(sizeof(rr_replay_info_node));
+    CPU_FOREACH(cpu) {
+        replay_info_node->cpu_inst_list[cpu->cpu_index] = cpu->rr_executed_inst;
+    }
+
+    replay_info_node->cur_event_num = replayed_event_num;
+    replay_info_node->cur_event_type = rr_event_log_head->type;
+    replay_info_node->lock_owner = current_owner;
+    replay_info_node->total_inst_cnt = get_total_executed_inst();
+
+    LOG_MSG("Replay snapshot number %d is taken\n", cur_replay_info->cur_node_id);
+    cur_replay_info->cur_node_id++;
+
+    replay_save_progress_info(replay_info_node);
+}
+
+static void replay_save_progress_info(rr_replay_info_node *info_node)
+{
+    fwrite(info_node, sizeof(rr_replay_info_node), 1, replay_info->fptr);
+}
+
+int replay_find_nearest_snapshot(unsigned long inst_cnt)
+{
+    rr_replay_info_node *node = replay_info->replay_info_head;
+    int id = 0;
+    unsigned long total_inst = get_total_executed_inst();
+
+    while (node != NULL && node->next != NULL)
+    {
+        if (node->total_inst_cnt < total_inst && \
+            node->next->total_inst_cnt >= total_inst) {
+            break;
+        }
+        node = node->next;
+        id++;
+    }
+    printf("nearest inst=%lu, event_type=%d\n", node->total_inst_cnt, node->cur_event_type);
+
+    return id;
 }

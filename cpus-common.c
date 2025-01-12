@@ -23,6 +23,7 @@
 #include "hw/core/cpu.h"
 #include "sysemu/cpus.h"
 #include "qemu/lockable.h"
+#include "sysemu/kernel-rr.h"
 
 static QemuMutex qemu_cpu_list_lock;
 static QemuCond exclusive_cond;
@@ -129,6 +130,10 @@ static void queue_work_on_cpu(CPUState *cpu, struct qemu_work_item *wi)
     qemu_mutex_unlock(&cpu->work_mutex);
 
     qemu_cpu_kick(cpu);
+    if (rr_in_replay()) {
+        qatomic_mb_set(&cpu->exit_request, true);
+        qemu_cond_signal(cpu->replay_cond);
+    }
 }
 
 void do_run_on_cpu(CPUState *cpu, run_on_cpu_func func, run_on_cpu_data data,

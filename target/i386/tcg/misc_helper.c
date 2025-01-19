@@ -88,17 +88,24 @@ void helper_rdtscp(CPUX86State *env)
     env->regs[R_ECX] = (uint32_t)(env->tsc_aux);
 }
 
-void QEMU_NORETURN helper_rdpmc(CPUX86State *env)
+void helper_rdpmc(CPUX86State *env)
 {
-    if (((env->cr[4] & CR4_PCE_MASK) == 0 ) &&
-        ((env->hflags & HF_CPL_MASK) != 0)) {
-        raise_exception_ra(env, EXCP0D_GPF, GETPC());
-    }
-    cpu_svm_check_intercept_param(env, SVM_EXIT_RDPMC, 0, GETPC());
+    if (rr_in_replay()) {
+        unsigned long long val;
+        rr_do_replay_rdpmc(env_cpu(env), &val);
+        env->regs[R_EAX] = (uint32_t)(val);
+        env->regs[R_EDX] = (uint32_t)(val >> 32);
+    } else {
+        if (((env->cr[4] & CR4_PCE_MASK) == 0 ) &&
+            ((env->hflags & HF_CPL_MASK) != 0)) {
+            raise_exception_ra(env, EXCP0D_GPF, GETPC());
+        }
+        cpu_svm_check_intercept_param(env, SVM_EXIT_RDPMC, 0, GETPC());
 
-    /* currently unimplemented */
-    qemu_log_mask(LOG_UNIMP, "x86: unimplemented rdpmc\n");
-    raise_exception_err(env, EXCP06_ILLOP, 0);
+        /* currently unimplemented */
+        qemu_log_mask(LOG_UNIMP, "x86: unimplemented rdpmc\n");
+        raise_exception_err(env, EXCP06_ILLOP, 0);
+    }
 }
 
 void QEMU_NORETURN do_pause(CPUX86State *env)

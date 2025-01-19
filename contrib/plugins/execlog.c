@@ -48,6 +48,8 @@ static void vcpu_mem(unsigned int cpu_index, qemu_plugin_meminfo_t info,
     } else {
         g_string_append_printf(s, ", 0x%08"PRIx64, vaddr);
     }
+
+    fprintf(stdout, "%s\n", s->str);
 }
 
 /**

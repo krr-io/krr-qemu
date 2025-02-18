@@ -4,6 +4,7 @@
 #include "exec/log.h"
 #include "migration/snapshot.h"
 #include "sysemu/dma.h"
+#include "hw/nvme/nvme.h"
 
 #include "cpu.h"
 
@@ -37,14 +38,22 @@ static bool record_net = true;
 
 static unsigned long total_buf_cnt = 0;
 static unsigned long total_buf_size = 0;
-static unsigned long total_nvme_cnt = 0;
-static unsigned long total_nvme_size = 0;
 
 
 unsigned long get_dma_buf_size(void) {
     return total_buf_size;
 }
 
+void rr_register_nvme_as(PCIDevice *dev)
+{
+    if (dma_as != NULL)
+        printf("Notice: DMA address space is about to be replaced\n");
+
+    dma_as = pci_get_address_space(dev);
+    if (dma_as != NULL) {
+        printf("initialized dma as\n");
+    }
+}
 
 void rr_register_ide_as(IDEDMA *dma)
 {
@@ -75,6 +84,40 @@ static void log_addr_md5(void *ptr, size_t len, dma_addr_t base)
         get_md5sum(ptr + j, 4096, md5_v);
         // qemu_log("md5 for dma addr 0x%lx %d is %s\n", base, j, md5_v);
     }
+}
+
+
+void rr_append_general_dma_sg(void *buf, uint64_t len, uint64_t addr)
+{
+    rr_sg_data *sgd = NULL;
+
+    if (pending_dma_entry == NULL) {
+        pending_dma_entry = (rr_dma_entry*)malloc(sizeof(rr_dma_entry));
+        pending_dma_entry->len = 0;
+        pending_dma_entry->next = NULL;
+    }
+
+    if (pending_dma_entry->len >= SG_NUM) {
+        printf("Error: dma sg number exceeds max\n");
+        free(sgd->buf);
+        free(sgd);
+        return;
+    }
+
+    if (pending_dma_entry->len >= SG_NUM) {
+        printf("Error: dma sg number exceeds max\n");
+        return;
+    }
+
+    sgd = (rr_sg_data*)malloc(sizeof(rr_sg_data));
+    sgd->buf = (uint8_t*)malloc(sizeof(uint8_t) * len);
+
+    memcpy(sgd->buf, buf, len);
+    sgd->addr = addr;
+    sgd->len = len;
+    
+    total_buf_size += len;
+    pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
 }
 
 __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb)
@@ -128,22 +171,44 @@ __attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *q
         total_buf_size += sg->sg[i].len;
         total_buf_cnt++;
 
-        // if (cb == nvme_cb_func) {
-        //     total_nvme_size += sg->sg[i].len;
-        //     total_nvme_cnt++;
-        //     free(sgd->buf);
-        //     free(sgd);
-        //     return;
-        // }
-
         pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
 
         assert(sg->sg[i].len == qiov->iov[i].iov_len);
-        // qemu_log("Get actual data:\n");
-        // log_addr_md5(qiov->iov[i].iov_base, qiov->iov[i].iov_len, sg->sg[i].base);
-        // qemu_log("Get logged data:\n");
-        // log_addr_md5(sgd->buf, sg->sg[i].len, sg->sg[i].base);
     }
+}
+
+static void do_mark_dma_done_cpu(CPUState *cpu, run_on_cpu_data arg)
+{
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+    pending_dma_entry->inst_cnt = rr_get_inst_cnt(cpu);
+    pending_dma_entry->follow_num = get_recorded_num();
+    pending_dma_entry->rip = env->eip;
+}
+
+
+void rr_end_nvme_dma_entry(void)
+{
+    CPUState *cpu;
+
+    if (pending_dma_entry == NULL)
+        return;
+
+    CPU_FOREACH(cpu) {
+        run_on_cpu(cpu, do_mark_dma_done_cpu, RUN_ON_CPU_NULL);
+        break;
+    }
+
+    pending_dma_entry->replayed_sgs = 0;
+    pending_dma_entry->dev_type = DEV_TYPE_NVME;
+
+    dma_enqueue(dma_queue, pending_dma_entry);
+    pending_dma_entry = NULL;
+
+    entry_cnt++;
 }
 
 
@@ -153,6 +218,7 @@ void rr_end_dma_entry(void)
         return;
 
     pending_dma_entry->replayed_sgs = 0;
+    pending_dma_entry->dev_type = DEV_TYPE_IDE;
 
     dma_enqueue(dma_queue, pending_dma_entry);
     pending_dma_entry = NULL;
@@ -287,9 +353,10 @@ void rr_load_dma_logs(const char *log_file, rr_dma_queue *queue)
         log->rip = loaded_node.rip;
         log->follow_num = loaded_node.follow_num;
         log->cpu_id = loaded_node.cpu_id;
+        log->dev_type = loaded_node.dev_type;
 
-        qemu_log("Loaded DMA entry: len=%d inst_cnt=%lu, rip=%lx, follow_num=%lu, cpu_id=%d\n",
-                 log->len, log->inst_cnt, log->rip, log->follow_num, log->cpu_id);
+        qemu_log("Loaded DMA entry: len=%d inst_cnt=%lu, rip=%lx, follow_num=%lu, cpu_id=%d, dev_type=%d\n",
+                 log->len, log->inst_cnt, log->rip, log->follow_num, log->cpu_id, log->dev_type);
 
         // for (i = 0; i < log->len; i++) {
         //     printf("log: sg_addr=0x%lx, sg_len=%ld\n", log->sgs[i]->addr, log->sgs[i]->len);
@@ -299,20 +366,34 @@ void rr_load_dma_logs(const char *log_file, rr_dma_queue *queue)
 	}
 }
 
+rr_dma_entry* rr_fetch_next_dma_entry(void)
+{
+    return dma_queue->front;
+}
+
 void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as)
 {
     int i;
     int res;
     void *mem;
+    CPUState *cpu;
 
     if (dma_entry == NULL) {
         return;
     }
 
+    printf("Replay dma entry, inst=%lu, dev_type=%d\n", dma_entry->inst_cnt, dma_entry->dev_type);
+
     for (i = 0; i < dma_entry->len; i++) {
         rr_sg_data *sg = dma_entry->sgs[i];
         uint64_t len = sg->len;
         // uint8_t buf[sg->len + 1];
+
+        if (sg->addr == 0x7d1a000) {
+            CPU_FOREACH(cpu) {
+                cpu->cause_debug = 1;
+            }
+        }
 
         printf("Replay dma addr 0x%lx\n", sg->addr);
 
@@ -359,8 +440,6 @@ void rr_dma_pre_record(void)
     printf("Reset dma sg buffer\n");
     total_buf_cnt = 0;
     total_buf_size = 0;
-    total_nvme_cnt = 0;
-    total_nvme_size = 0;
     init_dma_queue(&dma_queue);
     remove(kernel_rr_dma_log);
 }
@@ -395,8 +474,7 @@ void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **queue)
 void rr_dma_post_record(void)
 {
     rr_save_dma_logs(kernel_rr_dma_log, dma_queue->front);
-    printf("Total dma buf cnt %lu size %lu, total nvme buf cnt %lu size %lu\n",
-           total_buf_cnt, total_buf_size, total_nvme_cnt, total_nvme_size);
+    printf("Total dma buf cnt %lu size %lu\n", total_buf_cnt, total_buf_size);
 
     dma_queue = NULL;
 

@@ -912,7 +912,7 @@ static void ide_dma_cb(void *opaque, int ret)
     }
 
     if (rr_in_replay() && s->dma_cmd == IDE_DMA_READ && ret == 1) {
-        rr_do_replay_dma();
+        rr_do_replay_ide_dma();
         return;
     }
 

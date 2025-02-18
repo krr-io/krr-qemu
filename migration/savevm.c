@@ -1487,9 +1487,6 @@ int qemu_savevm_state_complete_precopy_non_iterable(QEMUFile *f,
             trace_savevm_section_skip(se->idstr, se->section_id);
             continue;
         }
-        if (!strcmp(se->vmsd->name, "nvme")) {
-            continue;
-        }
 
         trace_savevm_section_start(se->idstr, se->section_id);
 

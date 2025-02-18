@@ -154,7 +154,7 @@ static rr_event_loader *event_loader;
 
 
 #define DEBUG_POINTS_NUM 15
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff81002abe};
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff815ad5a1, 0xffffffff815abdb9, 0xffffffff815abb10};
 static int point_index = 6;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
@@ -275,7 +275,7 @@ void check_kernel_access(void)
 
         if (env->eip > 0xBFFFFFFFFFFF) {
             printf("Kernel access to device on 0x%lx\n", env->eip);
-            abort();
+            // abort();
         }
     }
 }
@@ -2492,6 +2492,13 @@ void try_replay_dma(CPUState *cs, int user_ctx)
             break;
         }
     }
+
+    head = rr_fetch_next_dma_entry();
+    if (head != NULL && head->dev_type == DEV_TYPE_NVME){
+        if (cs->rr_executed_inst == head->inst_cnt) {
+            rr_replay_next_dma();
+        }
+    }
 }
 
 __attribute_maybe_unused__
@@ -3400,7 +3407,7 @@ void rr_do_replay_page_map(CPUState *cpu)
 }
 
 
-void rr_do_replay_dma(void)
+void rr_do_replay_ide_dma(void)
 {
     rr_dma_done e = {};
 

@@ -78,6 +78,10 @@
 #define INST_REP 8
 #define IO_INST_REP_IN 16
 
+#define DEV_TYPE_IDE 0
+#define DEV_TYPE_NVME 1
+#define DEV_TYPE_E1000 2
+
 
 int rr_in_replay(void);
 int rr_in_record(void);
@@ -197,6 +201,8 @@ typedef struct rr_dma_entry_t {
     unsigned long rip;
     unsigned long follow_num;
     int cpu_id;
+    int dev_type;
+    void *opaque;
 } rr_dma_entry;
 
 typedef struct rr_dma_queue_t {
@@ -246,10 +252,14 @@ void rr_dma_pre_replay(void);
 void rr_dma_network_pre_replay(void);
 void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **q);
 void init_dma_queue(rr_dma_queue **queue);
+void rr_append_general_dma_sg(void *buf, uint64_t len, uint64_t addr);
+rr_dma_entry* rr_fetch_next_dma_entry(void);
+void rr_end_nvme_dma_entry(void);
 
 rr_dma_entry* rr_fetch_next_network_dme_entry(int cpu_id);
 
 void rr_register_e1000_as(PCIDevice *dev);
+void rr_register_nvme_as(PCIDevice *dev);
 void rr_replay_next_network_dma(int cpu_id);
 void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as);
 
@@ -276,7 +286,7 @@ void rr_do_insert_entry_breakpoints(CPUState *cpu);
 void set_checkpoint_interval(int interval);
 int get_checkpoint_interval(void);
 unsigned long replay_get_inst_cnt(void);
-void rr_do_replay_dma(void);
+void rr_do_replay_ide_dma(void);
 void rr_handle_queue_full(void);
 void rr_rotate_shm_queue(void);
 int replay_finished(void);

@@ -28,6 +28,8 @@
 #define NVME_MAX_NAMESPACES  256
 #define NVME_EUI64_DEFAULT ((uint64_t)0x5254000000000000)
 
+#define NVME_KRR_MAX_QUEUE 32
+
 QEMU_BUILD_BUG_ON(NVME_MAX_NAMESPACES > NVME_NSID_BROADCAST - 1);
 
 typedef struct NvmeCtrl NvmeCtrl;
@@ -476,6 +478,17 @@ typedef struct NvmeCtrl {
         uint32_t                async_config;
         NvmeHostBehaviorSupport hbs;
     } features;
+
+    uint64_t sq_dma_addr[NVME_KRR_MAX_QUEUE];
+    uint64_t cq_dma_addr[NVME_KRR_MAX_QUEUE];
+    uint16_t cqid[NVME_KRR_MAX_QUEUE];
+    uint16_t sqid[NVME_KRR_MAX_QUEUE];
+    uint16_t cqsize[NVME_KRR_MAX_QUEUE];
+    uint16_t sqsize[NVME_KRR_MAX_QUEUE];
+    uint16_t cqvector[NVME_KRR_MAX_QUEUE];
+    bool cq_irq_enabled[NVME_KRR_MAX_QUEUE];
+    uint16_t num_cq;
+    uint16_t num_sq;
 } NvmeCtrl;
 
 static inline NvmeNamespace *nvme_ns(NvmeCtrl *n, uint32_t nsid)

@@ -1,8 +1,9 @@
+import sys
+
 import gdb
 import copy
 
 
-KERNEL_RR_HEADER = "/home/projects/qemu-tcg-kvm/include/sysemu/kernel-rr.h"
 VERSION = str(gdb.parse_and_eval("init_uts_ns.name"))
 
 
@@ -137,7 +138,6 @@ def fetch_rr_record_io_uring_entry():
 handlers = {
     "STRNCPY_FROM_USER": fetch_strncpy_from_user,
     "STRNLEN_USER": fetch_strnlen_user,
-    "RANDOM_GEN": fetch_random_gen,
     "PF_EXEC": fetch_exc_page_fault,
     "PF_EXEC_END": fetch_exc_page_fault_end,
     "RR_RECORD_CFU": fetch_rr_record_cfu,
@@ -167,11 +167,11 @@ handlers = {
 }
 
 
-def generate_symbols():
+def generate_symbols(kernel_rr_header):
     generate_done = False
     print(VERSION)
 
-    with open(KERNEL_RR_HEADER, 'r') as file:
+    with open(kernel_rr_header, 'r') as file:
         lines = file.readlines()
         output_lines = copy.deepcopy(lines)
 
@@ -186,16 +186,18 @@ def generate_symbols():
                         spots[2] = handlers[macro]()
                     except Exception as e:
                         print("Failed to generate symbol for {}: {}".format(macro, e))
+                        raise
                     else:
-                        print("Writing symbol addr {} for macro {}".format(spots[2], macro))
+                        # print("Writing symbol addr {} for macro {}".format(spots[2], macro))
                         output_lines[index] = ' '.join(spots) + '\n'
 
         generate_done = True
 
+    print("Symbol generation finished, please recompile the KRR QEMU")
     if generate_done:
-        with open(KERNEL_RR_HEADER, 'w') as file:
+        with open(kernel_rr_header, 'w') as file:
             file.write(''.join(output_lines))
 
 
 if __name__ == "__main__":
-    generate_symbols()
+    generate_symbols(sys.argv[1])

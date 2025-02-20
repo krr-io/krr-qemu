@@ -2,6 +2,9 @@
 
 KRR is record-replay tool targeting Linux kernel and it's implemented based on QEMU(7.0.0) & KVM (5.17.5) tool, compared with other record-replay tools, KRR supports recording with hardware-assisted virtualization (KVM) and multi-core.
 
+## Hardware Requirement
+KRR only supports Intel processor now.
+
 ## Record
 
 ### Install KRR KVM
@@ -40,7 +43,7 @@ cd build
 make -j
 ```
 
-3. Get the kernel you want to test, here is a prepared [Linux kernel image & vmlinux package](https://drive.google.com/file/d/1WRE-vqcxbsQcpR4on4W5aaHpsnOGfIMS/view?usp=sharing)(6.1.0), if you want to build on your own, here is a [guide](TODO) to help compile your recordable guest kernel image.
+3. Get the kernel you want to test, here is a prepared [Linux kernel image & vmlinux package](https://drive.google.com/file/d/1WRE-vqcxbsQcpR4on4W5aaHpsnOGfIMS/view?usp=sharing)(6.1.0), if you want to build on your own, here is a [guide](#make-your-own-recordable-kernel) to help compile your recordable guest kernel image.
 
 4. Get the root disk image you want to boot, [here](https://github.com/google/syzkaller/blob/master/tools/create-image.sh) is a script from syzkaller that helps you create a simple rootfs image.
 
@@ -219,6 +222,47 @@ Using following parameter could log out instructions & associated registers from
 The log file is specified by `-D logfile`.
 
 
+### Reverse Debugging
+KRR's replay also supports reverse debugging using gdb, the mechanism is based on snapshotting(similar to QEMU's native record & replay). So to really enable the reverse debugging, you firstly need to be able to replay successfully the target execution, during the replay, periodic snapshots need to be taken, repay it with the following command:
+```
+../build/qemu-system-x86_64 -accel tcg -smp 1 -cpu Broadwell -no-hpet -m 2G -hda <disk image> -device ivshmem-plain,memdev=hostmem -object memory-backend-file,size=4096M,share,mem-path=/dev/shm/ivshmem,id=hostmem -kernel-replay test1 -singlestep -D rec.log -snapshot-period 100000
+```
+Note that at the end we added `-snapshot-period 100000` parameter, which means a snapshot is taken on every 100000 instructions. After the snapshots are taken, you have the "checkpoints" for the execution to travel back.
+
+Then run the replay again with gdb console and remove the parameter `-snapshot-period 100000`, you can make use of the reverse debugging, for example, in gdb I hit the following breakpoint and want to reverse back by 1 instruction, execute reverse-stepi:
+```
+Breakpoint 2, do_syscall_64 (regs=0xffffc90000273f58, nr=1) at arch/x86/entry/common.c:75
+75		rr_handle_syscall(regs);
+(gdb) reverse-stepi
+```
+
+The replayer would have the following output indicating the latest snapshot is restored:
+```
+restoring snapshot 1
+loading snapshot
+... done.
+Found node with id 1
+[CPU-0]Restored snapshot, event number=110, CPU inst=100000
+```
+And continue to replay until one instruction before my last breakpoint:
+```
+(gdb) reverse-stepi
+entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:120
+120		call	do_syscall_64		/* returns with IRQs disabled */
+(gdb)
+```
+
+## Make your own recordable kernel
+Due to its split-recorder design, KRR requires some modifications to the guest linux kernel. The full changes refers to this [repo](https://github.com/tianrenz2/linux-6.1.0/tree/smp-rr), but here is a single [patch file](kernel_rr/Support-for-KRR-guest-recorder-patch) that contains all the changes. To apply the changes, mv the file to your kernel source code directory and execute:
+```
+mv Support-for-KRR-guest-recorder-patch Support-for-KRR-guest-recorder.patch
+git apply Support-for-KRR-guest-recorder-patch
+```
+Note that this patch file is based on Linux 6.1.0, different version of source code may encounter some conflicts to resolve.
+
+To compile, we can refer to a sample [.config](kernel_rr/rr_guest_config) file, note that this config file is also based on linux 6.1.0, so depending on your own linux kernel version, it might be somehow different.
+
+
 ## Removed features for kernel RR
 
 1. Since we replay in TCG now, temporarily disabled xsaves and xsavec (which are not supported in TCG) features in KVM for compatibility of TCG, so the guest would use xsaveopt;
@@ -226,5 +270,3 @@ The log file is specified by `-D logfile`.
 2. Disabled kvmclock device in QEMU;
 
 3. Disabled KVM pvclock, by removing KVM_FEATURE_CLOCKSOURCE and KVM_FEATURE_CLOCKSOURCE2 features exposed to guest in KVM, so that the KVM won't update the guest memory, this is for us to do memory verification;
-
-

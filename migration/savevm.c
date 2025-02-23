@@ -1227,29 +1227,6 @@ void qemu_savevm_state_setup(QEMUFile *f)
     }
 }
 
-__attribute_maybe_unused__
-void rr_qemu_savevm_state_setup(QEMUFile *f)
-{
-    SaveStateEntry *se;
-    int ret;
-
-    QTAILQ_FOREACH(se, &savevm_state.handlers, entry) {
-        if (!se->ops || !se->ops->save_setup) {
-            continue;
-        }
-
-        save_section_header(f, se, QEMU_VM_SECTION_START);
-
-        ret = se->ops->save_setup(f, se->opaque);
-        save_section_footer(f, se);
-        if (ret < 0) {
-            qemu_file_set_error(f, ret);
-            break;
-        }
-    }
-}
-
-
 int qemu_savevm_state_resume_prepare(MigrationState *s)
 {
     SaveStateEntry *se;
@@ -1619,21 +1596,6 @@ void qemu_savevm_state_cleanup(void)
         }
     }
 }
-
-__attribute_maybe_unused__
-static int rr_qemu_savevm_state(QEMUFile *f, Error **errp)
-{
-    qemu_mutex_unlock_iothread();
-    qemu_savevm_state_header(f);
-    rr_qemu_savevm_state_setup(f);
-
-    qemu_mutex_lock_iothread();
-    // qemu_mutex_lock_iothread();
-    qemu_savevm_state_full(f);
-
-    return 0;
-}
-
 
 static int qemu_savevm_state(QEMUFile *f, Error **errp)
 {

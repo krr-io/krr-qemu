@@ -187,19 +187,31 @@ static void do_mark_dma_done_cpu(CPUState *cpu, run_on_cpu_data arg)
     pending_dma_entry->inst_cnt = rr_get_inst_cnt(cpu);
     pending_dma_entry->follow_num = get_recorded_num();
     pending_dma_entry->rip = env->eip;
+    pending_dma_entry->cpu_id =cpu->cpu_index;
 }
 
 
 void rr_end_nvme_dma_entry(void)
 {
     CPUState *cpu;
+    int owner_id = 0;
 
     if (pending_dma_entry == NULL)
         return;
 
+    if (get_cpu_num() > 0) {
+        owner_id = get_lock_owner();
+
+        if (owner_id == -1) {
+            owner_id = 0;
+        }
+    }
+
     CPU_FOREACH(cpu) {
-        run_on_cpu(cpu, do_mark_dma_done_cpu, RUN_ON_CPU_NULL);
-        break;
+        if (owner_id == cpu->cpu_index) {
+            run_on_cpu(cpu, do_mark_dma_done_cpu, RUN_ON_CPU_NULL);
+            break;
+        }
     }
 
     pending_dma_entry->replayed_sgs = 0;
@@ -382,7 +394,8 @@ void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as)
         return;
     }
 
-    printf("Replay dma entry, inst=%lu, dev_type=%d\n", dma_entry->inst_cnt, dma_entry->dev_type);
+    printf("Replay dma entry, inst=%lu, dev_type=%d, cpu_id=%d\n",
+           dma_entry->inst_cnt, dma_entry->dev_type, dma_entry->cpu_id);
 
     for (i = 0; i < dma_entry->len; i++) {
         rr_sg_data *sg = dma_entry->sgs[i];

@@ -2495,7 +2495,10 @@ void try_replay_dma(CPUState *cs, int user_ctx)
 
     head = rr_fetch_next_dma_entry();
     if (head != NULL && head->dev_type == DEV_TYPE_NVME){
-        if (cs->rr_executed_inst == head->inst_cnt) {
+        if ((cs->cpu_index == head->cpu_id && cs->rr_executed_inst == head->inst_cnt - 1)||
+            (user_ctx && head->inst_cnt == 0 && replayed_event_num + 1 >= head->follow_num)||
+            (head->cpu_id != cs->cpu_index && replayed_event_num + 1 >= head->follow_num)
+            ) {
             rr_replay_next_dma();
         }
     }

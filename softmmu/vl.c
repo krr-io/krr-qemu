@@ -2765,6 +2765,8 @@ void qmp_x_exit_preconfig(Error **errp)
         return;
     }
 
+    rr_init_dma();
+
     qemu_init_board();
     qemu_create_cli_devices();
     qemu_machine_creation_done();
@@ -2813,6 +2815,9 @@ void qmp_x_exit_preconfig(Error **errp)
     } else if (autostart) {
         qmp_cont(NULL);
     }
+
+    if (rr_in_replay())
+        rr_dma_pre_replay();
 }
 
 void qemu_init(int argc, char **argv, char **envp)

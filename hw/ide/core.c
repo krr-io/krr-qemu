@@ -912,7 +912,7 @@ static void ide_dma_cb(void *opaque, int ret)
     }
 
     if (rr_in_replay() && s->dma_cmd == IDE_DMA_READ && ret == 1) {
-        rr_do_replay_ide_dma();
+        rr_do_replay_ide_dma(s->bus->dma);
         return;
     }
 
@@ -934,7 +934,7 @@ static void ide_dma_cb(void *opaque, int ret)
         s->status = READY_STAT | SEEK_STAT;
         if (rr_in_record()) {
             if (s->dma_cmd == IDE_DMA_READ) {
-                rr_end_dma_entry();
+                rr_end_ide_dma_entry(s->bus->dma);
                 // rr_signal_dma_finish();
                 // printf("set irq, nsg=%d\n", s->sg.nsg);
             }
@@ -2629,6 +2629,9 @@ int ide_init_drive(IDEState *s, BlockBackend *blk, IDEDriveKind kind,
 
     ide_reset(s);
     blk_iostatus_enable(blk);
+
+    rr_register_ide_as(s->bus->dma, ide_dma_cb);
+
     return 0;
 }
 
@@ -2809,7 +2812,7 @@ static int ide_drive_post_load(void *opaque, int version_id)
     IDEState *s = opaque;
 
     if (rr_in_replay())
-        rr_register_ide_as(s->bus->dma);
+        rr_register_ide_as(s->bus->dma, ide_dma_cb);
 
     if (s->blk && s->identify_set) {
         blk_set_enable_write_cache(s->blk, !!(s->identify_data[85] & (1 << 5)));

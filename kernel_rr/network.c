@@ -174,7 +174,7 @@ void rr_network_dma_pre_record(void)
 
 void rr_dma_network_pre_replay(void)
 {
-    rr_dma_pre_replay_common(network_log_name, &dma_queue);
+    rr_dma_pre_replay_common(network_log_name, &dma_queue, 0);
 
     // rr_split_entry_queue(dma_queue);
 }

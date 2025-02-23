@@ -2493,13 +2493,13 @@ void try_replay_dma(CPUState *cs, int user_ctx)
         }
     }
 
-    head = rr_fetch_next_dma_entry();
-    if (head != NULL && head->dev_type == DEV_TYPE_NVME){
-        if ((cs->cpu_index == head->cpu_id && cs->rr_executed_inst == head->inst_cnt - 1)||
+    head = rr_fetch_next_dma_entry(DEV_TYPE_NVME);
+    if (head != NULL){
+        if ((cs->cpu_index == head->cpu_id && cs->rr_executed_inst == head->inst_cnt - 1) ||
             (user_ctx && head->inst_cnt == 0 && replayed_event_num + 1 >= head->follow_num)||
             (head->cpu_id != cs->cpu_index && replayed_event_num + 1 >= head->follow_num)
-            ) {
-            rr_replay_next_dma();
+        ) {
+            rr_replay_next_dma(head->dev_index);
         }
     }
 }
@@ -3410,23 +3410,11 @@ void rr_do_replay_page_map(CPUState *cpu)
 }
 
 
-void rr_do_replay_ide_dma(void)
-{
-    rr_dma_done e = {};
-
-    if (rr_event_log_head->type == EVENT_TYPE_DMA_DONE) {
-        append_to_queue(EVENT_TYPE_DMA_DONE, &e);
-        rr_replay_dma_entry();
-        rr_pop_event_head();
-    }
-}
-
 uint64_t rr_num_instr_before_next_interrupt(void)
 {
     if (rr_event_log_head == NULL) {
         if (!initialized_replay) {
             rr_load_events();
-            rr_dma_pre_replay();
             rr_dma_network_pre_replay();
             initialize_replay();
 
@@ -3527,13 +3515,6 @@ void rr_store_op(CPUArchState *env, unsigned long addr)
     } else {
         qemu_log("[mem_trace] page not mapped\n");
     }
-}
-
-void rr_replay_dma_entry(void)
-{
-    qemu_log("DMA_Replay: Replaying dma\n");
-    printf("Replaying dma\n");
-    rr_replay_next_dma();
 }
 
 static int record_event(void *event_addr)

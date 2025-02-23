@@ -203,6 +203,7 @@ typedef struct rr_dma_entry_t {
     int cpu_id;
     int dev_type;
     void *opaque;
+    int dev_index;
 } rr_dma_entry;
 
 typedef struct rr_dma_queue_t {
@@ -218,6 +219,7 @@ void rr_verify_dirty_mem(CPUState *cpu);
 void rr_memlog_post_replay(void);
 void rr_pre_mem_record(void);
 void rr_replay_dma_entry(void);
+void rr_init_dma(void);
 int get_md5sum(void* buffer,
                unsigned long buffersize,
                char* checksum);
@@ -250,16 +252,16 @@ void rr_network_dma_pre_record(void);
 
 void rr_dma_pre_replay(void);
 void rr_dma_network_pre_replay(void);
-void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **q);
+void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **q, int dev_index);
 void init_dma_queue(rr_dma_queue **queue);
-void rr_append_general_dma_sg(void *buf, uint64_t len, uint64_t addr);
-rr_dma_entry* rr_fetch_next_dma_entry(void);
+void rr_append_general_dma_sg(int dev_type, void *buf, uint64_t len, uint64_t addr);
+rr_dma_entry* rr_fetch_next_dma_entry(int dev_type);
 void rr_end_nvme_dma_entry(void);
 
 rr_dma_entry* rr_fetch_next_network_dme_entry(int cpu_id);
 
 void rr_register_e1000_as(PCIDevice *dev);
-void rr_register_nvme_as(PCIDevice *dev);
+void rr_register_nvme_as(PCIDevice *dev, void *cb);
 void rr_replay_next_network_dma(int cpu_id);
 void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as);
 
@@ -286,7 +288,6 @@ void rr_do_insert_entry_breakpoints(CPUState *cpu);
 void set_checkpoint_interval(int interval);
 int get_checkpoint_interval(void);
 unsigned long replay_get_inst_cnt(void);
-void rr_do_replay_ide_dma(void);
 void rr_handle_queue_full(void);
 void rr_rotate_shm_queue(void);
 int replay_finished(void);

@@ -1336,7 +1336,7 @@ static void nvme_post_cqes(void *opaque)
         }
 
         if (rr_in_record())
-            rr_append_general_dma_sg( (void *)&req->cqe, sizeof(req->cqe), addr);
+            rr_append_general_dma_sg(DEV_TYPE_NVME, (void *)&req->cqe, sizeof(req->cqe), addr);
 
         QTAILQ_REMOVE(&cq->req_list, req, entry);
         nvme_inc_cq_tail(cq);
@@ -6709,7 +6709,8 @@ static int nvme_init_pci(NvmeCtrl *n, PCIDevice *pci_dev, Error **errp)
         nvme_init_pmr(n, pci_dev);
     }
 
-    register_nvme_cb(nvme_rw_cb);
+    rr_register_nvme_as(pci_dev, nvme_rw_cb);
+    // register_nvme_cb(nvme_rw_cb);
 
     return 0;
 }
@@ -7017,7 +7018,7 @@ static int nvme_drive_post_load(void *opaque, int version_id)
     }
 
     if (rr_in_replay())
-        rr_register_nvme_as(&n->parent_obj);
+        rr_register_nvme_as(&n->parent_obj, nvme_rw_cb);
 
     return 0;
 }

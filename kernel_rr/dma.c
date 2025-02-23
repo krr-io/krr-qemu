@@ -26,11 +26,12 @@
 #include "hw/ide/pci.h"
 #include "hw/ide/internal.h"
 
-#define DEV_IDE 0;
-#define DEV_NVME 1;
+#define DEV_IDE 0
+#define DEV_NVME 1
+
+#define MAX_DEV_NUM 8
 
 const char *kernel_rr_dma_log = "kernel_rr_dma.log";
-static AddressSpace *dma_as = NULL;
 
 void *nvme_cb_func = NULL;
 static bool kernel_only = true;
@@ -40,40 +41,125 @@ static unsigned long total_buf_cnt = 0;
 static unsigned long total_buf_size = 0;
 
 
+typedef struct rr_dma_dev_t {
+    int dev_type;
+    AddressSpace *as;
+    PCIDevice *pdev;
+    char *dev_id;
+    int ignore;
+    void *dma_cb;
+    rr_dma_queue *dma_queue;
+    rr_dma_entry *pending_dma_entry;
+    int dev_index;
+} rr_dma_dev;
+
+typedef struct rr_dma_dev_manager_t {
+    int dev_num;
+    rr_dma_dev *dev_list[MAX_DEV_NUM];
+} rr_dma_manager;
+
+static rr_dma_manager *dma_manager = NULL;
+
+
+void rr_init_dma(void)
+{
+    dma_manager = (rr_dma_manager *)malloc(sizeof(struct rr_dma_dev_manager_t));
+    dma_manager->dev_num = 0;
+}
+
 unsigned long get_dma_buf_size(void) {
     return total_buf_size;
 }
 
-void rr_register_nvme_as(PCIDevice *dev)
+static rr_dma_dev* lookup_dev_with_index(int dev_index)
 {
-    if (dma_as != NULL)
-        printf("Notice: DMA address space is about to be replaced\n");
+    size_t i = 0;
 
-    dma_as = pci_get_address_space(dev);
-    if (dma_as != NULL) {
-        printf("initialized dma as\n");
+    for (i = 0; i < dma_manager->dev_num; i++) {
+        if (dma_manager->dev_list[i]->dev_index == dev_index) {
+            return dma_manager->dev_list[i];
+        }
     }
+
+    return NULL;
 }
 
-void rr_register_ide_as(IDEDMA *dma)
+static void register_dma_dev(PCIDevice *pci_dev, void *dma_cb, int dev_type)
 {
-    if (dma_as != NULL) {
+    rr_dma_dev *rr_dev = (rr_dma_dev *)malloc(sizeof(struct rr_dma_dev_t));
+    DeviceState *dev = DEVICE(pci_dev);
+
+    if (lookup_dev_with_index(pci_dev->devfn) != NULL) {
         return;
     }
 
+    rr_dev->as = pci_get_address_space(pci_dev);
+    rr_dev->pdev = pci_dev;
+    rr_dev->dev_id = g_strdup(dev->id);
+    rr_dev->dma_cb = dma_cb;
+    rr_dev->dev_index = pci_dev->devfn;
+    rr_dev->dev_type = dev_type;
+    rr_dev->dma_queue = NULL;
+
+    dma_manager->dev_list[dma_manager->dev_num++] = rr_dev;
+
+    LOG_MSG("Resgitered DMA device[%s] %d %u\n", pci_dev->name, rr_dev->dev_index, pci_dev->devfn);
+}
+
+static rr_dma_dev* lookup_dev_with_dma_cb(void *cb)
+{
+    uint8_t i;
+
+    for (i = 0; i < dma_manager->dev_num; i++) {
+        if (dma_manager->dev_list[i]->dma_cb == cb) {
+            return dma_manager->dev_list[i];
+        }
+    }
+
+    return NULL;
+}
+
+static rr_dma_dev* lookup_dev_with_pdev(PCIDevice *pdev)
+{
+    uint8_t i;
+
+    for (i = 0; i < dma_manager->dev_num; i++) {
+        if (dma_manager->dev_list[i]->pdev == pdev) {
+            return dma_manager->dev_list[i];
+        }
+    }
+
+    return NULL;
+}
+
+static rr_dma_dev* lookup_nvme_dev(void)
+{
+    uint8_t i;
+
+    for (i = 0; i < dma_manager->dev_num; i++) {
+        if (dma_manager->dev_list[i]->dev_type == DEV_TYPE_NVME) {
+            return dma_manager->dev_list[i];
+        }
+    }
+
+    return NULL;
+}
+
+void rr_register_nvme_as(PCIDevice *dev, void *dma_cb)
+{
+    register_dma_dev(dev, dma_cb, DEV_TYPE_NVME);
+}
+
+void rr_register_ide_as(IDEDMA *dma, void *dma_cb)
+{
     BMDMAState *bm = DO_UPCAST(BMDMAState, dma, dma);
     PCIDevice *pci_dev = PCI_DEVICE(bm->pci_dev);
 
-    printf("Initialized dma address space\n");
-    dma_as = pci_get_address_space(pci_dev);
-
-    if (dma_as != NULL) {
-        printf("initialized dma as\n");
-    }
+    register_dma_dev(pci_dev, dma_cb, DEV_TYPE_IDE);
 }
 
-static rr_dma_queue *dma_queue = NULL;
-__attribute_maybe_unused__ static rr_dma_entry *pending_dma_entry = NULL;
+// static rr_dma_queue *dma_queue = NULL;
+// __attribute_maybe_unused__ static rr_dma_entry *pending_dma_entry = NULL;
 __attribute_maybe_unused__ static int entry_cnt = 0;
 
 static void log_addr_md5(void *ptr, size_t len, dma_addr_t base)
@@ -87,24 +173,34 @@ static void log_addr_md5(void *ptr, size_t len, dma_addr_t base)
 }
 
 
-void rr_append_general_dma_sg(void *buf, uint64_t len, uint64_t addr)
+void rr_append_general_dma_sg(int dev_type, void *buf, uint64_t len, uint64_t addr)
 {
     rr_sg_data *sgd = NULL;
+    rr_dma_dev *dev = NULL;
 
-    if (pending_dma_entry == NULL) {
-        pending_dma_entry = (rr_dma_entry*)malloc(sizeof(rr_dma_entry));
-        pending_dma_entry->len = 0;
-        pending_dma_entry->next = NULL;
+    if (dev_type == DEV_TYPE_NVME) {
+        dev = lookup_nvme_dev();
+    } else {
+        printf("No other device has been supported by rr_append_general_dma_sg\n");
+        abort();
+    }
+    assert(dev != NULL);
+
+    if (dev->pending_dma_entry == NULL) {
+        dev->pending_dma_entry = (rr_dma_entry*)malloc(sizeof(rr_dma_entry));
+        dev->pending_dma_entry->len = 0;
+        dev->pending_dma_entry->next = NULL;
+        dev->pending_dma_entry->dev_index = dev->dev_index;
     }
 
-    if (pending_dma_entry->len >= SG_NUM) {
+    if (dev->pending_dma_entry->len >= SG_NUM) {
         printf("Error: dma sg number exceeds max\n");
         free(sgd->buf);
         free(sgd);
         return;
     }
 
-    if (pending_dma_entry->len >= SG_NUM) {
+    if (dev->pending_dma_entry->len >= SG_NUM) {
         printf("Error: dma sg number exceeds max\n");
         return;
     }
@@ -117,25 +213,53 @@ void rr_append_general_dma_sg(void *buf, uint64_t len, uint64_t addr)
     sgd->len = len;
     
     total_buf_size += len;
-    pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
+    dev->pending_dma_entry->sgs[dev->pending_dma_entry->len++] = sgd;
 }
 
-__attribute_maybe_unused__ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb)
+static PCIDevice* ide_get_pci_get_dev(void *opaque)
+{
+    IDEState *s = opaque;
+    BMDMAState *bm = DO_UPCAST(BMDMAState, dma, s->bus->dma);
+    PCIDevice *pdev = PCI_DEVICE(bm->pci_dev);
+
+    return pdev;
+}
+
+void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque)
 {
     int i;
     __attribute_maybe_unused__ int res;
+    rr_dma_dev *dev;
+    rr_dma_entry *pending_dma_entry;
+    PCIDevice *pdev = NULL;
 
-    // if (entry_cnt > 1) {
-    //     return;
-    // }
+    dev = lookup_dev_with_dma_cb(cb);
 
-    if (cb == nvme_cb_func && kernel_only)
-        return; 
+    switch (dev->dev_type)
+    {
+    case DEV_IDE:
+        pdev = ide_get_pci_get_dev(opaque);
+        break;
+    case DEV_NVME:
+        break;
+    default:
+        printf("DMA of unkown device type %d\n", dev->dev_type);
+        abort();
+    }
+
+    if (pdev != NULL && pdev != dev->pdev) {
+        /* TODO */
+    }
+
+    pending_dma_entry = dev->pending_dma_entry;
 
     if (pending_dma_entry == NULL) {
         pending_dma_entry = (rr_dma_entry*)malloc(sizeof(rr_dma_entry));
         pending_dma_entry->len = 0;
         pending_dma_entry->next = NULL;
+        pending_dma_entry->dev_index = dev->dev_index;
+
+        dev->pending_dma_entry = pending_dma_entry;
     }
 
     for (i = 0; i < sg->nsg; i++) {
@@ -181,13 +305,19 @@ static void do_mark_dma_done_cpu(CPUState *cpu, run_on_cpu_data arg)
 {
     X86CPU *x86_cpu;
     CPUArchState *env;
+    rr_dma_dev *dev = lookup_nvme_dev();
+
+    assert(dev != NULL);
+
+    if (dev->pending_dma_entry == NULL)
+        return;
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
-    pending_dma_entry->inst_cnt = rr_get_inst_cnt(cpu);
-    pending_dma_entry->follow_num = get_recorded_num();
-    pending_dma_entry->rip = env->eip;
-    pending_dma_entry->cpu_id =cpu->cpu_index;
+    dev->pending_dma_entry->inst_cnt = rr_get_inst_cnt(cpu);
+    dev->pending_dma_entry->follow_num = get_recorded_num();
+    dev->pending_dma_entry->rip = env->eip;
+    dev->pending_dma_entry->cpu_id =cpu->cpu_index;
 }
 
 
@@ -195,8 +325,11 @@ void rr_end_nvme_dma_entry(void)
 {
     CPUState *cpu;
     int owner_id = 0;
+    rr_dma_dev *dev = lookup_nvme_dev();
 
-    if (pending_dma_entry == NULL)
+    assert(dev != NULL);
+
+    if (dev->pending_dma_entry == NULL)
         return;
 
     if (get_cpu_num() > 0) {
@@ -214,26 +347,34 @@ void rr_end_nvme_dma_entry(void)
         }
     }
 
-    pending_dma_entry->replayed_sgs = 0;
-    pending_dma_entry->dev_type = DEV_TYPE_NVME;
+    dev->pending_dma_entry->replayed_sgs = 0;
+    dev->pending_dma_entry->dev_type = DEV_TYPE_NVME;
 
-    dma_enqueue(dma_queue, pending_dma_entry);
-    pending_dma_entry = NULL;
+    dma_enqueue(dev->dma_queue, dev->pending_dma_entry);
+    dev->pending_dma_entry = NULL;
 
     entry_cnt++;
 }
 
 
-void rr_end_dma_entry(void)
+void rr_end_ide_dma_entry(IDEDMA *dma)
 {
-    if (pending_dma_entry == NULL)
+    rr_dma_dev *dev;
+    BMDMAState *bm = DO_UPCAST(BMDMAState, dma, dma);
+    PCIDevice *pci_dev = PCI_DEVICE(bm->pci_dev);
+
+    dev = lookup_dev_with_pdev(pci_dev);
+
+    assert(dev != NULL);
+
+    if (dev->pending_dma_entry == NULL)
         return;
 
-    pending_dma_entry->replayed_sgs = 0;
-    pending_dma_entry->dev_type = DEV_TYPE_IDE;
+    dev->pending_dma_entry->replayed_sgs = 0;
+    dev->pending_dma_entry->dev_type = DEV_TYPE_IDE;
 
-    dma_enqueue(dma_queue, pending_dma_entry);
-    pending_dma_entry = NULL;
+    dma_enqueue(dev->dma_queue, dev->pending_dma_entry);
+    dev->pending_dma_entry = NULL;
 
     entry_cnt++;
 
@@ -366,6 +507,8 @@ void rr_load_dma_logs(const char *log_file, rr_dma_queue *queue)
         log->follow_num = loaded_node.follow_num;
         log->cpu_id = loaded_node.cpu_id;
         log->dev_type = loaded_node.dev_type;
+        log->dev_index = loaded_node.dev_index;
+        log->next = NULL;
 
         qemu_log("Loaded DMA entry: len=%d inst_cnt=%lu, rip=%lx, follow_num=%lu, cpu_id=%d, dev_type=%d\n",
                  log->len, log->inst_cnt, log->rip, log->follow_num, log->cpu_id, log->dev_type);
@@ -378,9 +521,28 @@ void rr_load_dma_logs(const char *log_file, rr_dma_queue *queue)
 	}
 }
 
-rr_dma_entry* rr_fetch_next_dma_entry(void)
+rr_dma_entry* rr_fetch_next_dma_entry(int dev_type)
 {
-    return dma_queue->front;
+    size_t i;
+    unsigned long min_inst = ~0U;
+    rr_dma_entry *next = NULL;
+    unsigned long cur_inst;
+
+    for (i = 0; i < dma_manager->dev_num; i++) {
+        if (dma_manager->dev_list[i]->dev_type != dev_type)
+            continue;
+
+        if (dma_manager->dev_list[i]->dma_queue->front == NULL)
+            continue;
+
+        cur_inst = dma_manager->dev_list[i]->dma_queue->front->inst_cnt;
+        if (cur_inst < min_inst) {
+            next = dma_manager->dev_list[i]->dma_queue->front;
+            min_inst = cur_inst;
+        }
+    }
+
+    return next;
 }
 
 void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as)
@@ -388,7 +550,6 @@ void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as)
     int i;
     int res;
     void *mem;
-    CPUState *cpu;
 
     if (dma_entry == NULL) {
         return;
@@ -400,13 +561,6 @@ void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as)
     for (i = 0; i < dma_entry->len; i++) {
         rr_sg_data *sg = dma_entry->sgs[i];
         uint64_t len = sg->len;
-        // uint8_t buf[sg->len + 1];
-
-        if (sg->addr == 0x7d1a000) {
-            CPU_FOREACH(cpu) {
-                cpu->cause_debug = 1;
-            }
-        }
 
         printf("Replay dma addr 0x%lx\n", sg->addr);
 
@@ -450,19 +604,30 @@ void init_dma_queue(rr_dma_queue **queue)
 
 void rr_dma_pre_record(void)
 {
+    size_t i = 0;
     printf("Reset dma sg buffer\n");
     total_buf_cnt = 0;
     total_buf_size = 0;
-    init_dma_queue(&dma_queue);
+
+    for (i = 0; i < dma_manager->dev_num; i++) {
+        init_dma_queue(&(dma_manager->dev_list[i]->dma_queue));
+    }
+
     remove(kernel_rr_dma_log);
 }
 
 void rr_dma_pre_replay(void)
 {
-    rr_dma_pre_replay_common(kernel_rr_dma_log, &dma_queue);
+    size_t i = 0;
+    char fname[32];
+
+    for (i = 0; i < dma_manager->dev_num; i++) {
+        sprintf(fname, "kernel_rr_dma-%d.log", dma_manager->dev_list[i]->dev_index);
+        rr_dma_pre_replay_common(fname, &(dma_manager->dev_list[i]->dma_queue), dma_manager->dev_list[i]->dev_index);
+    }
 }
 
-void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **queue)
+void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **queue, int dev_index)
 {
     int entry_num = 0;
 
@@ -476,6 +641,7 @@ void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **queue)
         for (int i = 0; i < cur->len; i++) {
             log_addr_md5(cur->sgs[i]->buf, cur->sgs[i]->len, cur->sgs[i]->addr);
         }
+        cur->dev_index = dev_index;
 
         cur = cur->next;
         entry_num++;
@@ -486,24 +652,47 @@ void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **queue)
 
 void rr_dma_post_record(void)
 {
-    rr_save_dma_logs(kernel_rr_dma_log, dma_queue->front);
-    printf("Total dma buf cnt %lu size %lu\n", total_buf_cnt, total_buf_size);
+    size_t i = 0;
+    char fname[32];
 
-    dma_queue = NULL;
+    for (i = 0; i < dma_manager->dev_num; i++) {
+        sprintf(fname, "kernel_rr_dma-%d.log", dma_manager->dev_list[i]->dev_index);
+        remove(fname);
+        rr_save_dma_logs(fname, dma_manager->dev_list[i]->dma_queue->front);
+    }
+    printf("Total dma buf cnt %lu size %lu\n", total_buf_cnt, total_buf_size);
 
     return;
 }
 
-void rr_replay_next_dma(void)
+void rr_do_replay_ide_dma(IDEDMA *dma)
+{
+    rr_dma_done e = {};
+    BMDMAState *bm = DO_UPCAST(BMDMAState, dma, dma);
+    PCIDevice *pci_dev = PCI_DEVICE(bm->pci_dev);
+    rr_dma_dev *dev = lookup_dev_with_pdev(pci_dev);
+
+    if (rr_get_next_event()->type == EVENT_TYPE_DMA_DONE) {
+        append_to_queue(EVENT_TYPE_DMA_DONE, &e);
+        rr_replay_next_dma(dev->dev_index);
+        rr_pop_event_head();
+    }
+}
+
+void rr_replay_next_dma(int dev_index)
 {
     rr_dma_entry *front;
+    rr_dma_dev *dev;
 
-    front = dma_dequeue(dma_queue);
+    dev = lookup_dev_with_index(dev_index);
+    assert(dev != NULL);
+
+    front = dma_dequeue(dev->dma_queue);
     if (front == NULL) {
         return;
     }
 
-    do_replay_dma_entry(front, dma_as);
+    do_replay_dma_entry(front, dev->as);
 }
 
 void rr_check_dma_sg(__attribute_maybe_unused__ ScatterGatherEntry sg,

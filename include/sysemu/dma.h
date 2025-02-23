@@ -322,11 +322,10 @@ uint64_t dma_aligned_pow2_mask(uint64_t start, uint64_t end,
                                int max_addr_bits);
 
 
-void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb);
-void rr_end_dma_entry(void);
+void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque);
 void rr_dma_post_record(void);
 void rr_dma_pre_record(void);
-void rr_replay_next_dma(void);
+void rr_replay_next_dma(int dev_index);
 void rr_check_dma_sg(ScatterGatherEntry sg, QEMUSGList *sgList);
 void rr_get_dma_ctx(void);
 void rr_set_trap(void);

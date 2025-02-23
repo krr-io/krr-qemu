@@ -654,6 +654,8 @@ IDEDevice *ide_create_drive(IDEBus *bus, int unit, DriveInfo *drive);
 
 int ide_handle_rw_error(IDEState *s, int error, int op);
 
-void rr_register_ide_as(IDEDMA *dma);
+void rr_register_ide_as(IDEDMA *dma, void *dma_cb);
+void rr_end_ide_dma_entry(IDEDMA *dma);
+void rr_do_replay_ide_dma(IDEDMA *dma);
 
 #endif /* HW_IDE_INTERNAL_H */

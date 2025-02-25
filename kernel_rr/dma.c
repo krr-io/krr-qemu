@@ -301,54 +301,21 @@ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque
     }
 }
 
-static void do_mark_dma_done_cpu(CPUState *cpu, run_on_cpu_data arg)
+void rr_end_nvme_dma_entry(CPUState *cpu)
 {
-    X86CPU *x86_cpu;
-    CPUArchState *env;
     rr_dma_dev *dev = lookup_nvme_dev();
 
     assert(dev != NULL);
 
     if (dev->pending_dma_entry == NULL)
         return;
-
-    x86_cpu = X86_CPU(cpu);
-    env = &x86_cpu->env;
-    dev->pending_dma_entry->inst_cnt = rr_get_inst_cnt(cpu);
-    dev->pending_dma_entry->follow_num = get_recorded_num();
-    dev->pending_dma_entry->rip = env->eip;
-    dev->pending_dma_entry->cpu_id =cpu->cpu_index;
-}
-
-
-void rr_end_nvme_dma_entry(void)
-{
-    CPUState *cpu;
-    int owner_id = 0;
-    rr_dma_dev *dev = lookup_nvme_dev();
-
-    assert(dev != NULL);
-
-    if (dev->pending_dma_entry == NULL)
-        return;
-
-    if (get_cpu_num() > 0) {
-        owner_id = get_lock_owner();
-
-        if (owner_id == -1) {
-            owner_id = 0;
-        }
-    }
-
-    CPU_FOREACH(cpu) {
-        if (owner_id == cpu->cpu_index) {
-            run_on_cpu(cpu, do_mark_dma_done_cpu, RUN_ON_CPU_NULL);
-            break;
-        }
-    }
 
     dev->pending_dma_entry->replayed_sgs = 0;
     dev->pending_dma_entry->dev_type = DEV_TYPE_NVME;
+    dev->pending_dma_entry->cpu_id = cpu->cpu_index;
+    dev->pending_dma_entry->inst_cnt = rr_get_inst_cnt(cpu);
+    dev->pending_dma_entry->follow_num = get_recorded_num();
+    // dev->pending_dma_entry->rip = env->eip;
 
     dma_enqueue(dev->dma_queue, dev->pending_dma_entry);
     dev->pending_dma_entry = NULL;
@@ -510,7 +477,7 @@ void rr_load_dma_logs(const char *log_file, rr_dma_queue *queue)
         log->dev_index = loaded_node.dev_index;
         log->next = NULL;
 
-        qemu_log("Loaded DMA entry: len=%d inst_cnt=%lu, rip=%lx, follow_num=%lu, cpu_id=%d, dev_type=%d\n",
+        qemu_log("Loaded DMA entry: len=%d inst_cnt=%lu, rip=0x%lx, follow_num=%lu, cpu_id=%d, dev_type=%d\n",
                  log->len, log->inst_cnt, log->rip, log->follow_num, log->cpu_id, log->dev_type);
 
         // for (i = 0; i < log->len; i++) {

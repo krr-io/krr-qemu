@@ -154,7 +154,7 @@ static rr_event_loader *event_loader;
 
 
 #define DEBUG_POINTS_NUM 15
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff815ad5a1, 0xffffffff815abdb9, 0xffffffff815abb10};
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff815ad5a1, 0xffffffff815abdb9};
 static int point_index = 6;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
@@ -2494,12 +2494,16 @@ void try_replay_dma(CPUState *cs, int user_ctx)
     }
 
     head = rr_fetch_next_dma_entry(DEV_TYPE_NVME);
-    if (head != NULL){
-        if ((cs->cpu_index == head->cpu_id && cs->rr_executed_inst == head->inst_cnt - 1) ||
-            (user_ctx && head->inst_cnt == 0 && replayed_event_num + 1 >= head->follow_num)||
-            (head->cpu_id != cs->cpu_index && replayed_event_num + 1 >= head->follow_num)
+    while (head != NULL){
+        if ((cs->cpu_index == head->cpu_id && cs->rr_executed_inst == head->inst_cnt) ||
+            (user_ctx && head->inst_cnt == 0 && replayed_event_num + 1 >= head->follow_num)
+            ||(head->cpu_id != cs->cpu_index && replayed_event_num + 3 >= head->follow_num)
         ) {
+            printf("replay next dma user=%d replayed number=%d\n", user_ctx, replayed_event_num);
             rr_replay_next_dma(head->dev_index);
+            head = rr_fetch_next_dma_entry(DEV_TYPE_NVME);
+        } else {
+            break;
         }
     }
 }

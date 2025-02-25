@@ -256,7 +256,7 @@ void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **q, int dev_i
 void init_dma_queue(rr_dma_queue **queue);
 void rr_append_general_dma_sg(int dev_type, void *buf, uint64_t len, uint64_t addr);
 rr_dma_entry* rr_fetch_next_dma_entry(int dev_type);
-void rr_end_nvme_dma_entry(void);
+void rr_end_nvme_dma_entry(CPUState *cpu);
 
 rr_dma_entry* rr_fetch_next_network_dme_entry(int cpu_id);
 

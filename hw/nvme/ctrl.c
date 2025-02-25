@@ -166,6 +166,7 @@
 #include "dif.h"
 #include "trace.h"
 #include "sysemu/kernel-rr.h"
+#include "hw/core/cpu.h"
 
 #define NVME_MAX_IOQPAIRS 0xffff
 #define NVME_DB_SIZE  4
@@ -1348,11 +1349,37 @@ static void nvme_post_cqes(void *opaque)
             n->cq_pending++;
         }
 
-        if (rr_in_record()) {
-            rr_end_nvme_dma_entry();
-        }
-
         nvme_irq_assert(n, cq);
+    }
+}
+
+static void run_nvme_post_cqes_cpu(CPUState *cpu, run_on_cpu_data arg)
+{
+    nvme_post_cqes((void *)arg.host_ptr);
+    if (rr_in_record()) {
+        rr_end_nvme_dma_entry(cpu);
+    }
+}
+
+static void nvme_post_cqes_rr(void *opaque)
+{
+    int owner_id = -1;
+    CPUState *cpu;
+    run_on_cpu_data data = RUN_ON_CPU_HOST_PTR(opaque);
+
+    if (get_cpu_num() > 0) {
+        owner_id = get_lock_owner();
+        if (owner_id == -1) {
+            owner_id = 0;
+        }
+        qemu_log("injecting cqe current owner %d\n", owner_id);
+    }
+
+    CPU_FOREACH(cpu) {
+        if (owner_id == cpu->cpu_index) {
+            run_on_cpu(cpu, run_nvme_post_cqes_cpu, data);
+            break;
+        }
     }
 }
 
@@ -1371,7 +1398,10 @@ static void nvme_enqueue_req_completion(NvmeCQueue *cq, NvmeRequest *req)
 
     QTAILQ_REMOVE(&req->sq->out_req_list, req, entry);
     QTAILQ_INSERT_TAIL(&cq->req_list, req, entry);
-    timer_mod(cq->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
+    if (rr_in_record())
+        timer_mod(cq->rr_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
+    else
+        timer_mod(cq->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
 }
 
 static void nvme_process_aers(void *opaque)
@@ -4626,6 +4656,7 @@ static void nvme_init_cq(NvmeCQueue *cq, NvmeCtrl *n, uint64_t dma_addr,
     QTAILQ_INIT(&cq->sq_list);
     n->cq[cqid] = cq;
     cq->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, nvme_post_cqes, cq);
+    cq->rr_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, nvme_post_cqes_rr, cq);
 }
 
 static uint16_t nvme_create_cq(NvmeCtrl *n, NvmeRequest *req)
@@ -6419,7 +6450,10 @@ static void nvme_process_db(NvmeCtrl *n, hwaddr addr, int val)
             QTAILQ_FOREACH(sq, &cq->sq_list, entry) {
                 timer_mod(sq->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
             }
-            timer_mod(cq->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
+            if (rr_in_record())
+                timer_mod(cq->rr_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
+            else
+                timer_mod(cq->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
         }
 
         if (cq->tail == cq->head) {

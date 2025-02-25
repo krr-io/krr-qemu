@@ -385,6 +385,7 @@ typedef struct NvmeCQueue {
     uint32_t    size;
     uint64_t    dma_addr;
     QEMUTimer   *timer;
+    QEMUTimer   *rr_timer;
     QTAILQ_HEAD(, NvmeSQueue) sq_list;
     QTAILQ_HEAD(, NvmeRequest) req_list;
 } NvmeCQueue;

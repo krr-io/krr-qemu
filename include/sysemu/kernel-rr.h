@@ -104,7 +104,6 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input);
 void rr_do_replay_syscall(CPUState *cpu);
 void rr_do_replay_exception(CPUState *cpu, int user_mode);
 void rr_do_replay_exception_end(CPUState *cpu);
-void rr_do_replay_strncpy_from_user(CPUState *cpu, int post_exception);
 void rr_post_replay_exception(CPUState *cpu);
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc);
 void rr_do_replay_gfu(CPUState *cpu);
@@ -139,7 +138,6 @@ int rr_get_ignore_record(void);
 void handle_rr_checkpoint(CPUState *cpu);
 
 void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long inst_cnt);
-void rr_do_replay_strnlen_user(CPUState *cpu);
 void rr_do_replay_release(CPUState *cpu);
 void rr_do_replay_sync_inst(CPUState *cpu);
 void cause_other_cpu_debug(CPUState *cpu);

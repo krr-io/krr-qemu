@@ -6744,7 +6744,6 @@ static int nvme_init_pci(NvmeCtrl *n, PCIDevice *pci_dev, Error **errp)
     }
 
     rr_register_nvme_as(pci_dev, nvme_rw_cb);
-    // register_nvme_cb(nvme_rw_cb);
 
     return 0;
 }

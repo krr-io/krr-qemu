@@ -1115,11 +1115,6 @@ int cpu_exec(CPUState *cpu)
                 cpu->cflags_next_tb = -1;
             }
 
-            // if (cpu->rr_executed_inst == 12182705) {
-            //     cpu->cause_debug = 1;
-            //     breaked = true;
-            // }
-
             if (cpu->interrupt_replayed) {
                 cpu->interrupt_replayed = 0;
                 break_while = true;
@@ -1213,13 +1208,6 @@ int cpu_exec(CPUState *cpu)
                 case RR_PAGE_MAP:
                     rr_do_replay_page_map(cpu);
                     break;
-                // case RR_RECORD_GFU:
-                // case RR_GFU_NOCHECK1:
-                // case RR_GFU_NOCHECK4:
-                // case RR_GFU_NOCHECK8:
-                // case RR_GFU4:
-                //     rr_do_replay_gfu(cpu);
-                //     break;
                 case RANDOM_GEN:
                     rr_do_replay_rand(cpu, 0);
                     break;
@@ -1252,10 +1240,6 @@ int cpu_exec(CPUState *cpu)
                 case COSTUMED1:
                 case COSTUMED2:
                 case COSTUMED3:
-                // case RR_HANDLE_IRQ:
-                // case RR_RECORD_IRQ:
-                // case PF_ASM_EXC:
-                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
                 case LOCK_RELEASE:
                     rr_do_replay_release(cpu);
@@ -1269,24 +1253,6 @@ int cpu_exec(CPUState *cpu)
                 // qemu_log("Reach breakpoint\n");
                 cause_other_cpu_debug(cpu);
                 break;
-            }
-            // if (singlestep_started && count_num) {
-            //     rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-
-            //     if (tb->pc == singlestep_end) {
-            //         singlestep_started = false;
-            //         count_num--;
-            //     }
-            // }
-
-            // if (!singlestep_started && count_num && tb->pc == singlestep_start) {
-            //     singlestep_started = true;
-            //     rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-            // }
-
-            if (should_log_trace(cpu)) {
-                // qemu_log("\nExecute TB:\n");
-                // qemu_log("Reduced inst cnt: %lu, real cnt: %lu\n", cpu->rr_executed_inst, cpu->rr_guest_instr_count);
             }
 
             replay_snapshot_checkpoint();
@@ -1306,11 +1272,6 @@ int cpu_exec(CPUState *cpu)
             cpu->last_pc = tb->pc;
 
             cpu_loop_exec_tb(cpu, tb, &last_tb, &tb_exit);
-
-            // if (rr_in_replay()) {
-            //     qemu_log("end execute tb, executed inst %lu, real inst %lu\n\n",
-            //              cpu->rr_executed_inst, cpu->rr_guest_instr_count);
-            // }
 
             /* Try to align the host and virtual clocks
                if the guest is in advance */

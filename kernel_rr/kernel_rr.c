@@ -924,6 +924,7 @@ void rr_do_replay_gfu(CPUState *cpu)
         rr_pop_event_head();
 }
 
+__attribute_maybe_unused__
 static void rr_handle_pending_pf_in_cfu(rr_event_log *cur_node)
 {
     if (cur_node->next->type == EVENT_TYPE_EXCEPTION) {
@@ -1282,27 +1283,6 @@ void rr_do_replay_gfu_begin(CPUState *cpu, int post_exception)
             return;
         }
     }
-
-    // if (env->eip == RR_GFU_BEGIN && env->regs[R_EDX] == 1) {
-    //     // unaligned = node->event.gfu.ptr % node->event.gfu.size;
-    //     original = node->event.gfu.ptr;
-    //     base = env->regs[R_EBX];
-    //     diff = node->event.gfu.ptr - base;
-    //     // if (is_valid_user_space_address(env->regs[R_EBX])) {
-    //     //     if (unaligned > 0 || diff % node->event.gfu.size == 0) {
-    //     //         node->event.gfu.ptr = env->regs[R_EBX] + diff * node->event.gfu.size;
-    //     //     }
-    //     // } else {
-    //     // if (unaligned > 0)
-    //     //     node->event.gfu.ptr = (node->event.gfu.ptr - unaligned) + (unaligned * node->event.gfu.size);
-    //     // }
-    //     if (diff != 0 && diff == env->regs[R_EBP] && is_valid_user_space_address(base)) {
-    //         node->event.gfu.ptr = base + diff * node->event.gfu.size;
-    //         LOG_MSG("align the ptr addr diff=0x%lu base=0x%lx, 0x%lx -> 0x%lx\n",
-    //                 diff, base, original, node->event.gfu.ptr);
-    //     }
-    //     // node->event.gfu.ptr = ((node->event.gfu.ptr / node->event.gfu.size) + 1) * node->event.gfu.size;
-    // }
 
     ret = cpu_memory_rw_debug(cpu, node->event.gfu.ptr,
                             &node->event.gfu.val,

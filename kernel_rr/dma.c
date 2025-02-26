@@ -33,7 +33,6 @@
 
 const char *kernel_rr_dma_log = "kernel_rr_dma.log";
 
-void *nvme_cb_func = NULL;
 static bool kernel_only = true;
 static bool record_net = true;
 
@@ -692,21 +691,6 @@ void rr_get_dma_ctx(void)
 
         qemu_log("Current RIP=0x%lx\n", env->eip);
     }
-}
-
-void register_nvme_cb(void *func)
-{
-    printf("NVME cb is %p\n", func);
-    nvme_cb_func = func;
-}
-
-__attribute_maybe_unused__
-int skip_record_dma(void *cb_func)
-{
-    if (kernel_only && cb_func == nvme_cb_func)
-        return 1;
-
-    return 0;
 }
 
 int get_kernel_only(void)

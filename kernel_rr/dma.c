@@ -36,9 +36,10 @@ const char *kernel_rr_dma_log = "kernel_rr_dma.log";
 static bool kernel_only = true;
 static bool record_net = true;
 
-static unsigned long total_buf_cnt = 0;
-static unsigned long total_buf_size = 0;
-
+typedef struct rr_dma_stat_t {
+    unsigned long total_buf_cnt;
+    unsigned long total_buf_size;
+} rr_dma_stat;
 
 typedef struct rr_dma_dev_t {
     int dev_type;
@@ -55,6 +56,7 @@ typedef struct rr_dma_dev_t {
 typedef struct rr_dma_dev_manager_t {
     int dev_num;
     rr_dma_dev *dev_list[MAX_DEV_NUM];
+    rr_dma_stat *stat;
 } rr_dma_manager;
 
 static rr_dma_manager *dma_manager = NULL;
@@ -64,10 +66,9 @@ void rr_init_dma(void)
 {
     dma_manager = (rr_dma_manager *)malloc(sizeof(struct rr_dma_dev_manager_t));
     dma_manager->dev_num = 0;
-}
-
-unsigned long get_dma_buf_size(void) {
-    return total_buf_size;
+    dma_manager->stat = (rr_dma_stat *)malloc(sizeof(struct rr_dma_stat_t));
+    dma_manager->stat->total_buf_cnt = 0;
+    dma_manager->stat->total_buf_size = 0;
 }
 
 static rr_dma_dev* lookup_dev_with_index(int dev_index)
@@ -144,6 +145,11 @@ static rr_dma_dev* lookup_nvme_dev(void)
     return NULL;
 }
 
+unsigned long get_dma_buf_size(void)
+{
+    return dma_manager->stat->total_buf_size;
+}
+
 void rr_register_nvme_as(PCIDevice *dev, void *dma_cb)
 {
     register_dma_dev(dev, dma_cb, DEV_TYPE_NVME);
@@ -211,7 +217,7 @@ void rr_append_general_dma_sg(int dev_type, void *buf, uint64_t len, uint64_t ad
     sgd->addr = addr;
     sgd->len = len;
     
-    total_buf_size += len;
+    dma_manager->stat->total_buf_size += len;
     dev->pending_dma_entry->sgs[dev->pending_dma_entry->len++] = sgd;
 }
 
@@ -291,8 +297,8 @@ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque
             return;
         }
 
-        total_buf_size += sg->sg[i].len;
-        total_buf_cnt++;
+        dma_manager->stat->total_buf_size += sg->sg[i].len;
+        dma_manager->stat->total_buf_cnt++;
 
         pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
 
@@ -572,8 +578,8 @@ void rr_dma_pre_record(void)
 {
     size_t i = 0;
     printf("Reset dma sg buffer\n");
-    total_buf_cnt = 0;
-    total_buf_size = 0;
+    dma_manager->stat->total_buf_cnt = 0;
+    dma_manager->stat->total_buf_size = 0;
 
     for (i = 0; i < dma_manager->dev_num; i++) {
         init_dma_queue(&(dma_manager->dev_list[i]->dma_queue));
@@ -626,7 +632,9 @@ void rr_dma_post_record(void)
         remove(fname);
         rr_save_dma_logs(fname, dma_manager->dev_list[i]->dma_queue->front);
     }
-    printf("Total dma buf cnt %lu size %lu\n", total_buf_cnt, total_buf_size);
+    printf("Total dma buf cnt %lu size %lu\n",
+           dma_manager->stat->total_buf_cnt,
+           dma_manager->stat->total_buf_size);
 
     return;
 }

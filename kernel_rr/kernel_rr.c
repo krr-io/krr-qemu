@@ -78,9 +78,7 @@ static int event_rdtsc_num = 0;
 static int event_cfu_num = 0;
 static int event_gfu_num = 0;
 static int event_pte_num = 0;
-static int event_random_num = 0;
-static int event_dma_done = 0; // Unused
-static int event_strnlen = 0;
+static int event_dma_done = 0;
 static int event_rdseed_num = 0;
 static int event_release = 0;
 static int event_sync_inst = 0;
@@ -96,7 +94,7 @@ static int total_event_number = 0;
 __attribute_maybe_unused__ static bool log_loaded = false;
 
 static int bt_started = 0;
-static unsigned long bp = 0xffffffff8108358f;
+static unsigned long bp = 0;
 
 static int gdb_stopped = 1;
 static int count_syscall = 0;
@@ -542,8 +540,8 @@ void inc_replayed_number(void)
 static int get_total_events_num(void)
 {
     return event_interrupt_num + event_syscall_num + event_exception_num + \
-           event_cfu_num + event_random_num + event_io_input_num + event_rdtsc_num + \
-           event_dma_done + event_gfu_num + event_strnlen + event_rdseed_num + \
+           event_cfu_num + event_io_input_num + event_rdtsc_num + \
+           event_dma_done + event_gfu_num + event_rdseed_num + \
            event_release + event_pte_num;
 }
 
@@ -1108,7 +1106,7 @@ void rr_do_replay_io_uring_read_tail(CPUState *cpu)
 {
     rr_event_log *node;
     X86CPU *x86_cpu;
-    CPUArchState *env;
+    __attribute_maybe_unused__ CPUArchState *env;
     int ret;
 
     x86_cpu = X86_CPU(cpu);
@@ -1146,7 +1144,7 @@ void rr_do_replay_io_uring_read_entry(CPUState *cpu)
 {
     rr_event_log *node;
     X86CPU *x86_cpu;
-    CPUArchState *env;
+    __attribute_maybe_unused__ CPUArchState *env;
     int ret;
 
     x86_cpu = X86_CPU(cpu);
@@ -1436,14 +1434,6 @@ rr_event_log_new_from_event(rr_event_log event, int record_mode)
         event_record->event.cfu.data = event.event.cfu.data;
 
         event_cfu_num++;
-        break;
-    case EVENT_TYPE_RANDOM:
-        memcpy(&event_record->event.rand, &event.event.rand, sizeof(rr_random));
-        event_random_num++;
-        break;
-    case EVENT_TYPE_STRNLEN:
-        memcpy(&event_record->event.cfu, &event.event.cfu, sizeof(rr_cfu));
-        event_strnlen++;
         break;
     case EVENT_TYPE_MMIO:
         memcpy(&event_record->event.io_input, &event.event.io_input, sizeof(rr_io_input));
@@ -1799,16 +1789,6 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
 
         event_cfu_num++;
         break;
-    case EVENT_TYPE_RANDOM:
-        copied_size = sizeof(rr_random);
-        memcpy(&event_record->event.rand, event, copied_size);
-        event_random_num++;
-        break;
-    case EVENT_TYPE_STRNLEN:
-        copied_size = sizeof(rr_cfu);
-        memcpy(&event_record->event.cfu, event, copied_size);
-        event_strnlen++;
-        break;
     case EVENT_TYPE_RDSEED:
         copied_size = sizeof(rr_gfu);
         memcpy(&event_record->event.gfu, event, sizeof(rr_gfu));
@@ -1902,13 +1882,13 @@ void rr_print_events_stat(void)
 
     printf("=== Event Stats ===\n");
 
-    sprintf(msg, "Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\nRandom: %d\n"
-            "IO Input: %d\nRDTSC: %d\nStrnlen: %d\nRDSEED: %d\nPTE: %d\nInst Sync: %d\n"
+    sprintf(msg, "Interrupt: %d\nSyscall: %d\nException: %d\nCFU: %d\nGFU: %d\n"
+            "IO Input: %d\nRDTSC: %d\nRDSEED: %d\nPTE: %d\nInst Sync: %d\n"
             "DMA Buf Size: %lu\nTotal Replay Events: %d\nTime(s): %.2f\n",
             event_interrupt_num, event_syscall_num, event_exception_num,
-            event_cfu_num, event_gfu_num, event_random_num, event_io_input_num,
-            event_rdtsc_num, event_strnlen, event_rdseed_num, event_pte_num,
-            event_sync_inst, get_dma_buf_size(), total_event_number, duration / 1000);
+            event_cfu_num, event_gfu_num, event_io_input_num, event_rdtsc_num,
+            event_rdseed_num, event_pte_num, event_sync_inst, get_dma_buf_size(),
+            total_event_number, duration / 1000);
 
     LOG_MSG("%s", msg);
 
@@ -2553,7 +2533,7 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
         if (matched) {
             // cpu->rr_executed_inst--;
             *interrupt = CPU_INTERRUPT_HARD;
-            qemu_log("Ready to replay int request, cr0=%lx\n", env->cr[0]);
+            LOG_MSG("Ready to replay int request, cr0=%lx\n", env->cr[0]);
             // dump_cpus_state();
             // cpu->rr_executed_inst++;
 
@@ -2751,12 +2731,7 @@ void rr_do_replay_exception_end(CPUState *cpu)
         printf("Expected PF address: 0x%lx\n", env->cr[2]);
     }
 
-    printf("[CPU %d]Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
-           cpu->cpu_index, rr_event_log_head->event.exception.exception_index,
-           rr_event_log_head->event.exception.cr2,
-           rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code, replayed_event_num);
-
-    qemu_log("[CPU %d]Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
+    LOG_MSG("[CPU %d]Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
             cpu->cpu_index, rr_event_log_head->event.exception.exception_index,
             rr_event_log_head->event.exception.cr2,
             rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code, replayed_event_num);
@@ -3113,7 +3088,7 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
 {
     X86CPU *x86_cpu;
     CPUArchState *env;
-    rr_event_log *node = rr_event_log_head;
+    __attribute_maybe_unused__ rr_event_log *node = rr_event_log_head;
 
     if (rr_event_log_head == NULL) {
         qemu_log("No events anymore\n");
@@ -3161,7 +3136,7 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
                  "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replay eflags=0x%lx, record eflags=0x%llx, replayed event number=%d\n",
                  cpu->cpu_index, *intno, env->eip, cpu->rr_executed_inst,
                  rr_event_log_head->id, env->cr[0], env->eflags, node->event.interrupt.regs.rflags, replayed_event_num); */
-        printf("[CPU %d]Replayed interrupt vector=%d, RIP on replay=0x%lx,"\
+        LOG_MSG("[CPU %d]Replayed interrupt vector=%d, RIP on replay=0x%lx,"\
                  "inst_cnt=%lu, cpu_id=%d, cr0=%lx, replay eflags=0x%lx, record eflags=0x%llx replayed event number=%d\n",
                  cpu->cpu_index, *intno, env->eip, cpu->rr_executed_inst,
                  rr_event_log_head->id, env->cr[0],  env->eflags, node->event.interrupt.regs.rflags, replayed_event_num);

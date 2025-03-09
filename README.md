@@ -5,6 +5,21 @@ KRR is record-replay tool targeting Linux kernel and it's implemented based on Q
 ## Hardware Requirement
 KRR only supports Intel processor now.
 
+Supported Disk Emulation:
+| Disk Type | Description |
+| ------------- | ------------- |
+| IDE | Supported  |
+| NVMe(not including multi namespace) | Supported  |
+| Virtio  | TODO  |
+
+Supported Networ Emulation:
+| Network Type | Description |
+| ------------- | ------------- |
+| E1000 | Supported  |
+| virtio-net | TODO  |
+| vhost-net  | TODO  |
+
+
 ## Record
 
 ### Install KRR KVM

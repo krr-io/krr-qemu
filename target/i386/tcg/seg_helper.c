@@ -2131,7 +2131,7 @@ static inline void helper_ret_protected(CPUX86State *env, int shift,
         if (shift == 0) {
             eflags_mask &= 0xffff;
         }
-        qemu_log("iret newflag=0x%x\n", new_eflags);
+        // qemu_log("iret newflag=0x%x\n", new_eflags);
         cpu_load_eflags(env, new_eflags, eflags_mask);
     }
     return;

@@ -100,7 +100,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
                 break;
             case EVENT_TYPE_EXCEPTION:
                 tb->jump_next_event = EVENT_TYPE_EXCEPTION;
-                qemu_log("Next event exception\n");
+                // qemu_log("Next event exception\n");
                 break;
             default:
                 qemu_log("Unexpected next event %d, rip=0x%lx\n", next_event, log->rip);

@@ -108,6 +108,9 @@ static bool should_log_trace(CPUState *cpu)
     */
 
     // int replayed_num = get_replayed_event_num();
+    // if (cpu->cpu_index != 1)
+    //     return false;
+
     if (log_start > 0) {
         if (log_end == 0)
             return cpu->rr_executed_inst > log_start;
@@ -1222,15 +1225,15 @@ int cpu_exec(CPUState *cpu)
                 case RR_HANDLE_SYSCALL:
                     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;
-                case RR_RECORD_SYSCALL:
-                    sync_syscall_spin_cnt(cpu);
-                    // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
-                    break;
                 case RR_IO_URING_BEGIN:
                     rr_do_replay_io_uring_read_tail(cpu);
                     break;
                 case RR_IO_URING_RECORD_ENTRY:
                     rr_do_replay_io_uring_read_entry(cpu);
+                    break;
+                case RR_LOCK_ACQUIRE_RET:
+                    sync_syscall_spin_cnt(cpu);
+                    replay_lock_acquire_result(cpu);
                     break;
                 case SYSCALL_ENTRY:
                 case IRQ_ENTRY:

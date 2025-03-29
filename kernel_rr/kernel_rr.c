@@ -152,7 +152,7 @@ static rr_event_loader *event_loader;
 
 
 #define DEBUG_POINTS_NUM 15
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff815ad5a1, 0xffffffff815abdb9};
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff815f9bfc};
 static int point_index = 6;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
@@ -450,10 +450,16 @@ static void initialize_replay_snapshots(void)
 }
 
 static void initialize_replay(void) {
+    CPUState *cpu;
+
     qemu_mutex_init(&replay_queue_mutex);
     qemu_cond_init(&replay_cond);
 
     initialize_replay_snapshots();
+
+    CPU_FOREACH(cpu) {
+        cpu->rr_cached_spin_count = 0;
+    }
 
     printf("Initialized replay, cpu number=%d\n", cpu_cnt);
     replay_start_time = clock();
@@ -584,6 +590,7 @@ static void rr_init_ram_bitmaps(void) {
 static void sync_spin_inst_cnt(CPUState *cpu, rr_event_log *event)
 {
     long spin_cnt_diff = 0;
+    unsigned long spin_cnt = 0;
 
     if (cpu_cnt == 1) {
         // Spin cnt sync is only for SMP
@@ -592,9 +599,14 @@ static void sync_spin_inst_cnt(CPUState *cpu, rr_event_log *event)
 
     if (event->type == EVENT_TYPE_INTERRUPT) {
         spin_cnt_diff = event->event.interrupt.spin_count * 3;
+        spin_cnt = event->event.interrupt.spin_count;
     } else if (event->type == EVENT_TYPE_EXCEPTION) {
-        qemu_log("spin_cnt_diff=%ld\n", spin_cnt_diff);
         spin_cnt_diff = event->event.exception.spin_count * 3;
+        spin_cnt = event->event.exception.spin_count;
+    }
+
+    if (spin_cnt > 0) {
+        cpu->rr_cached_spin_count = spin_cnt;
     }
 
     if (spin_cnt_diff < 0)
@@ -612,13 +624,18 @@ void sync_syscall_spin_cnt(CPUState *cpu)
         return;
     }
 
+    if (syscall_spin_cnt == 0) {
+        return;
+    }
+
     if (syscall_spin_cnt != 0) {
         cpu->rr_executed_inst += syscall_spin_cnt * 3;
     }
-    
-    if (syscall_spin_cnt > 0)
-        qemu_log("Syscall synced inst count to %lu\n", cpu->rr_executed_inst);
 
+    if (syscall_spin_cnt > 0) {
+        cpu->rr_cached_spin_count = syscall_spin_cnt;
+        qemu_log("Syscall synced inst count to %lu\n", cpu->rr_executed_inst);
+    }
     syscall_spin_cnt = 0;
 }
 
@@ -1322,6 +1339,7 @@ finish:
 
 void rr_do_replay_sync_inst(CPUState *cpu)
 {
+    rr_event_log_guest event = {};
 
     qemu_mutex_lock(&replay_queue_mutex);
     if (rr_event_log_head->type != EVENT_TYPE_INST_SYNC) {
@@ -1329,10 +1347,13 @@ void rr_do_replay_sync_inst(CPUState *cpu)
         cpu->cause_debug = true;
         goto finish;
     }
+
     cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
+    event.inst_cnt = rr_event_log_head->inst_cnt;
 
     LOG_MSG("[CPU %d]Replayed inst sync to %lu\n", cpu->cpu_index, rr_event_log_head->inst_cnt);
 
+    append_to_queue(EVENT_TYPE_INST_SYNC, &event);
     rr_pop_event_head();
 
 finish:
@@ -2271,11 +2292,12 @@ void try_replay_dma(CPUState *cs, int user_ctx)
 
     head = rr_fetch_next_dma_entry(DEV_TYPE_NVME);
     while (head != NULL){
-        if ((cs->cpu_index == head->cpu_id && cs->rr_executed_inst == head->inst_cnt) ||
+        if ((cs->cpu_index == head->cpu_id && cs->rr_executed_inst == head->inst_cnt - 3) ||
             (user_ctx && head->inst_cnt == 0 && replayed_event_num + 1 >= head->follow_num)
-            ||(head->cpu_id != cs->cpu_index && replayed_event_num + 3 >= head->follow_num)
+            ||(head->cpu_id != cs->cpu_index && replayed_event_num + 1 >= head->follow_num)
         ) {
-            printf("replay next dma user=%d replayed number=%d\n", user_ctx, replayed_event_num);
+            printf("[CPU-%d]replay next dma user=%d replayed number=%d, executed=%lu, entry_cpu=%d, entry_executed=%lu\n",
+                  cs->cpu_index, user_ctx, replayed_event_num, cs->rr_executed_inst, head->cpu_id, head->inst_cnt);
             rr_replay_next_dma(head->dev_index);
             head = rr_fetch_next_dma_entry(DEV_TYPE_NVME);
         } else {
@@ -2996,6 +3018,15 @@ finish:
 
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
 {
+    X86CPU *x86_cpu;
+    CPUArchState *env;
+    // verify_inst is true only when we do rdtsc exit during record,
+    // for verification only.
+    bool verify_inst = false;
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
     qemu_mutex_lock(&replay_queue_mutex);
 
     if (rr_event_log_head->type != EVENT_TYPE_RDTSC) {
@@ -3005,6 +3036,16 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
         cpu->cause_debug = true;
         // rr_pop_event_head();
         goto finish;
+    }
+
+    if (verify_inst) {
+        if (cpu->rr_executed_inst != rr_event_log_head->inst_cnt) {
+            LOG_MSG("RDTSC: Expected %lu inst, found %lu, rip=0x%lx, cpu_id=%d\n",
+                    rr_event_log_head->inst_cnt,
+                    cpu->rr_executed_inst, env->eip, cpu->cpu_index);
+            cpu->cause_debug = 1;
+            goto finish;
+        }
     }
 
     *tsc = rr_event_log_head->event.io_input.value;
@@ -3569,6 +3610,9 @@ void append_to_queue(int type, void *opaque)
     case EVENT_TYPE_EXCEPTION:
         event_size = sizeof(rr_exception);
         break;
+    case EVENT_TYPE_INST_SYNC:
+        event_size = sizeof(rr_event_log_guest);
+        break;
     default:
         printf("Unexpected event type %d\n", type);
         abort();
@@ -3747,4 +3791,34 @@ int replay_find_nearest_snapshot(unsigned long inst_cnt)
     printf("nearest inst=%lu, event_type=%d\n", node->total_inst_cnt, node->cur_event_type);
 
     return id;
+}
+
+/*
+In SMP case, the replay does not go through actual lock
+wait on kernel entry, so the wait iteration is always 0.
+However, this temporary iteration count still needs to be
+consistent with record phase as we do strict register
+consistency checks. So here we trap the lock wait return
+and feed the recorded spin count as the return value.
+*/
+void replay_lock_acquire_result(CPUState *cpu)
+{
+    CPUArchState *env;
+    X86CPU *x86_cpu;
+
+    if (cpu_cnt == 1) {
+        // Spin cnt sync is only for SMP
+        return;
+    }
+
+    x86_cpu = X86_CPU(cpu);
+    env = &x86_cpu->env;
+
+    if (cpu->rr_cached_spin_count > 0) {
+        LOG_MSG("[CPU-%d]Replayed acquire spin count %lu\n",
+                cpu->cpu_index, cpu->rr_cached_spin_count);
+        env->regs[R_EAX] = cpu->rr_cached_spin_count;
+    }
+
+    cpu->rr_cached_spin_count = 0;
 }

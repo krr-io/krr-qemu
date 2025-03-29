@@ -134,6 +134,9 @@ def fetch_rr_begin_record_io_uring():
 def fetch_rr_record_io_uring_entry():
     return filter_info_addr("rr_record_io_uring_entry")
 
+def fetch_acquire_result():
+    return filter_info_addr("arch/x86/kernel/rr_serialize.c:69")
+
 
 handlers = {
     "STRNCPY_FROM_USER": fetch_strncpy_from_user,
@@ -164,6 +167,7 @@ handlers = {
     "RR_PAGE_MAP": fetch_rr_page_map,
     "RR_IO_URING_BEGIN": fetch_rr_begin_record_io_uring,
     "RR_IO_URING_RECORD_ENTRY": fetch_rr_record_io_uring_entry,
+    "RR_LOCK_ACQUIRE_RET": fetch_acquire_result,
 }
 
 
@@ -188,7 +192,7 @@ def generate_symbols(kernel_rr_header):
                         print("Failed to generate symbol for {}: {}".format(macro, e))
                         raise
                     else:
-                        # print("Writing symbol addr {} for macro {}".format(spots[2], macro))
+                        print("Writing symbol addr {} for macro {}".format(spots[2], macro))
                         output_lines[index] = ' '.join(spots) + '\n'
 
         generate_done = True
@@ -200,4 +204,4 @@ def generate_symbols(kernel_rr_header):
 
 
 if __name__ == "__main__":
-    generate_symbols(sys.argv[1])
+    generate_symbols("/home/projects/qemu-tcg-kvm/include/sysemu/kernel-rr.h")

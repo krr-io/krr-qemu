@@ -141,7 +141,7 @@ handle_on_bp(CPUState *cpu)
     started_bp_handle = true;
 
     cp_mutex_unlock();
-    pause_all_vcpus();
+    pause_all_vcpus_no_clock();
     cp_mutex_lock();
 
     if (cpu->singlestep_enabled && cpu->force_singlestep) {

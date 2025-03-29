@@ -559,6 +559,34 @@ static bool all_vcpus_paused(void)
     return true;
 }
 
+/* For KRR debug on breakpoints */
+void pause_all_vcpus_no_clock(void)
+{
+    CPUState *cpu;
+
+    CPU_FOREACH(cpu) {
+        if (qemu_cpu_is_self(cpu)) {
+            qemu_cpu_stop(cpu, true);
+        } else {
+            cpu->stop = true;
+            qemu_cpu_kick(cpu);
+        }
+    }
+
+    replay_mutex_unlock();
+
+    while (!all_vcpus_paused()) {
+        qemu_cond_wait(&qemu_pause_cond, &qemu_global_mutex);
+        CPU_FOREACH(cpu) {
+            qemu_cpu_kick(cpu);
+        }
+    }
+
+    qemu_mutex_unlock_iothread();
+    replay_mutex_lock();
+    qemu_mutex_lock_iothread();
+}
+
 void pause_all_vcpus(void)
 {
     CPUState *cpu;

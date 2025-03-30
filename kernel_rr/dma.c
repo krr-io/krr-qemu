@@ -309,24 +309,25 @@ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque
 void rr_end_nvme_dma_entry(CPUState *cpu)
 {
     rr_dma_dev *dev = lookup_nvme_dev();
-    X86CPU *x86_cpu;
-    CPUArchState *env;
+    // X86CPU *x86_cpu;
+    // CPUArchState *env;
 
     assert(dev != NULL);
 
     if (dev->pending_dma_entry == NULL)
         return;
 
-    x86_cpu = X86_CPU(cpu);
-    env = &x86_cpu->env;
+    // we don't need rip usually
+    // x86_cpu = X86_CPU(cpu);
+    // env = &x86_cpu->env;
+    // kvm_arch_get_registers(cpu);
 
-    kvm_arch_get_registers(cpu);
     dev->pending_dma_entry->replayed_sgs = 0;
     dev->pending_dma_entry->dev_type = DEV_TYPE_NVME;
     dev->pending_dma_entry->cpu_id = cpu->cpu_index;
     dev->pending_dma_entry->inst_cnt = rr_get_inst_cnt(cpu);
     dev->pending_dma_entry->follow_num = get_recorded_num();
-    dev->pending_dma_entry->rip = env->eip;
+    // dev->pending_dma_entry->rip = env->eip;
 
     dma_enqueue(dev->dma_queue, dev->pending_dma_entry);
     dev->pending_dma_entry = NULL;

@@ -46,11 +46,11 @@ typedef struct rr_dma_dev_t {
     AddressSpace *as;
     PCIDevice *pdev;
     char *dev_id;
-    int ignore;
     void *dma_cb;
     rr_dma_queue *dma_queue;
     rr_dma_entry *pending_dma_entry;
     int dev_index;
+    int ignore;
 } rr_dma_dev;
 
 typedef struct rr_dma_dev_manager_t {
@@ -84,7 +84,7 @@ static rr_dma_dev* lookup_dev_with_index(int dev_index)
     return NULL;
 }
 
-static void register_dma_dev(PCIDevice *pci_dev, void *dma_cb, int dev_type)
+static void register_dma_dev(PCIDevice *pci_dev, void *dma_cb, int dev_type, int ignore)
 {
     rr_dma_dev *rr_dev = (rr_dma_dev *)malloc(sizeof(struct rr_dma_dev_t));
     DeviceState *dev = DEVICE(pci_dev);
@@ -100,10 +100,12 @@ static void register_dma_dev(PCIDevice *pci_dev, void *dma_cb, int dev_type)
     rr_dev->dev_index = pci_dev->devfn;
     rr_dev->dev_type = dev_type;
     rr_dev->dma_queue = NULL;
+    rr_dev->ignore = ignore;
 
     dma_manager->dev_list[dma_manager->dev_num++] = rr_dev;
 
-    LOG_MSG("Resgitered DMA device[%s] %d %u\n", pci_dev->name, rr_dev->dev_index, pci_dev->devfn);
+    LOG_MSG("Resgitered DMA device[%s] %d %u, ignore=%d\n",
+            pci_dev->name, rr_dev->dev_index, pci_dev->devfn, rr_dev->ignore);
 }
 
 static rr_dma_dev* lookup_dev_with_dma_cb(void *cb)
@@ -150,17 +152,22 @@ unsigned long get_dma_buf_size(void)
     return dma_manager->stat->total_buf_size;
 }
 
-void rr_register_nvme_as(PCIDevice *dev, void *dma_cb)
+void rr_register_nvme_as(PCIDevice *dev, void *dma_cb, int ignore)
 {
-    register_dma_dev(dev, dma_cb, DEV_TYPE_NVME);
+    register_dma_dev(dev, dma_cb, DEV_TYPE_NVME, ignore);
 }
 
-void rr_register_ide_as(IDEDMA *dma, void *dma_cb)
+void rr_register_ide_as(IDEDMA *dma, void *dma_cb, int ignore)
 {
     BMDMAState *bm = DO_UPCAST(BMDMAState, dma, dma);
     PCIDevice *pci_dev = PCI_DEVICE(bm->pci_dev);
 
-    register_dma_dev(pci_dev, dma_cb, DEV_TYPE_IDE);
+    if (ignore) {
+        LOG_MSG("IDE device does not support to be ignored yet!\n");
+        abort();
+    }
+
+    register_dma_dev(pci_dev, dma_cb, DEV_TYPE_IDE, ignore);
 }
 
 // static rr_dma_queue *dma_queue = NULL;
@@ -239,6 +246,9 @@ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque
     PCIDevice *pdev = NULL;
 
     dev = lookup_dev_with_dma_cb(cb);
+    if (dev->ignore) {
+        return;
+    }
 
     switch (dev->dev_type)
     {
@@ -313,6 +323,10 @@ void rr_end_nvme_dma_entry(CPUState *cpu)
     // CPUArchState *env;
 
     assert(dev != NULL);
+
+    if (dev->ignore) {
+        return;
+    }
 
     if (dev->pending_dma_entry == NULL)
         return;
@@ -589,6 +603,11 @@ void rr_dma_pre_record(void)
     dma_manager->stat->total_buf_size = 0;
 
     for (i = 0; i < dma_manager->dev_num; i++) {
+        if (dma_manager->dev_list[i]->ignore) {
+            printf("Device %d[type %d] is set to be ignored\n",
+                   dma_manager->dev_list[i]->dev_index,
+                   dma_manager->dev_list[i]->dev_type);
+        }
         init_dma_queue(&(dma_manager->dev_list[i]->dma_queue));
     }
 

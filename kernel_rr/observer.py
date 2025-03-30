@@ -261,23 +261,17 @@ def gen_script(cpu_num):
     elif mode == "baseline" or mode == "whole_system_rr":
         kernel_image = os.environ["BL_IMG"]
 
-    if mode == "whole_system_rr":
-        extra_arg += "-whole-system 1 "
-
     if mode == "baseline":
         extra_arg += "-ignore-record 1 "
 
-    if test_name == constants.ROCKS_DB_BP_TEST_NAME:
-        extra_dev = " -drive file=../build/nvm.img,if=none,id=nvm -device nvme,serial=deadbeef,drive=nvm"
+    if test_name == constants.ROCKS_DB_BP_TEST_NAME and mode == "kernel_rr":
+        extra_dev = " -drive file=../build/nvm.img,if=none,id=nvm -device nvme,serial=deadbeef,drive=nvm,ignore=true"
 
     if test_name == constants.REDIS_TEST_NAME:
         extra_dev = " -netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000,netdev=net0"
 
     if test_name == constants.ROCKS_DB_NBP_TEST_NAME:
         extra_dev = " -drive file=../build/nkbypass.img,id=nvm,if=none -device nvme,serial=deadbeef,drive=nvm"
-
-        if mode == "kernel_rr":
-            extra_arg += "-whole-system 1 "
 
     qemu_base_cmd = """
     {qemu_binary} -kernel {kernel_image} \

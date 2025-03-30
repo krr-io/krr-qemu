@@ -14,6 +14,11 @@
 #define RR_LOG_DEBUG 1
 // #include "sysemu/dma.h"
 
+
+/*
+The symbols below are automatically generated with
+kernel_rr/rr_gen_replay_symbols.py.
+*/
 #define RR_GFU_BEGIN 0xffffffff81031c20
 #define STRNCPY_FROM_USER 0xffffffff814b8c30 // b lib/strncpy_from_user.c:42
 #define STRNLEN_USER 0xffffffff814b8dc0 // info addr strnlen_user
@@ -260,7 +265,7 @@ void replay_lock_acquire_result(CPUState *cpu);
 rr_dma_entry* rr_fetch_next_network_dme_entry(int cpu_id);
 
 void rr_register_e1000_as(PCIDevice *dev);
-void rr_register_nvme_as(PCIDevice *dev, void *cb);
+void rr_register_nvme_as(PCIDevice *dev, void *cb, int ignore);
 void rr_replay_next_network_dma(int cpu_id);
 void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as);
 

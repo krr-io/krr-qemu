@@ -490,6 +490,7 @@ typedef struct NvmeCtrl {
     bool cq_irq_enabled[NVME_KRR_MAX_QUEUE];
     uint16_t num_cq;
     uint16_t num_sq;
+    bool rr_ignore;
 } NvmeCtrl;
 
 static inline NvmeNamespace *nvme_ns(NvmeCtrl *n, uint32_t nsid)

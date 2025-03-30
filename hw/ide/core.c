@@ -2630,7 +2630,7 @@ int ide_init_drive(IDEState *s, BlockBackend *blk, IDEDriveKind kind,
     ide_reset(s);
     blk_iostatus_enable(blk);
 
-    rr_register_ide_as(s->bus->dma, ide_dma_cb);
+    rr_register_ide_as(s->bus->dma, ide_dma_cb, 0);
 
     return 0;
 }
@@ -2812,7 +2812,7 @@ static int ide_drive_post_load(void *opaque, int version_id)
     IDEState *s = opaque;
 
     if (rr_in_replay())
-        rr_register_ide_as(s->bus->dma, ide_dma_cb);
+        rr_register_ide_as(s->bus->dma, ide_dma_cb, 0);
 
     if (s->blk && s->identify_set) {
         blk_set_enable_write_cache(s->blk, !!(s->identify_data[85] & (1 << 5)));

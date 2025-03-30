@@ -1336,7 +1336,7 @@ static void nvme_post_cqes(void *opaque)
             break;
         }
 
-        if (rr_in_record())
+        if (!n->rr_ignore && rr_in_record())
             rr_append_general_dma_sg(DEV_TYPE_NVME, (void *)&req->cqe, sizeof(req->cqe), addr);
 
         QTAILQ_REMOVE(&cq->req_list, req, entry);
@@ -1398,7 +1398,7 @@ static void nvme_enqueue_req_completion(NvmeCQueue *cq, NvmeRequest *req)
 
     QTAILQ_REMOVE(&req->sq->out_req_list, req, entry);
     QTAILQ_INSERT_TAIL(&cq->req_list, req, entry);
-    if (rr_in_record())
+    if (!cq->ctrl->rr_ignore && rr_in_record())
         timer_mod(cq->rr_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
     else
         timer_mod(cq->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
@@ -6450,7 +6450,7 @@ static void nvme_process_db(NvmeCtrl *n, hwaddr addr, int val)
             QTAILQ_FOREACH(sq, &cq->sq_list, entry) {
                 timer_mod(sq->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
             }
-            if (rr_in_record())
+            if (!n->rr_ignore && rr_in_record())
                 timer_mod(cq->rr_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
             else
                 timer_mod(cq->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 500);
@@ -6743,7 +6743,7 @@ static int nvme_init_pci(NvmeCtrl *n, PCIDevice *pci_dev, Error **errp)
         nvme_init_pmr(n, pci_dev);
     }
 
-    rr_register_nvme_as(pci_dev, nvme_rw_cb);
+    rr_register_nvme_as(pci_dev, nvme_rw_cb, n->rr_ignore);
 
     return 0;
 }
@@ -6916,6 +6916,8 @@ static void nvme_realize(PCIDevice *pci_dev, Error **errp)
     }
     nvme_init_ctrl(n, pci_dev);
 
+    LOG_MSG("NVME rr-ignore=%d\n", n->rr_ignore);
+
     /* setup a namespace if the controller drive property was given */
     if (n->namespace.blkconf.blk) {
         ns = &n->namespace;
@@ -6983,6 +6985,7 @@ static Property nvme_props[] = {
     DEFINE_PROP_UINT8("zoned.zasl", NvmeCtrl, params.zasl, 0),
     DEFINE_PROP_BOOL("zoned.auto_transition", NvmeCtrl,
                      params.auto_transition_zones, true),
+    DEFINE_PROP_BOOL("rr-ignore", NvmeCtrl, rr_ignore, false),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -7051,7 +7054,7 @@ static int nvme_drive_post_load(void *opaque, int version_id)
     }
 
     if (rr_in_replay())
-        rr_register_nvme_as(&n->parent_obj, nvme_rw_cb);
+        rr_register_nvme_as(&n->parent_obj, nvme_rw_cb, n->rr_ignore);
 
     return 0;
 }

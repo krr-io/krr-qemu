@@ -3753,7 +3753,7 @@ void qemu_init(int argc, char **argv, char **envp)
             case QEMU_OPTION_trace_mode:
                 set_trace_mode(atoi(optarg));
                 break;
-            case QEMU_OPTION_whole_system:
+            case QEMU_OPTION_whole_system: // Deprecated, to remove.
                 printf("Whole system rr Mode\n");
                 set_kernel_only(0);
                 break;

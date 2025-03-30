@@ -73,8 +73,8 @@ kernel_rr/rr_gen_replay_symbols.py.
 #define KVM_HC_RR_RANDOM			15
 #define KVM_HC_RR_GETUSER			16
 
-#define SG_NUM  8192 /* For NVMe device. */
-// #define SG_NUM  1024
+// #define SG_NUM  8192 /* For NVMe device. */
+#define SG_NUM  1024
 
 #define MAX_CPU_NUM 32
 
@@ -194,11 +194,11 @@ typedef struct rr_sg_data_t {
     uint64_t len;
     unsigned long checksum;
     dma_data *buf;
+    struct rr_sg_data_t *next;
 } rr_sg_data;
 
 typedef struct rr_dma_entry_t {
     int len;
-    rr_sg_data *sgs[SG_NUM];
     struct rr_dma_entry_t *next;
     int replayed_sgs;
     unsigned long inst_cnt;
@@ -208,6 +208,8 @@ typedef struct rr_dma_entry_t {
     int dev_type;
     void *opaque;
     int dev_index;
+    rr_sg_data *sg_head;
+    rr_sg_data *sg_tail;
 } rr_dma_entry;
 
 typedef struct rr_dma_queue_t {
@@ -268,6 +270,7 @@ void rr_register_e1000_as(PCIDevice *dev);
 void rr_register_nvme_as(PCIDevice *dev, void *cb, int ignore);
 void rr_replay_next_network_dma(int cpu_id);
 void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as);
+void rr_dma_entry_append_sg(rr_dma_entry *entry, rr_sg_data *new_node);
 
 void append_to_queue(int type, void *opaque);
 int get_kernel_only(void);

@@ -101,6 +101,7 @@ static void register_dma_dev(PCIDevice *pci_dev, void *dma_cb, int dev_type, int
     rr_dev->dev_type = dev_type;
     rr_dev->dma_queue = NULL;
     rr_dev->ignore = ignore;
+    rr_dev->pending_dma_entry = NULL;
 
     dma_manager->dev_list[dma_manager->dev_num++] = rr_dev;
 
@@ -184,6 +185,33 @@ static void log_addr_md5(void *ptr, size_t len, dma_addr_t base)
     }
 }
 
+void rr_dma_entry_append_sg(rr_dma_entry *entry, rr_sg_data *new_node)
+{
+    if (!entry || !new_node) {
+        printf("Invalid SG data!\n");
+        abort();
+    }
+
+    // Initialize the new node
+    new_node->next = NULL;
+
+    // Add to the linked list
+    if (entry->sg_tail) {
+        // List is not empty, append to tail
+        entry->sg_tail->next = new_node;
+        entry->sg_tail = new_node;
+    } else {
+        // List is empty, set as both head and tail
+        entry->sg_head = new_node;
+        entry->sg_tail = new_node;
+    }
+
+    // Increment the length counter
+    entry->len++;
+
+    return;
+}
+
 
 void rr_append_general_dma_sg(int dev_type, void *buf, uint64_t len, uint64_t addr)
 {
@@ -203,19 +231,16 @@ void rr_append_general_dma_sg(int dev_type, void *buf, uint64_t len, uint64_t ad
         dev->pending_dma_entry->len = 0;
         dev->pending_dma_entry->next = NULL;
         dev->pending_dma_entry->dev_index = dev->dev_index;
+        dev->pending_dma_entry->sg_head = NULL;
+        dev->pending_dma_entry->sg_tail = NULL;
     }
 
-    if (dev->pending_dma_entry->len >= SG_NUM) {
-        printf("Error: dma sg number exceeds max\n");
-        free(sgd->buf);
-        free(sgd);
-        return;
-    }
-
-    if (dev->pending_dma_entry->len >= SG_NUM) {
-        printf("Error: dma sg number exceeds max\n");
-        return;
-    }
+    // if (dev->pending_dma_entry->len >= SG_NUM) {
+    //     printf("Error: dma sg number exceeds max\n");
+    //     free(sgd->buf);
+    //     free(sgd);
+    //     abort();
+    // }
 
     sgd = (rr_sg_data*)malloc(sizeof(rr_sg_data));
     sgd->buf = (uint8_t*)malloc(sizeof(uint8_t) * len);
@@ -225,7 +250,7 @@ void rr_append_general_dma_sg(int dev_type, void *buf, uint64_t len, uint64_t ad
     sgd->len = len;
     
     dma_manager->stat->total_buf_size += len;
-    dev->pending_dma_entry->sgs[dev->pending_dma_entry->len++] = sgd;
+    rr_dma_entry_append_sg(dev->pending_dma_entry, sgd);
 }
 
 static PCIDevice* ide_get_pci_get_dev(void *opaque)
@@ -273,6 +298,8 @@ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque
         pending_dma_entry->len = 0;
         pending_dma_entry->next = NULL;
         pending_dma_entry->dev_index = dev->dev_index;
+        pending_dma_entry->sg_head = NULL;
+        pending_dma_entry->sg_tail = NULL;
 
         dev->pending_dma_entry = pending_dma_entry;
     }
@@ -281,11 +308,6 @@ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque
         rr_sg_data *sgd = (rr_sg_data*)malloc(sizeof(rr_sg_data));
         sgd->buf = (uint8_t*)malloc(sizeof(uint8_t) * sg->sg[i].len);
 
-        // if (sg->sg[i].len > 4096) {
-        //     printf("DMA overflow size: %ld\n", sg->sg[i].len);
-        //     // abort();
-        // }
-
         res = address_space_read(sg->as,
                                  sg->sg[i].base,
                                  MEMTXATTRS_UNSPECIFIED,
@@ -293,25 +315,14 @@ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque
         if (res != MEMTX_OK) {
             printf("failed to read from addr %d\n", res);
         } 
-        // else {
-        //     printf("read from dma base=0x%lx\n", sg->sg[i].base);
-        // }
 
         sgd->addr = sg->sg[i].base;
         sgd->len = sg->sg[i].len;
 
-        if (pending_dma_entry->len >= SG_NUM) {
-            printf("Error: dma sg number exceeds max\n");
-            free(sgd->buf);
-            free(sgd);
-            return;
-        }
-
         dma_manager->stat->total_buf_size += sg->sg[i].len;
         dma_manager->stat->total_buf_cnt++;
 
-        pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
-
+        rr_dma_entry_append_sg(pending_dma_entry, sgd);
         assert(sg->sg[i].len == qiov->iov[i].iov_len);
     }
 }
@@ -385,6 +396,7 @@ static void persist_dma_buf(rr_sg_data *sg, FILE *fptr) {
 
 static void persist_dma_log(rr_dma_entry *log, FILE *fptr) {
     int i = 0;
+    rr_sg_data *sg;
 
     // printf("Persist log entry, len=%d\n", log->len);
 
@@ -393,10 +405,12 @@ static void persist_dma_log(rr_dma_entry *log, FILE *fptr) {
     qemu_log("Persist dm entry, inst cnt=%lu, cpu_id=%d\n",
              log->inst_cnt, log->cpu_id);
 
+    sg = log->sg_head;
     for (i = 0; i < log->len; i++) {
-        qemu_log("Persist log sg: 0x%lx\n", log->sgs[i]->addr);
-        log_addr_md5(log->sgs[i]->buf, log->sgs[i]->len, log->sgs[i]->addr);
-        persist_dma_buf(log->sgs[i], fptr);
+        qemu_log("Persist log sg: 0x%lx, %lu\n", sg->addr, sg->len);
+        // log_addr_md5(log->sgs[i]->buf, log->sgs[i]->len, log->sgs[i]->addr);
+        persist_dma_buf(sg, fptr);
+        sg = sg->next;
     }
 }
 
@@ -460,11 +474,15 @@ static void rr_load_dma_buf(dma_data *buf, uint64_t len, FILE *fptr) {
     }
 }
 
-static void rr_load_dma_log(rr_dma_entry *log, FILE *fptr) {
+static void rr_load_dma_log(rr_dma_entry *log, int size, FILE *fptr) {
     rr_sg_data loaded_sg;
     int i = 0;
-    
-    while(i < log->len && fread(&loaded_sg, sizeof(rr_sg_data), 1, fptr)) {
+
+    for (i = 0; i < size; i++) {
+        if (!fread(&loaded_sg, sizeof(rr_sg_data), 1, fptr)) {
+            printf("Failed to read\n");
+            continue;
+        }
         rr_sg_data *sg = (rr_sg_data*)malloc(sizeof(rr_sg_data));        
         memcpy(sg, &loaded_sg, sizeof(rr_sg_data));
 
@@ -472,8 +490,7 @@ static void rr_load_dma_log(rr_dma_entry *log, FILE *fptr) {
 
         rr_load_dma_buf(sg->buf, sg->len, fptr);
 
-        log->sgs[i] = sg;
-        i++;
+        rr_dma_entry_append_sg(log, sg);
     }
 }
 
@@ -488,11 +505,13 @@ void rr_load_dma_logs(const char *log_file, rr_dma_queue *queue)
         rr_dma_entry *log = (rr_dma_entry*)malloc(sizeof(rr_dma_entry));
 
         // memcpy(log, &loaded_node, sizeof(rr_dma_entry));
-        log->len = loaded_node.len;
+        log->len = 0;
+        log->sg_tail = NULL;
+        log->sg_head = NULL;
 
         // printf("load entry: len=%d\n", log->len);
 
-        rr_load_dma_log(log, fptr);
+        rr_load_dma_log(log, loaded_node.len, fptr);
 
         log->replayed_sgs = 0;
         log->inst_cnt = loaded_node.inst_cnt;
@@ -551,8 +570,8 @@ void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as)
     printf("Replay dma entry, inst=%lu, dev_type=%d, cpu_id=%d\n",
            dma_entry->inst_cnt, dma_entry->dev_type, dma_entry->cpu_id);
 
+    rr_sg_data *sg = dma_entry->sg_head;
     for (i = 0; i < dma_entry->len; i++) {
-        rr_sg_data *sg = dma_entry->sgs[i];
         uint64_t len = sg->len;
 
         printf("Replay dma addr 0x%lx\n", sg->addr);
@@ -563,6 +582,7 @@ void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as)
                              MEMTXATTRS_UNSPECIFIED);
         if (!mem) {
              printf("failed to map addr 0x%lx\n", sg->addr);
+             sg = sg->next;
              continue;
         }
         res = address_space_write(as,
@@ -583,6 +603,7 @@ void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as)
         dma_memory_unmap(as, mem,
                          sg->len, DMA_DIRECTION_FROM_DEVICE,
                          sg->len);
+        sg = sg->next;
     }
 }
 
@@ -635,9 +656,12 @@ void rr_dma_pre_replay_common(const char *load_file, rr_dma_queue **queue, int d
     rr_load_dma_logs(load_file, q);
 
     rr_dma_entry *cur = q->front;
+    rr_sg_data *sg = NULL;
     while (cur != NULL) {
+        sg = cur->sg_head;
         for (int i = 0; i < cur->len; i++) {
-            log_addr_md5(cur->sgs[i]->buf, cur->sgs[i]->len, cur->sgs[i]->addr);
+            log_addr_md5(sg->buf, sg->len, sg->addr);
+            sg = sg->next;
         }
         cur->dev_index = dev_index;
 

@@ -50,8 +50,8 @@ static void do_replay_network_dma_entry(rr_dma_entry *dma_entry)
              dma_entry->inst_cnt, dma_entry->rip,
              dma_entry->follow_num, dma_entry->cpu_id);
 
+    rr_sg_data *sg = dma_entry->sg_head;
     for (i = 0; i < dma_entry->len; i++) {
-        rr_sg_data *sg = dma_entry->sgs[i];
         uint64_t len = sg->len;
 
         qemu_log("Replay dma addr 0x%lx, len=%lu\n", sg->addr, len);
@@ -65,6 +65,7 @@ static void do_replay_network_dma_entry(rr_dma_entry *dma_entry)
         } else {
             printf("Write to dma addr Ok\n");
         }
+        sg = sg->next;
     }
 }
 
@@ -83,6 +84,8 @@ void rr_append_network_dma_sg(void *buf, uint64_t len, uint64_t addr)
         pending_dma_entry = (rr_dma_entry*)malloc(sizeof(rr_dma_entry));
         pending_dma_entry->len = 0;
         pending_dma_entry->next = NULL;
+        pending_dma_entry->sg_head = NULL;
+        pending_dma_entry->sg_tail = NULL;
     }
 
     if (pending_dma_entry->len >= SG_NUM) {
@@ -107,7 +110,7 @@ void rr_append_network_dma_sg(void *buf, uint64_t len, uint64_t addr)
     total_network_buf += len;
     // printf("data appended 0x%lx, len=%lu\n", sgd->addr, sgd->len);
 
-    pending_dma_entry->sgs[pending_dma_entry->len++] = sgd;
+    rr_dma_entry_append_sg(pending_dma_entry, sgd);
 }
 
 // This is currently not used

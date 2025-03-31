@@ -46,7 +46,7 @@ make install
 ### Compile KRR QEMU
 1. First, get the code of kernel RR QEMU code:
 ```
-git clone -b rr-paravirt https://github.com/rssys/qemu-tcg-kvm.git
+git clone https://github.com/rssys/qemu-tcg-kvm.git
 ```
 
 2. Compile:

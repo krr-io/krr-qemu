@@ -3018,8 +3018,8 @@ finish:
 
 void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
 {
-    X86CPU *x86_cpu;
-    CPUArchState *env;
+    __attribute_maybe_unused__ X86CPU *x86_cpu;
+    __attribute_maybe_unused__ CPUArchState *env;
     // verify_inst is true only when we do rdtsc exit during record,
     // for verification only.
     bool verify_inst = false;
@@ -3079,11 +3079,9 @@ void rr_do_replay_release(CPUState *cpu)
     if (rr_event_log_head && rr_event_log_head->id == cpu->cpu_index) {
         goto finish;
     }
-
-    qemu_log("[CPU %d]Replayed release, replayed event number=%d\n",
+    
+    LOG_MSG("[CPU %d]Replayed release, replayed event number=%d\n",
              cpu->cpu_index, replayed_event_num);
-    printf("[CPU %d]Replayed release, replayed event number=%d\n",
-            cpu->cpu_index, replayed_event_num);
 
     if (rr_event_log_head != NULL) {
         current_owner = rr_event_log_head->id;

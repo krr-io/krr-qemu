@@ -41,6 +41,7 @@ current_cpu_num = 1
 replace_old = False
 
 replace_trial = 0
+pincpu = False
 
 def get_file_name(benchmark, metric):
     return "test_data/{}-{}-{}.csv".format(test_name, benchmark, metric)
@@ -243,6 +244,7 @@ def gen_script(cpu_num):
     extra_dev = ""
     extra_arg = ""
     disk_image = os.environ["KRR_DISK"]
+    extra_param = ""
 
     if test_name == constants.KERNEL_BUILD_TEST_NAME:
         disk_image = os.environ["KBUILD_DISK"]
@@ -264,8 +266,17 @@ def gen_script(cpu_num):
     if mode == "baseline":
         extra_arg += "-ignore-record 1 "
 
-    if test_name == constants.ROCKS_DB_BP_TEST_NAME and mode == "kernel_rr":
-        extra_dev = " -drive file=../build/nvm.img,if=none,id=nvm -device nvme,serial=deadbeef,drive=nvm,ignore=true"
+    if test_name == constants.ROCKS_DB_BP_TEST_NAME:
+        extra_param += "spdk "
+
+    if test_name == constants.ROCKS_DB_BP_TEST_NAME:
+        if mode == "kernel_rr":
+            extra_dev = " -drive file=../build/nvm.img,if=none,id=nvm -device nvme,serial=deadbeef,drive=nvm,rr-ignore=true"
+        else:
+            extra_dev = " -drive file=../build/nvm.img,if=none,id=nvm -device nvme,serial=deadbeef,drive=nvm"
+
+    if pincpu:
+        extra_param += "pincpu=true "
 
     if test_name == constants.REDIS_TEST_NAME:
         extra_dev = " -netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000,netdev=net0"
@@ -276,13 +287,14 @@ def gen_script(cpu_num):
     qemu_base_cmd = """
     {qemu_binary} -kernel {kernel_image} \
     -accel kvm -smp {cpu_num} -cpu host -no-hpet -m 8G -append \
-    "root=/dev/sda rw init=/lib/systemd/systemd tsc=reliable console=ttyS0 noavx benchmark={benchmark}" \
+    "root=/dev/sda rw init=/lib/systemd/systemd tsc=reliable console=ttyS0 benchmark={benchmark} {extra_param}" \
     -hda {disk_image} \
     {ivshmem} -vnc :00 -D rec.log {extra_dev} -exit-record 1 \
     -qmp unix:{socket_path},server=on,wait=off -checkpoint-interval 0 -record-skipsave 1 {extra_arg}
     """.format(
         qemu_binary=qemu_binary, kernel_image=kernel_image,
         benchmark=benchmark,
+        extra_param=extra_param,
         disk_image=disk_image, cpu_num=cpu_num,
         ivshmem=ivshmem, extra_dev=extra_dev,
         socket_path=socket_path,
@@ -371,6 +383,7 @@ parser.add_argument("--replace", default="false")
 parser.add_argument("--replacetrial", default=0)
 parser.add_argument("--benchmark", default="fillseq")
 parser.add_argument("--gen_script_only", default="false")
+parser.add_argument("--pincpu", default="false")
 args = parser.parse_args()
 
 mode = args.mode
@@ -382,6 +395,8 @@ replace_trial = int(args.replacetrial)
 if args.replace == "true":
     replace_old = True
 
+if args.pincpu == "true":
+    pincpu = True
 
 if args.gen_script_only == "true":
     cmd = gen_script(args.startfrom)

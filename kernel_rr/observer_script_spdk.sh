@@ -23,7 +23,7 @@ exec_qemu() {
 
   rm -f ./script
 
-  env $env_vars python3 observer.py --mode=${mode} --test=${test} --benchmark=${benchmark} --gen_script_only="true" --startfrom=$cpu_num
+  env $env_vars python3 observer.py --mode=${mode} --test=${test} --benchmark=${benchmark} --gen_script_only="true" --startfrom=$cpu_num --pincpu="true"
 
   sleep 1
   rm -f /dev/shm/ivshmem
@@ -81,20 +81,17 @@ exec_qemu() {
 
 echo ${test} $benchmark
 
-for i in 1 2 4 8 16 32;
-do
-  while true; do
-    exec_qemu $i
-    if [ $? -eq 0 ]; then
-        echo "The function returned 0 - success."
-        break
-    else
-        echo "The function returned non-0 - failure."
-        sleep
-    fi
-  done
-
-  env $env_vars python3 observer.py --mode=${mode} --test=${test} --benchmark=${benchmark} --parseonly="true" --startfrom=$i
-  #python3 get_cost.py $mode $i $benchmark
-  echo "Done trial $i"
+while true; do
+  exec_qemu 2
+  if [ $? -eq 0 ]; then
+      echo "The function returned 0 - success."
+      break
+  else
+      echo "The function returned non-0 - failure."
+      sleep
+  fi
 done
+
+env $env_vars python3 observer.py --mode=${mode} --test=${test} --benchmark=${benchmark} --parseonly="true" --startfrom=$i
+#python3 get_cost.py $mode $i $benchmark
+# echo "Done trial $i"

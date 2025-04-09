@@ -35,15 +35,17 @@ do
     echo "Scheme: $scheme, Branch: $branch"
     cd ${basedir}/kernel-rr-linux/;git checkout $branch;sh replace.sh
 
-    for benchmark in readrandom readseq readwhilewriting readwhilescanning seekrandom;
-    do
-        for i in $(seq 1 $iterations);
+    for testmode in rocksdb rocksdb_kernel_bypass; do
+        for benchmark in readseq seekrandom readrandom fillseq fillrandom deleteseq appendrandom;
         do
-            cd ${basedir}/qemu-tcg-kvm/kernel_rr/;bash observer_script.sh $scheme $test $benchmark $basedir
-            if [ -f "/dev/shm/quit" ]; then
-                    echo "Ending test..."
-                    exit 0
-            fi
+            for i in $(seq 1 $iterations);
+            do
+                cd ${basedir}/qemu-tcg-kvm/kernel_rr/;bash observer_script_spdk.sh $scheme $testmode $benchmark $basedir
+                if [ -f "/dev/shm/quit" ]; then
+                        echo "Ending test..."
+                        exit 0
+                fi
+            done
         done
     done
 done

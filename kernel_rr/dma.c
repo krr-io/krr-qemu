@@ -306,16 +306,18 @@ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque
 
     for (i = 0; i < sg->nsg; i++) {
         rr_sg_data *sgd = (rr_sg_data*)malloc(sizeof(rr_sg_data));
+#ifdef CONFIG_RR_DMA_COPYFREE
+        sgd->buf = qiov->iov[i].iov_base;
+#else
         sgd->buf = (uint8_t*)malloc(sizeof(uint8_t) * sg->sg[i].len);
-
         res = address_space_read(sg->as,
                                  sg->sg[i].base,
                                  MEMTXATTRS_UNSPECIFIED,
                                  sgd->buf, sg->sg[i].len * sizeof(dma_data));
         if (res != MEMTX_OK) {
             printf("failed to read from addr %d\n", res);
-        } 
-
+        }
+#endif
         sgd->addr = sg->sg[i].base;
         sgd->len = sg->sg[i].len;
 

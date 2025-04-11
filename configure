@@ -1047,6 +1047,10 @@ for opt do
   ;;
   --enable-jemalloc) meson_option_parse --enable-malloc=jemalloc jemalloc
   ;;
+  --enable-rr-dma-copyfree) rrdmacopyfree="yes"
+  ;;
+  --disable-rr-dma-copyfree) rrdmacopyfree="no"
+  ;;
   # everything else has the same name in configure and meson
   --enable-* | --disable-*) meson_option_parse "$opt" "$optarg"
   ;;
@@ -2889,6 +2893,10 @@ if test "$opengl" = "yes" ; then
   echo "CONFIG_OPENGL=y" >> $config_host_mak
   echo "OPENGL_CFLAGS=$opengl_cflags" >> $config_host_mak
   echo "OPENGL_LIBS=$opengl_libs" >> $config_host_mak
+fi
+
+if test "$rrdmacopyfree" = "yes" ; then
+  echo "CONFIG_RR_DMA_COPYFREE=y" >> $config_host_mak
 fi
 
 # XXX: suppress that

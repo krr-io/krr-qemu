@@ -2491,11 +2491,6 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
         *interrupt = -1;
         goto finish;
     } 
-    // else {
-    //     if (is_out_record_phase(cpu, rr_event_log_head)) {
-    //         finish_replay();
-    //     }
-    // }
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
@@ -2516,49 +2511,14 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
             }
         }
 
-        // if (wait_see_next) {
-        //     if (env->eip == cpu->last_pc) {
-
-        //     } else {
-        //         if (env->eip == rr_event_log_head->rip) {
-        //             matched = true;
-        //         } else {
-        //             mismatched = true;
-        //         }
-
-        //         wait_see_next = false;
-        //     }
-        // } else if (rr_event_log_head->inst_cnt == cpu->rr_executed_inst) {
-            // if (env->eip < 0xBFFFFFFFFFFF) {
-            //     env->eip = rr_event_log_head->rip;
-            // }
-
-        //     if (env->eip == rr_event_log_head->rip) {
-        //         matched = true;
-        //     } else {
-        //         wait_see_next = true;
-        //     }
-        // }
-        
         if (cpu->force_interrupt) {
             matched = true;
             cpu->force_interrupt = false;
-            // cpu->rr_executed_inst--;
         } 
-        // else {
-        //     if (rr_event_log_head->inst_cnt == cpu->rr_executed_inst + 1 && env->eip == rr_event_log_head->rip) {
-        //         matched = true;
-        //         cpu->rr_executed_inst++;
-        //     }
-        // }
 
         if (matched) {
-            // cpu->rr_executed_inst--;
             *interrupt = CPU_INTERRUPT_HARD;
             LOG_MSG("Ready to replay int request, cr0=%lx\n", env->cr[0]);
-            // dump_cpus_state();
-            // cpu->rr_executed_inst++;
-
             goto finish;
         }
 
@@ -2566,8 +2526,6 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
             LOG_MSG("Mismatched, interrupt=%d inst number=%lu, actual inst number=%lu, rip=0x%lx, actual rip=0x%lx\n", 
                     rr_event_log_head->event.interrupt.vector, rr_event_log_head->inst_cnt, cpu->rr_executed_inst,
                     rr_event_log_head->rip, env->eip);
-            // abort();
-            // exit(1);
             cpu->cause_debug = 1;
         }
   

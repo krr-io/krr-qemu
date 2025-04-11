@@ -30,6 +30,7 @@
 #define DEV_NVME 1
 
 #define MAX_DEV_NUM 8
+#define SG_BUF_POOL_SIZE 8192
 
 const char *kernel_rr_dma_log = "kernel_rr_dma.log";
 
@@ -61,6 +62,85 @@ typedef struct rr_dma_dev_manager_t {
 
 static rr_dma_manager *dma_manager = NULL;
 
+// === SG Buffer Pool ===
+/*
+   SG buffer pool is used for preallocated sg buffer so that some
+   realtime memory allocation can be saved for some IO intensive
+   cases.
+*/
+typedef struct {
+    rr_sg_data **items;     // Array of preallocated rr_sg_data objects
+    int size;               // Total size of the pool
+    int used;               // Number of items currently in use
+} sg_pool_t;
+
+// Global pool instance
+static sg_pool_t g_sg_pool = {NULL, 0, 0};
+
+static void sg_pool_init(int size) {
+    if (g_sg_pool.items != NULL) {
+        return;  // Already initialized
+    }
+
+    g_sg_pool.items = (rr_sg_data **)malloc(sizeof(rr_sg_data *) * size);
+    if (g_sg_pool.items == NULL) {
+        return;  // Allocation failed
+    }
+
+    // Preallocate all rr_sg_data objects
+    for (int i = 0; i < size; i++) {
+        g_sg_pool.items[i] = (rr_sg_data *)malloc(sizeof(rr_sg_data));
+        if (g_sg_pool.items[i] == NULL) {
+            // If allocation fails, free everything and return
+            for (int j = 0; j < i; j++) {
+                free(g_sg_pool.items[j]);
+            }
+            free(g_sg_pool.items);
+            g_sg_pool.items = NULL;
+            return;
+        }
+
+#ifndef CONFIG_RR_DMA_COPYFREE
+        g_sg_pool.items[i]->buf = NULL;
+#endif
+    }
+
+    g_sg_pool.size = size;
+    g_sg_pool.used = 0;
+}
+
+// Get an rr_sg_data from the pool or allocate a new one if pool is empty
+static rr_sg_data *sg_pool_get(void) {
+    if (g_sg_pool.items == NULL || g_sg_pool.used >= g_sg_pool.size) {
+        // Pool not initialized or empty, use malloc
+        return (rr_sg_data *)malloc(sizeof(rr_sg_data));
+    }
+
+    return g_sg_pool.items[g_sg_pool.used++];
+}
+
+// Free the pool and all its resources
+static void sg_pool_cleanup(void) {
+    if (g_sg_pool.items == NULL) {
+        return;
+    }
+
+    for (int i = 0; i < g_sg_pool.size; i++) {
+        if (g_sg_pool.items[i]) {
+#ifndef CONFIG_RR_DMA_COPYFREE
+            free(g_sg_pool.items[i]->buf);
+#endif
+            free(g_sg_pool.items[i]);
+        }
+    }
+
+    free(g_sg_pool.items);
+    g_sg_pool.items = NULL;
+    g_sg_pool.size = 0;
+    g_sg_pool.used = 0;
+}
+
+// === SG Buffer Pool End ===
 
 void rr_init_dma(void)
 {
@@ -305,7 +385,7 @@ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque
     }
 
     for (i = 0; i < sg->nsg; i++) {
-        rr_sg_data *sgd = (rr_sg_data*)malloc(sizeof(rr_sg_data));
+        rr_sg_data *sgd = sg_pool_get();
 #ifdef CONFIG_RR_DMA_COPYFREE
         sgd->buf = qiov->iov[i].iov_base;
 #else
@@ -634,6 +714,8 @@ void rr_dma_pre_record(void)
         init_dma_queue(&(dma_manager->dev_list[i]->dma_queue));
     }
 
+    sg_pool_init(SG_BUF_POOL_SIZE);
+
     remove(kernel_rr_dma_log);
 }
 
@@ -684,6 +766,8 @@ void rr_dma_post_record(void)
         remove(fname);
         rr_save_dma_logs(fname, dma_manager->dev_list[i]->dma_queue->front);
     }
+
+    sg_pool_cleanup();
     printf("Total dma buf cnt %lu size %lu\n",
            dma_manager->stat->total_buf_cnt,
            dma_manager->stat->total_buf_size);

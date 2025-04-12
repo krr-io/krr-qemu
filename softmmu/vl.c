@@ -2813,6 +2813,7 @@ void qmp_x_exit_preconfig(Error **errp)
             }
         }
     } else if (autostart) {
+        rr_gdb_set_stopped(0);
         qmp_cont(NULL);
     }
 

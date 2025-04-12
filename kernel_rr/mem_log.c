@@ -143,11 +143,6 @@ void rr_memlog_post_record(void)
     rr_save_mem_logs();
 }
 
-void rr_memlog_post_replay(void)
-{
-    printf("Total checked mem addresses: %d, unpassed: %d\n", total_check, unpassed_check);
-}
-
 void rr_load_mem_logs(void) {
 	__attribute_maybe_unused__ FILE *fptr = fopen(kernel_rr_mem_log, "r");
 

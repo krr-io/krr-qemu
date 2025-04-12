@@ -649,14 +649,12 @@ void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as)
         return;
     }
 
-    printf("Replay dma entry, inst=%lu, dev_type=%d, cpu_id=%d\n",
+    LOG_MSG("Replay dma entry, inst=%lu, dev_type=%d, cpu_id=%d\n",
            dma_entry->inst_cnt, dma_entry->dev_type, dma_entry->cpu_id);
 
     rr_sg_data *sg = dma_entry->sg_head;
     for (i = 0; i < dma_entry->len; i++) {
         uint64_t len = sg->len;
-
-        printf("Replay dma addr 0x%lx\n", sg->addr);
 
         mem = dma_memory_map(as,
                              sg->addr, &len,
@@ -678,8 +676,7 @@ void do_replay_dma_entry(rr_dma_entry *dma_entry, AddressSpace *as)
             }
             printf("failed to write to mem: %d, addr=0x%lx\n", res, sg->addr);
         } else {
-            qemu_log("DMA_Replay: write to dma base=0x%lx, len=%ld\n", sg->addr, sg->len);
-            printf("write to dma base=0x%lx, len=%ld\n", sg->addr, sg->len);
+            LOG_MSG("DMA_Replay: write to dma base=0x%lx, len=%ld\n", sg->addr, sg->len);
         }
 
         dma_memory_unmap(as, mem,

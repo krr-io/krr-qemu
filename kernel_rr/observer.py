@@ -106,6 +106,7 @@ def generate_rocksdb_bp(buffer):
     tp = 0
     ops_ps = 0
     latency = 0
+    buffer = buffer.replace("'", "")
     item_list = buffer.split()
 
     if benchmark not in buffer:
@@ -289,8 +290,8 @@ def gen_script(cpu_num):
     -accel kvm -smp {cpu_num} -cpu host -no-hpet -m 8G -append \
     "root=/dev/sda rw init=/lib/systemd/systemd tsc=reliable console=ttyS0 benchmark={benchmark} {extra_param}" \
     -hda {disk_image} \
-    {ivshmem} -vnc :00 -D rec.log {extra_dev} -exit-record 1 \
-    -qmp unix:{socket_path},server=on,wait=off -checkpoint-interval 0 -record-skipsave 1 {extra_arg}
+    {ivshmem} -D rec.log {extra_dev} -exit-record 1 \
+    -qmp unix:{socket_path},server=on,wait=off -display none -checkpoint-interval 0 -record-skipsave 1 {extra_arg}
     """.format(
         qemu_binary=qemu_binary, kernel_image=kernel_image,
         benchmark=benchmark,

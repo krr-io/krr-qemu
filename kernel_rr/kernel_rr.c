@@ -128,6 +128,7 @@ static void init_lock_owner(void);
 static void rr_sync_header(void);
 static void replay_save_snapshot(rr_replay_info *cur_replay_info);
 static void replay_save_progress_info(rr_replay_info_node *info_node);
+static int get_total_events_num(void);
 
 static clock_t replay_start_time;
 static long long record_start_time;
@@ -152,7 +153,7 @@ static rr_event_loader *event_loader;
 
 
 #define DEBUG_POINTS_NUM 15
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff815f9bfc};
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff811e3431, 0xffffffff811d0a68, 0xffffffff811d02ae, 0xffffffff811d02a3};
 static int point_index = 6;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
@@ -461,6 +462,7 @@ static void initialize_replay(void) {
         cpu->rr_cached_spin_count = 0;
     }
 
+    total_event_number = get_total_events_num();
     printf("Initialized replay, cpu number=%d\n", cpu_cnt);
     replay_start_time = clock();
 }
@@ -649,7 +651,6 @@ static void finish_replay(void)
 
     rr_print_events_stat();
 
-    rr_memlog_post_replay();
     exit(0);
 }
 
@@ -1008,8 +1009,8 @@ void rr_do_replay_cfu(CPUState *cpu, int post_exception)
     if (ret < 0) {
         if (ret == -1 && !kernel_user_access_pf_cfu) {
             kernel_user_access_pf_cfu = true;
-            qemu_log("Save the cfu entry for later, rip=0x%lx, src=0x%lx\n",
-                     env->eip, node->event.cfu.src_addr);
+            LOG_MSG("Save the cfu entry for later, rip=0x%lx, src=0x%lx\n",
+                    env->eip, node->event.cfu.src_addr);
             rr_handle_pending_pf_in_cfu2(node);
             goto finish;
         }
@@ -1308,7 +1309,7 @@ void rr_do_replay_gfu_begin(CPUState *cpu, int post_exception)
                 node->event.gfu.ptr, ret, node->event.gfu.val);
         if (ret == -1 && !kernel_user_access_pf) {
             kernel_user_access_pf = true;
-            printf("Save the gfu entry for later\n");
+            LOG_MSG("Save the gfu entry for later\n");
             rr_handle_pending_pf_in_cfu2(node);
             goto finish;
         } else {
@@ -1878,6 +1879,12 @@ void rr_pop_event_head(void) {
     // rr_event_cur = NULL;
 
     replayed_event_num++;
+
+#ifndef RR_LOG_DEBUG
+    if (!(replayed_event_num % 1000)) {
+        printf("Replayed events[%d/%d]\n", replayed_event_num, total_event_number);
+    }
+#endif
 }
 
 rr_event_log *rr_event_log_new(void)
@@ -1911,7 +1918,8 @@ void rr_print_events_stat(void)
             event_rdseed_num, event_pte_num, event_sync_inst, get_dma_buf_size(),
             total_event_number, duration / 1000);
 
-    LOG_MSG("%s", msg);
+    printf("%s", msg);
+    qemu_log("%s", msg);
 
     fprintf(f, "%s", msg);
 
@@ -2293,11 +2301,12 @@ void try_replay_dma(CPUState *cs, int user_ctx)
     head = rr_fetch_next_dma_entry(DEV_TYPE_NVME);
     while (head != NULL){
         if ((cs->cpu_index == head->cpu_id && cs->rr_executed_inst == head->inst_cnt - 3) ||
-            (user_ctx && head->inst_cnt == 0 && replayed_event_num + 1 >= head->follow_num)
-            ||(head->cpu_id != cs->cpu_index && replayed_event_num + 1 >= head->follow_num)
+            (user_ctx && head->inst_cnt == 0 && replayed_event_num >= head->follow_num)
+            ||(head->cpu_id != cs->cpu_index && replayed_event_num >= head->follow_num)
         ) {
-            printf("[CPU-%d]replay next dma user=%d replayed number=%d, executed=%lu, entry_cpu=%d, entry_executed=%lu\n",
-                  cs->cpu_index, user_ctx, replayed_event_num, cs->rr_executed_inst, head->cpu_id, head->inst_cnt);
+            // if (head->inst_cnt == 236838606) {}
+            LOG_MSG("[CPU-%d]replay next dma user=%d replayed number=%d, executed=%lu, entry_cpu=%d, entry_executed=%lu\n",
+                    cs->cpu_index, user_ctx, replayed_event_num, cs->rr_executed_inst, head->cpu_id, head->inst_cnt);
             rr_replay_next_dma(head->dev_index);
             head = rr_fetch_next_dma_entry(DEV_TYPE_NVME);
         } else {
@@ -2359,10 +2368,10 @@ void rr_get_result(void)
 
     fclose(f);
 
-    if (!rr_in_record()) {
-        if (exit_record)
-            exit(10);
-    }
+    // if (!rr_in_record()) {
+    //     if (exit_record)
+    //         exit(10);
+    // }
 }
 
 static void rr_sync_header(void)
@@ -2708,7 +2717,7 @@ void rr_do_replay_exception_end(CPUState *cpu)
         cpu->cause_debug = true;
         // return;
     } else {
-        printf("Expected PF address: 0x%lx\n", env->cr[2]);
+        LOG_MSG("Expected PF address: 0x%lx\n", env->cr[2]);
     }
 
     LOG_MSG("[CPU %d]Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
@@ -2877,7 +2886,7 @@ void rr_do_replay_mmio(unsigned long *input)
     CPUState *cpu;
     CPUArchState *env;
     X86CPU *x86_cpu;
-    unsigned long inst_cnt = 0;
+    __attribute_maybe_unused__ unsigned long inst_cnt = 0;
 
     qemu_mutex_lock(&replay_queue_mutex);
 
@@ -2910,10 +2919,8 @@ void rr_do_replay_mmio(unsigned long *input)
         inst_cnt = cpu->rr_executed_inst;
     }
 
-    qemu_log("Replayed mmio input=0x%lx, inst_cnt=%lu, expected_inst_cnt=%lu, replayed event number=%d\n",
+    LOG_MSG("Replayed mmio input=0x%lx, inst_cnt=%lu, expected_inst_cnt=%lu, replayed event number=%d\n",
              *input, inst_cnt, rr_event_log_head->event.io_input.inst_cnt, replayed_event_num);
-    printf("Replayed mmio input=0x%lx, inst_cnt=%lu, replayed event number=%d\n",
-            *input, inst_cnt, replayed_event_num);
 
     append_to_queue(EVENT_TYPE_MMIO, &(rr_event_log_head->event.io_input));
     rr_pop_event_head();

@@ -853,7 +853,7 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
                 cpu->interrupt_request = interrupt_request;
                 qatomic_mb_set(&cpu->exit_request, 0);
                 cpu->interrupt_replayed = 1;
-                printf("[%d]Get replay int %d\n", cpu->cpu_index, interrupt_request);
+                // printf("[%d]Get replay int %d\n", cpu->cpu_index, interrupt_request);
             } else {
                 interrupt_request = 0;
             //     return false;

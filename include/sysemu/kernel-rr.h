@@ -11,7 +11,7 @@
 #include "qemu/typedefs.h"
 
 #define RR_DEBUG 1
-#define RR_LOG_DEBUG 1
+// #define RR_LOG_DEBUG 1
 // #include "sysemu/dma.h"
 
 
@@ -222,7 +222,6 @@ rr_mem_log *rr_mem_log_new(void);
 void append_mem_log(rr_mem_log *mem_log);
 void rr_memlog_post_record(void);
 void rr_verify_dirty_mem(CPUState *cpu);
-void rr_memlog_post_replay(void);
 void rr_pre_mem_record(void);
 void rr_replay_dma_entry(void);
 void rr_init_dma(void);

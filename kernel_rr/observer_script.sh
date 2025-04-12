@@ -87,14 +87,19 @@ do
     exec_qemu $i
     if [ $? -eq 0 ]; then
         echo "The function returned 0 - success."
-        break
+        env $env_vars python3 observer.py --mode=${mode} --test=${test} --benchmark=${benchmark} --parseonly="true" --startfrom=$i
+        python_exit=$?
+        if [ $python_exit -ne 0 ]; then
+            echo "Python script failed with exit code $python_exit, try again."
+        else
+            break
+        fi
     else
         echo "The function returned non-0 - failure."
-        sleep
+        sleep 5
     fi
   done
 
-  env $env_vars python3 observer.py --mode=${mode} --test=${test} --benchmark=${benchmark} --parseonly="true" --startfrom=$i
   #python3 get_cost.py $mode $i $benchmark
   echo "Done trial $i"
 done

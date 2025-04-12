@@ -44,21 +44,20 @@ make install
 
 
 ### Compile KRR QEMU
-1. First, get the code of kernel RR QEMU code:
+1. First, go to kernel RR QEMU code:
 ```
-git clone https://github.com/rssys/qemu-tcg-kvm.git
+cd qemu-tcg-kvm
 ```
 
 2. Compile:
 ```
-cd qemu-tcg-kvm
 mkdir build
 cd build
 ../configure --target-list=x86_64-softmmu
 make -j
 ```
 
-3. Get the kernel you want to test, here is a prepared [Linux kernel image & vmlinux package](https://drive.google.com/file/d/1WRE-vqcxbsQcpR4on4W5aaHpsnOGfIMS/view?usp=sharing)(6.1.0), if you want to build on your own, here is a [guide](#make-your-own-recordable-kernel) to help compile your recordable guest kernel image.
+3. Get the kernel you want to test, here is a prepared [Linux kernel image & vmlinux package](https://drive.google.com/file/d/1cO0qMsqkReSKdHDZ1XC8r3-lT-ixJqfW/view?usp=drive_link)(6.1.0), if you want to build on your own, here is a [guide](#make-your-own-recordable-kernel) to help compile your recordable guest kernel image.
 
 4. Get the root disk image you want to boot, [here](https://github.com/google/syzkaller/blob/master/tools/create-image.sh) is a script from syzkaller that helps you create a simple rootfs image.
 
@@ -114,11 +113,12 @@ Inst Sync: 0
 DMA Buf Size: 151552
 Total Replay Events: 163053
 Time(s): 38.17
-synced queue header, current_pos=163053
-writing queue header with 163053, pos=48
+synced queue header, current_pos=10872
+writing queue header with 10872, pos=48
 Start persisted event
-[kernel_rr_dma.log] Logged entry number 4
-Total dma buf cnt 37 size 151552
+[kernel_rr_dma-9.log] Logged entry number 20
+[kernel_rr_dma-40.log] No dma entry generated
+Total dma buf cnt 107 size 442368
 [kernel_rr_network.log] No dma entry generated
 network entry number 0, total net buf 0
 ```
@@ -126,7 +126,7 @@ network entry number 0, total net buf 0
 9. After finishing the record session, you get the files below, which are necessary to get it replayed:
 ```
 kernel_rr.log: stores the event trace.
-kernel_rr_dma.log: stores the disk DMA data.
+kernel_rr_dma-<number>.log: stores the disk DMA data, <number> refers to the device id.
 kernel_rr_network.log: stores the network data.
 test1: initial snapshot file of your system, its name is the same as the record session name you give in step 6.
 ```
@@ -140,7 +140,7 @@ As an example, my replay snapshot is named as "test1".
 First, make sure you have these 4 files under your `build` directory from last step:
 - test1: the snapshot file storing VM's initial memory state;
 - kernel_rr.log: main event trace;
-- kernel_rr_dma.log: Disk DMA data;
+- kernel_rr_dma-`<number>`.log: Disk DMA data;
 - kernel_rr_network.log: Network data.
 
 You also need the original disk image file you used for record, it's not going to be actually read in replay, it's just for consistent hardware configuration between record and replay.
@@ -183,13 +183,23 @@ make -j
 ```
 
 4. Replay:
-Execute basic command:
+In summary, the replay QEMU arguments are almost the same as the arguments for the record, except the following:
 ```
-../build/qemu-system-x86_64 -accel tcg -smp 1 -cpu Broadwell -no-hpet -m 2G -hda <disk image> -device ivshmem-plain,memdev=hostmem -object memory-backend-file,size=4096M,share,mem-path=/dev/shm/ivshmem,id=hostmem -kernel-replay test1 -singlestep -D rec.log -replay-log-bound start=0 -monitor stdio -vnc :0
+-accel tcg  // Change from kvm to tcg
+-cpu Broadwell // Change from "host" to a CPU Model
+``` 
+
+Added the following arguments:
+```
+-kernel-replay <record name> -singlestep -replay-log-bound start=0
+```
+The `<record name>` is the name the you specified when executing `rr_record <record name>` in the record step.
+
+Example:
+```
+../build/qemu-system-x86_64 -accel tcg -smp 1 -cpu Broadwell -no-hpet -m 2G -hda <disk image> -device ivshmem-plain,memdev=hostmem -object memory-backend-file,size=4096M,share,mem-path=/dev/shm/ivshmem,id=hostmem -kernel-replay test1 -singlestep -D rec.log -replay-log-bound start=0
 ```
 And it will automatically start replaying.
-
-In the command: `-kernel-replay` is the name of your snapshot file;
 
 At the end, it displays something below as a summary of the replay:
 ```
@@ -211,7 +221,7 @@ DMA Buf Size: 0
 Total Replay Events: 120681
 Time(s): 0.00
 ```
-**Remember, apart from the parameters specifically for replay, the other VM configuration should be exactly the same as record.**
+**Apart from the arguments mentioned above, the other VM configuration should be exactly the same as record.**
 
 ### Use gdb to debug replay:
 If you wanna debug it using gdb, you should firstly have the `vmlinux` of the same kernel used by the guest.
@@ -267,6 +277,19 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:120
 (gdb)
 ```
 
+## Use NVMe device
+KRR also supports recording with emulated NVMe disk, add the following arguments:
+```
+-drive file=<your disk image file>,id=nvm,if=none -device nvme,serial=deadbeef,drive=nvm
+```
+
+For NVMe, KRR also supports `rr-ignore=true` parameter, if specified, the device's inputs will be ignored during the record. This could be used if the device is used for kernel bypass applications, and please make sure the device is already unbinded when start recording.
+
+Full command:
+```
+-drive file=<your disk image file>,id=nvm,if=none -device nvme,serial=deadbeef,drive=nvm,rr-ignore=true
+```
+
 ## Make your own recordable kernel
 Due to its split-recorder design, KRR requires some modifications to the guest linux kernel. The full changes refers to this [repo](https://github.com/tianrenz2/linux-6.1.0/tree/smp-rr), but here is a single [patch file](kernel_rr/Support-for-KRR-guest-recorder-patch) that contains all the changes. To apply the changes, mv the file to your kernel source code directory and execute:
 ```
@@ -276,6 +299,15 @@ git apply Support-for-KRR-guest-recorder-patch
 Note that this patch file is based on Linux 6.1.0, different version of source code may encounter some conflicts to resolve.
 
 To compile, we can refer to a sample [.config](kernel_rr/rr_guest_config) file, note that this config file is also based on linux 6.1.0, so depending on your own linux kernel version, it might be somehow different.
+
+
+## KRR Development
+Debugging message:
+In `include/sysemu/kernel-rr.h`, the macro below is not defined by default:
+```
+#define RR_LOG_DEBUG 1
+```
+If define this macro, there would be more detailed record/replay log message.
 
 
 ## Removed features for kernel RR

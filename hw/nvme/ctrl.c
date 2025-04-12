@@ -1372,7 +1372,7 @@ static void nvme_post_cqes_rr(void *opaque)
         if (owner_id == -1) {
             owner_id = 0;
         }
-        qemu_log("injecting cqe current owner %d\n", owner_id);
+        // LOG_MSG("injecting cqe current owner %d\n", owner_id);
     }
 
     CPU_FOREACH(cpu) {

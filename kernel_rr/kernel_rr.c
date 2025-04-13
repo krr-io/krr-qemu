@@ -1315,7 +1315,7 @@ finish:
 void rr_do_replay_sync_inst(CPUState *cpu)
 {
     rr_event_log_guest event = {};
-    unsigned long initial = cpu->rr_executed_inst;
+    __attribute_maybe_unused__ unsigned long initial = cpu->rr_executed_inst;
 
     qemu_mutex_lock(&replay_queue_mutex);
     if (rr_event_log_head->type != EVENT_TYPE_INST_SYNC) {
@@ -2283,7 +2283,7 @@ void try_replay_dma(CPUState *cs, int user_ctx)
 
     head = rr_fetch_next_dma_entry(DEV_TYPE_NVME);
     while (head != NULL){
-        if ((cs->cpu_index == head->cpu_id && cs->rr_executed_inst == head->inst_cnt - 3) ||
+        if ((cs->cpu_index == head->cpu_id && cs->rr_executed_inst >= head->inst_cnt) ||
             (user_ctx && head->inst_cnt == 0 && replayed_event_num >= head->follow_num)
             ||(head->cpu_id != cs->cpu_index && replayed_event_num >= head->follow_num)
         ) {
@@ -2942,7 +2942,7 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     __attribute_maybe_unused__ CPUArchState *env;
     // verify_inst is true only when we do rdtsc exit during record,
     // for verification only.
-    bool verify_inst = true;
+    bool verify_inst = false;
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;

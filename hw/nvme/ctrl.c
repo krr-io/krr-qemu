@@ -1355,9 +1355,12 @@ static void nvme_post_cqes(void *opaque)
 
 static void run_nvme_post_cqes_cpu(CPUState *cpu, run_on_cpu_data arg)
 {
+    unsigned long inst = rr_get_inst_cnt(cpu);
+    unsigned long num = get_recorded_num();
+
     nvme_post_cqes((void *)arg.host_ptr);
     if (rr_in_record()) {
-        rr_end_nvme_dma_entry(cpu);
+        rr_end_nvme_dma_entry(cpu, inst, num);
     }
 }
 

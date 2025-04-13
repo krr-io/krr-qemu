@@ -409,7 +409,7 @@ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque
     }
 }
 
-void rr_end_nvme_dma_entry(CPUState *cpu)
+void rr_end_nvme_dma_entry(CPUState *cpu, unsigned long inst_cnt, unsigned long follow_num)
 {
     rr_dma_dev *dev = lookup_nvme_dev();
     // X86CPU *x86_cpu;
@@ -433,8 +433,8 @@ void rr_end_nvme_dma_entry(CPUState *cpu)
     dev->pending_dma_entry->dev_type = DEV_TYPE_NVME;
     dev->pending_dma_entry->cpu_id = cpu->cpu_index;
     dev->pending_dma_entry->owner_id = get_lock_owner();
-    dev->pending_dma_entry->inst_cnt = rr_get_inst_cnt(cpu);
-    dev->pending_dma_entry->follow_num = get_recorded_num();
+    dev->pending_dma_entry->inst_cnt = inst_cnt;
+    dev->pending_dma_entry->follow_num = follow_num;
     // dev->pending_dma_entry->rip = env->eip;
 
     dma_enqueue(dev->dma_queue, dev->pending_dma_entry);

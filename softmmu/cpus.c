@@ -284,6 +284,11 @@ static int do_vm_stop(RunState state, bool send_stop)
  */
 int vm_shutdown(void)
 {
+    // Don't need to go through the vm stop process
+    // in replay.
+    if (rr_in_replay()) {
+        return 0;
+    }
     return do_vm_stop(RUN_STATE_SHUTDOWN, false);
 }
 

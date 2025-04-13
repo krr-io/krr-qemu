@@ -190,6 +190,9 @@ void qmp_cont(Error **errp)
         return;
     }
 
+    if (rr_in_replay())
+        rr_gdb_set_stopped(0);
+
     if (runstate_check(RUN_STATE_INMIGRATE)) {
         autostart = 1;
     } else {

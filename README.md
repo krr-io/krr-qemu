@@ -182,7 +182,7 @@ cd qemu-tcg-kvm/build/
 make -j
 ```
 
-4. Replay:
+4. Start replay:
 In summary, the replay QEMU arguments are almost the same as the arguments for the record, except the following:
 ```
 -accel tcg  // Change from kvm to tcg
@@ -191,37 +191,52 @@ In summary, the replay QEMU arguments are almost the same as the arguments for t
 
 Added the following arguments:
 ```
--kernel-replay <record name> -singlestep -replay-log-bound start=0
+-kernel-replay <record name> -singlestep
 ```
 The `<record name>` is the name the you specified when executing `rr_record <record name>` in the record step.
 
+**Apart from the arguments mentioned above, the other VM configuration should be exactly the same as record.**
+
 Example:
+If your record arguments are like below:
 ```
-../build/qemu-system-x86_64 -accel tcg -smp 1 -cpu Broadwell -no-hpet -m 2G -hda <disk image> -device ivshmem-plain,memdev=hostmem -object memory-backend-file,size=4096M,share,mem-path=/dev/shm/ivshmem,id=hostmem -kernel-replay test1 -singlestep -D rec.log -replay-log-bound start=0
+../build/qemu-system-x86_64 -smp 1 -kernel <your kernel image> -accel kvm -cpu host -no-hpet -m 2G -append  "root=/dev/sda rw init=/lib/systemd/systemd tsc=reliable console=ttyS0" -hda <your root disk image> -object memory-backend-file,size=4096M,share,mem-path=/dev/shm/ivshmem,id=hostmem -device ivshmem-plain,memdev=hostmem -D rec.log -nographic
 ```
-And it will automatically start replaying.
+
+Then the corresponding replay argument:
+```
+../build/qemu-system-x86_64 -accel tcg -smp 1 -cpu Broadwell -no-hpet -m 2G -kernel <your kernel image> -append  "root=/dev/sda rw init=/lib/systemd/systemd tsc=reliable console=ttyS0" -hda <your root disk image> -device ivshmem-plain,memdev=hostmem -object memory-backend-file,size=4096M,share,mem-path=/dev/shm/ivshmem,id=hostmem -kernel-replay test1 -singlestep -D rec.log -monitor stdio
+```
+
+After launched, it stays paused and input `cont` command to start the replay execution:
+```
+In replay mode, execute 'cont' to start the replay
+
+(qemu) cont
+(qemu) Replayed events[1000/3951]
+Replayed events[2000/3951]
+Replayed events[3000/3951]
+...
+```
 
 At the end, it displays something below as a summary of the replay:
 ```
-Replay executed in 8.308527 seconds
+Replay executed in 1.070952 seconds
 === Event Stats ===
-Interrupt: 1207
-Syscall: 2196
-Exception: 392
-CFU: 1103
-GFU: 502
-Random: 0
-IO Input: 75672
-RDTSC: 35249
-Strnlen: 0
+Interrupt: 174
+Syscall: 289
+Exception: 168
+CFU: 130
+GFU: 409
+IO Input: 675
+RDTSC: 781
 RDSEED: 0
-PTE: 4349
+PTE: 1321
 Inst Sync: 0
 DMA Buf Size: 0
-Total Replay Events: 120681
+Total Replay Events: 3951
 Time(s): 0.00
 ```
-**Apart from the arguments mentioned above, the other VM configuration should be exactly the same as record.**
 
 ### Use gdb to debug replay:
 If you wanna debug it using gdb, you should firstly have the `vmlinux` of the same kernel used by the guest.

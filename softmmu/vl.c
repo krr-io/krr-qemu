@@ -2813,8 +2813,8 @@ void qmp_x_exit_preconfig(Error **errp)
             }
         }
     } else if (autostart) {
-        rr_gdb_set_stopped(0);
-        qmp_cont(NULL);
+        if (!rr_in_replay())
+            qmp_cont(NULL);
     }
 
     if (rr_in_replay())
@@ -3888,5 +3888,6 @@ void qemu_init(int argc, char **argv, char **envp)
 
     if (rr_in_replay()) {
         replay_ready();
+        printf("In replay mode, execute 'cont' to start the replay\n");
     }
 }

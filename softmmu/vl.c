@@ -513,6 +513,9 @@ static QemuOptsList qemu_replay_log_bound_opts = {
         },{
             .name = "end",
             .type = QEMU_OPT_NUMBER,
+        },{
+            .name = "cpu",
+            .type = QEMU_OPT_NUMBER,
         },
         { /* end of list */ }
     },
@@ -2831,6 +2834,7 @@ void qemu_init(int argc, char **argv, char **envp)
     MachineClass *machine_class;
     bool userconfig = true;
     FILE *vmstate_dump_file = NULL;
+    QemuOpts *replay_log_opts = NULL;
 
     qemu_add_opts(&qemu_drive_opts);
     qemu_add_drive_opts(&qemu_legacy_drive_opts);
@@ -3720,15 +3724,11 @@ void qemu_init(int argc, char **argv, char **envp)
                 set_should_log(1);
                 break;
             case QEMU_OPTION_replay_log_bound:
-                opts = qemu_opts_parse_noisily(qemu_find_opts("replay-log-bound"),
+                replay_log_opts = qemu_opts_parse_noisily(qemu_find_opts("replay-log-bound"),
                                                optarg, false);
-                if (!opts) {
+                if (!replay_log_opts) {
                     exit(1);
                 }
-                unsigned long start = qemu_opt_get_number(opts, "start", 0);
-                unsigned long end = qemu_opt_get_number(opts, "end", 0);
-                printf("start=%lu, end=%lu\n", start, end);
-                set_log_bound(start, end);
                 break;
             case QEMU_OPTION_snapshot_period:
                 set_snapshot_period(atoi(optarg));
@@ -3887,6 +3887,13 @@ void qemu_init(int argc, char **argv, char **envp)
     resume_mux_open();
 
     if (rr_in_replay()) {
+        if (replay_log_opts != NULL) {
+            unsigned long start = qemu_opt_get_number(replay_log_opts, "start", 0);
+            unsigned long end = qemu_opt_get_number(replay_log_opts, "end", 0);
+            unsigned long cpu = qemu_opt_get_number(replay_log_opts, "cpu", 0);
+            printf("start=%lu, end=%lu\n", start, end);
+            set_log_bound(start, end, cpu);
+        }
         replay_ready();
         printf("In replay mode, execute 'cont' to start the replay\n");
     }

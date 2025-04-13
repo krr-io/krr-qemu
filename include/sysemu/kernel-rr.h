@@ -11,7 +11,7 @@
 #include "qemu/typedefs.h"
 
 #define RR_DEBUG 1
-// #define RR_LOG_DEBUG 1
+#define RR_LOG_DEBUG 1
 // #include "sysemu/dma.h"
 
 
@@ -207,6 +207,7 @@ typedef struct rr_dma_entry_t {
     unsigned long rip;
     unsigned long follow_num;
     int cpu_id;
+    int owner_id;
     int dev_type;
     void *opaque;
     int dev_index;
@@ -285,7 +286,7 @@ int is_valid_op(int op);
 void set_should_log(int v);
 int is_verify_replay(void);
 void rr_do_replay_gfu_begin(CPUState *cpu, int post_exception);
-void set_log_bound(unsigned long start, unsigned long end);
+void set_log_bound(unsigned long start, unsigned long end, int cpu);
 void rr_do_replay_pte(CPUState *cpu);
 void rr_do_replay_gfu_call_begin(CPUState *cpu);
 void add_debug_point(unsigned long addr);

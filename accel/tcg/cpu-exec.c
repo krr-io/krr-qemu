@@ -84,20 +84,25 @@ static int64_t max_delay;
 static int64_t max_advance;
 
 static bool should_log = false;
-static unsigned long log_start = 0;
-static unsigned long log_end = 0;
 
 void set_should_log(int v) {
     should_log = v;
 }
 
-void set_log_bound(unsigned long start, unsigned long end)
+void set_log_bound(unsigned long start, unsigned long end, int cpu)
 {
-    if (start > 0)
-        log_start = start;
+    CPUState *cs;
 
-    if (end > 0)
-        log_end = end;
+    CPU_FOREACH(cs) {
+        if (cs->cpu_index != cpu)
+            continue;
+
+        if (start > 0)
+            cs->log_start = start;
+
+        if (end > 0)
+            cs->log_start = end;
+    }
 }
 
 static bool should_log_trace(CPUState *cpu)
@@ -111,11 +116,11 @@ static bool should_log_trace(CPUState *cpu)
     // if (cpu->cpu_index != 1)
     //     return false;
 
-    if (log_start > 0) {
-        if (log_end == 0)
-            return cpu->rr_executed_inst > log_start;
+    if (cpu->log_start > 0) {
+        if (cpu->log_end == 0)
+            return cpu->rr_executed_inst > cpu->log_start;
 
-        return cpu->rr_executed_inst >= log_start && cpu->rr_executed_inst < log_end;
+        return cpu->rr_executed_inst >= cpu->log_start && cpu->rr_executed_inst < cpu->log_end;
     }
 
     return should_log;

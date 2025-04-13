@@ -432,6 +432,7 @@ void rr_end_nvme_dma_entry(CPUState *cpu)
     dev->pending_dma_entry->replayed_sgs = 0;
     dev->pending_dma_entry->dev_type = DEV_TYPE_NVME;
     dev->pending_dma_entry->cpu_id = cpu->cpu_index;
+    dev->pending_dma_entry->owner_id = get_lock_owner();
     dev->pending_dma_entry->inst_cnt = rr_get_inst_cnt(cpu);
     dev->pending_dma_entry->follow_num = get_recorded_num();
     // dev->pending_dma_entry->rip = env->eip;
@@ -600,12 +601,13 @@ void rr_load_dma_logs(const char *log_file, rr_dma_queue *queue)
         log->rip = loaded_node.rip;
         log->follow_num = loaded_node.follow_num;
         log->cpu_id = loaded_node.cpu_id;
+        log->owner_id = loaded_node.owner_id;
         log->dev_type = loaded_node.dev_type;
         log->dev_index = loaded_node.dev_index;
         log->next = NULL;
 
-        qemu_log("Loaded DMA entry: len=%d inst_cnt=%lu, rip=0x%lx, follow_num=%lu, cpu_id=%d, dev_type=%d\n",
-                 log->len, log->inst_cnt, log->rip, log->follow_num, log->cpu_id, log->dev_type);
+        qemu_log("Loaded DMA entry: len=%d inst_cnt=%lu, rip=0x%lx, follow_num=%lu, cpu_id=%d, owner_id=%d, dev_type=%d\n",
+                 log->len, log->inst_cnt, log->rip, log->follow_num, log->cpu_id, log->owner_id, log->dev_type);
 
         // for (i = 0; i < log->len; i++) {
         //     printf("log: sg_addr=0x%lx, sg_len=%ld\n", log->sgs[i]->addr, log->sgs[i]->len);

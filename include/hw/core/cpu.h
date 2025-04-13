@@ -458,6 +458,8 @@ struct CPUState {
     // Used to track spin count of a replayed kernel entry event,
     // for later synchronization.
     long rr_cached_spin_count;
+    int rr_skip_sync_inst;
+    unsigned long log_start, log_end;
 };
 
 typedef QTAILQ_HEAD(CPUTailQ, CPUState) CPUTailQ;

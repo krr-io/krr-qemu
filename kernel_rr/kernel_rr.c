@@ -1315,6 +1315,7 @@ finish:
 void rr_do_replay_sync_inst(CPUState *cpu)
 {
     rr_event_log_guest event = {};
+    unsigned long initial = cpu->rr_executed_inst;
 
     qemu_mutex_lock(&replay_queue_mutex);
     if (rr_event_log_head->type != EVENT_TYPE_INST_SYNC) {
@@ -1326,7 +1327,12 @@ void rr_do_replay_sync_inst(CPUState *cpu)
     cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
     event.inst_cnt = rr_event_log_head->inst_cnt;
 
-    LOG_MSG("[CPU %d]Replayed inst sync to %lu\n", cpu->cpu_index, rr_event_log_head->inst_cnt);
+    LOG_MSG("[CPU %d]Replayed inst sync to %lu, spin_cnt=%lu, calculated=%lu\n",
+            cpu->cpu_index, rr_event_log_head->inst_cnt,
+            rr_event_log_head->event.interrupt.spin_count,
+            initial + INST_SYNC_MULTI * rr_event_log_head->event.interrupt.spin_count);
+    cpu->rr_cached_spin_count = rr_event_log_head->event.interrupt.spin_count;
+    cpu->rr_skip_sync_inst = 1;
 
     append_to_queue(EVENT_TYPE_INST_SYNC, &event);
     rr_pop_event_head();
@@ -1443,6 +1449,7 @@ rr_event_log_new_from_event(rr_event_log event, int record_mode)
         event_release++;
         break;
     case EVENT_TYPE_INST_SYNC:
+        memcpy(&event_record->event.interrupt, &event.event.interrupt, sizeof(rr_interrupt));
         event_sync_inst++;
         break;
     default:
@@ -1540,7 +1547,8 @@ static void rr_log_event(__attribute_maybe_unused__ rr_event_log *event_record,
             qemu_log("Lock Released: cpu_id=%d\n", event_record->id);
             break;
         case EVENT_TYPE_INST_SYNC:
-            qemu_log("Sync Instructions: cpu_id=%d, inst_cnt=%lu\n", event_record->id, event_record->inst_cnt);
+            qemu_log("Sync Instructions: cpu_id=%d, inst_cnt=%lu, spin_cnt=%lu\n",
+                     event_record->id, event_record->inst_cnt, event_record->event.interrupt.spin_count);
             break;
         case EVENT_TYPE_DMA_DONE:
             qemu_log("DMA Done: cpu_id=%d, inst_cnt=%lu\n",
@@ -1807,6 +1815,7 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
         event_g = (rr_event_log_guest *)event;
         event_record->inst_cnt = event_g->inst_cnt;
         event_record->id = event_g->id;
+        event_record->event.interrupt.spin_count = event_g->event.interrupt.spin_count;
         event_sync_inst++;
         break;
     case EVENT_TYPE_DMA_DONE:
@@ -2278,7 +2287,9 @@ void try_replay_dma(CPUState *cs, int user_ctx)
             (user_ctx && head->inst_cnt == 0 && replayed_event_num >= head->follow_num)
             ||(head->cpu_id != cs->cpu_index && replayed_event_num >= head->follow_num)
         ) {
-            // if (head->inst_cnt == 236838606) {}
+            // if (head->inst_cnt == 65822665 && replayed_event_num - 2 < head->follow_num) {
+            //     break;
+            // }
             LOG_MSG("[CPU-%d]replay next dma user=%d replayed number=%d, executed=%lu, entry_cpu=%d, entry_executed=%lu\n",
                     cs->cpu_index, user_ctx, replayed_event_num, cs->rr_executed_inst, head->cpu_id, head->inst_cnt);
             rr_replay_next_dma(head->dev_index);
@@ -2931,7 +2942,7 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     __attribute_maybe_unused__ CPUArchState *env;
     // verify_inst is true only when we do rdtsc exit during record,
     // for verification only.
-    bool verify_inst = false;
+    bool verify_inst = true;
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
@@ -3714,10 +3725,12 @@ void replay_lock_acquire_result(CPUState *cpu)
 
     if (cpu->rr_cached_spin_count > 0) {
         env->regs[R_EAX] = cpu->rr_cached_spin_count;
-        cpu->rr_executed_inst += INST_SYNC_MULTI * cpu->rr_cached_spin_count;
+        if (!cpu->rr_skip_sync_inst)
+            cpu->rr_executed_inst += INST_SYNC_MULTI * cpu->rr_cached_spin_count;
         LOG_MSG("[CPU-%d]Replayed acquire spin count %lu, synced inst %lu\n",
             cpu->cpu_index, cpu->rr_cached_spin_count, cpu->rr_executed_inst);
     }
 
+    cpu->rr_skip_sync_inst = 0;
     cpu->rr_cached_spin_count = 0;
 }

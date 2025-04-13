@@ -57,7 +57,7 @@ cd build
 make -j
 ```
 
-3. Get the kernel you want to test, here is a prepared [Linux kernel image & vmlinux package](https://drive.google.com/file/d/1cO0qMsqkReSKdHDZ1XC8r3-lT-ixJqfW/view?usp=drive_link)(6.1.0), if you want to build on your own, here is a [guide](#make-your-own-recordable-kernel) to help compile your recordable guest kernel image.
+3. Get the kernel you want to test, here is a prepared [Linux kernel image](https://drive.google.com/file/d/1cO0qMsqkReSKdHDZ1XC8r3-lT-ixJqfW/view?usp=drive_link) & [vmlinux](https://drive.google.com/file/d/1ZgOJHexDfFAvf2TX9EFhv_Fn_DBsb3oe/view?usp=drive_link) based on 6.1.0, if you want to build on your own, here is a [guide](#make-your-own-recordable-kernel) to help compile your recordable guest kernel image.
 
 4. Get the root disk image you want to boot, [here](https://github.com/google/syzkaller/blob/master/tools/create-image.sh) is a script from syzkaller that helps you create a simple rootfs image.
 

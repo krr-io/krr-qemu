@@ -135,7 +135,10 @@ def fetch_rr_record_io_uring_entry():
     return filter_info_addr("rr_record_io_uring_entry")
 
 def fetch_acquire_result():
-    return filter_info_addr("arch/x86/kernel/rr_serialize.c:69")
+    start = filter_info_addr("rr_do_acquire_smp_exec")
+    start_hex = int(start, 16)
+    # This is a fixed length if rr_do_acquire_smp_exec is not modified
+    return "0x{}".format(format(start_hex + 135, 'x'))
 
 
 handlers = {

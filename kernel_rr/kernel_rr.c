@@ -136,8 +136,6 @@ static long long record_end_time;
 __attribute_maybe_unused__ static bool log_trace = false;
 
 static int cpu_cnt = 0;
-
-static long syscall_spin_cnt = 0;
 static unsigned long total_pos = 0;
 
 rr_event_guest_queue_header *queue_header = NULL;
@@ -153,7 +151,7 @@ static rr_event_loader *event_loader;
 
 
 #define DEBUG_POINTS_NUM 15
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff811e3431, 0xffffffff811d0a68, 0xffffffff811d02ae, 0xffffffff811d02a3};
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff811d0812, 0xffffffff811d085a, 0xffffffff811d02a3};
 static int point_index = 6;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
@@ -591,7 +589,6 @@ static void rr_init_ram_bitmaps(void) {
 
 static void sync_spin_inst_cnt(CPUState *cpu, rr_event_log *event)
 {
-    long spin_cnt_diff = 0;
     unsigned long spin_cnt = 0;
 
     if (cpu_cnt == 1) {
@@ -599,46 +596,23 @@ static void sync_spin_inst_cnt(CPUState *cpu, rr_event_log *event)
         return;
     }
 
-    if (event->type == EVENT_TYPE_INTERRUPT) {
-        spin_cnt_diff = event->event.interrupt.spin_count * 3;
+    switch (event->type)
+    {
+    case EVENT_TYPE_INTERRUPT:
         spin_cnt = event->event.interrupt.spin_count;
-    } else if (event->type == EVENT_TYPE_EXCEPTION) {
-        spin_cnt_diff = event->event.exception.spin_count * 3;
+        break;
+    case EVENT_TYPE_EXCEPTION:
         spin_cnt = event->event.exception.spin_count;
+        break;
+    case EVENT_TYPE_SYSCALL:
+        spin_cnt = rr_event_log_head->event.syscall.spin_count;
+        break;
+    default:
+        LOG_MSG("Unexpected type %d for sync inst", event->type);
+        abort();
     }
 
-    if (spin_cnt > 0) {
-        cpu->rr_cached_spin_count = spin_cnt;
-    }
-
-    if (spin_cnt_diff < 0)
-        spin_cnt_diff = 0;
-
-    cpu->rr_executed_inst += spin_cnt_diff;
-    if (spin_cnt_diff > 0)
-        qemu_log("[CPU %d]Synced inst count to %lu\n", cpu->cpu_index, cpu->rr_executed_inst);
-}
-
-void sync_syscall_spin_cnt(CPUState *cpu)
-{
-    if (cpu_cnt == 1) {
-        // Spin cnt sync is only for SMP
-        return;
-    }
-
-    if (syscall_spin_cnt == 0) {
-        return;
-    }
-
-    if (syscall_spin_cnt != 0) {
-        cpu->rr_executed_inst += syscall_spin_cnt * 3;
-    }
-
-    if (syscall_spin_cnt > 0) {
-        cpu->rr_cached_spin_count = syscall_spin_cnt;
-        qemu_log("Syscall synced inst count to %lu\n", cpu->rr_executed_inst);
-    }
-    syscall_spin_cnt = 0;
+    cpu->rr_cached_spin_count = spin_cnt > 0 ? spin_cnt : 0;
 }
 
 static void finish_replay(void)
@@ -2661,16 +2635,13 @@ void rr_do_replay_exception(CPUState *cpu, int user_mode)
            rr_event_log_head->event.exception.cr2,
            rr_event_log_head->event.exception.error_code, env->cr[2], env->dr[6], env->error_code, env->eflags, env->eip, replayed_event_num);
 
+    // For page fault exception, we don't pop the event
+    // here right away, instead we wait until exc_page_fault
+    // which is trapped by rr_do_replay_exception_end.
     if (cpu->exception_index != PF_VECTOR) {
         rr_pop_event_head();
     }
 
-    // qemu_log("Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
-    //         rr_event_log_head->event.exception.exception_index,
-    //         rr_event_log_head->event.exception.cr2,
-    //         rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code, replayed_event_num);
-
-    // cpu->rr_executed_inst = rr_event_log_head->inst_cnt - 54;
 finish:
     qemu_mutex_unlock(&replay_queue_mutex);
 }
@@ -2717,7 +2688,7 @@ void rr_do_replay_exception_end(CPUState *cpu)
         cpu->cause_debug = true;
         // return;
     } else {
-        LOG_MSG("Expected PF address: 0x%lx\n", env->cr[2]);
+        LOG_MSG("Expected PF address: 0x%lx, inst=%lu\n", env->cr[2], cpu->rr_executed_inst);
     }
 
     LOG_MSG("[CPU %d]Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
@@ -2725,33 +2696,12 @@ void rr_do_replay_exception_end(CPUState *cpu)
             rr_event_log_head->event.exception.cr2,
             rr_event_log_head->event.exception.error_code, env->cr[2], env->error_code, replayed_event_num);
 
-    // if (get_replayed_event_num() >= 620463)
-    //     cpu->cause_debug = 1;
-    // env->regs[R_EAX] = rr_event_log_head->event.exception.regs.rax;
-    // env->regs[R_EBX] = rr_event_log_head->event.exception.regs.rbx;
-    // env->regs[R_ECX] = rr_event_log_head->event.exception.regs.rcx;
-    // env->regs[R_EDX] = rr_event_log_head->event.exception.regs.rdx;
-    // env->regs[R_EBP] = rr_event_log_head->event.exception.regs.rbp;
-    // env->regs[R_ESP] = rr_event_log_head->event.exception.regs.rsp;
-    // env->regs[R_EDI] = rr_event_log_head->event.exception.regs.rdi;
-    // env->regs[R_ESI] = rr_event_log_head->event.exception.regs.rsi;
-    // env->regs[R_R8] = rr_event_log_head->event.exception.regs.r8;
-    // env->regs[R_R9] = rr_event_log_head->event.exception.regs.r9;
-    // env->regs[R_R10] = rr_event_log_head->event.exception.regs.r10;
-    // env->regs[R_R11] = rr_event_log_head->event.exception.regs.r11;
-    // env->regs[R_R12] = rr_event_log_head->event.exception.regs.r12;
-    // env->regs[R_R13] = rr_event_log_head->event.exception.regs.r13;
-    // env->regs[R_R14] = rr_event_log_head->event.exception.regs.r14;
-    // env->regs[R_R15] = rr_event_log_head->event.exception.regs.r15;
+    // Sometime exceptions are invoked without going through
+    // rr_do_replay_exception, e.g., the pf right on iret.
+    // So here we sync again just make sure we don't miss.
+    sync_spin_inst_cnt(cpu, rr_event_log_head);
 
     rr_pop_event_head();
-
-    // if (rr_event_log_head->type == EVENT_TYPE_EXCEPTION) {
-    //     if (rr_event_log_head->event.exception.cr2 == env->cr[2]) {
-    //         printf("Pop out redundant event\n");
-    //         rr_pop_event_head();
-    //     }
-    // }
 
     qemu_mutex_unlock(&replay_queue_mutex);
 }
@@ -2799,9 +2749,7 @@ void rr_do_replay_syscall(CPUState *cpu)
     LOG_MSG("[%d]Replayed syscall=%lu, cr3=0x%lx, inst_cnt=%lu, replayed event number=%d\n",
             cpu->cpu_index, env->regs[R_EAX], env->cr[3], cpu->rr_executed_inst, replayed_event_num);
 
-    // sync_spin_inst_cnt(cpu, rr_event_log_head);
-
-    syscall_spin_cnt = rr_event_log_head->event.syscall.spin_count;
+    sync_spin_inst_cnt(cpu, rr_event_log_head);
 
     rr_pop_event_head();
 
@@ -2861,10 +2809,6 @@ void rr_do_replay_io_input(CPUState *cpu, unsigned long *input)
     }
 
     *input = rr_event_log_head->event.io_input.value;
-
-    // if (*input == 0x10000010410040) {
-    //     cpu->cause_debug = 1;
-    // }
 
     LOG_MSG("[CPU %d]Replayed io input=0x%lx, inst_cnt=%lu, cpu_id=%d, rip=0x%lx, replayed event number=%d\n",
              cpu->cpu_index, *input, cpu->rr_executed_inst,
@@ -2987,7 +2931,7 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     __attribute_maybe_unused__ CPUArchState *env;
     // verify_inst is true only when we do rdtsc exit during record,
     // for verification only.
-    bool verify_inst = false;
+    bool verify_inst = true;
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
@@ -3436,12 +3380,6 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
     qemu_log("Step: 0x%lx Inst: %lu, rax=0x%lx, rdx=0x%lx, xcr0=0x%lx, buffer=0x%lx\n",
              env->eip, inst_cnt, env->regs[R_EAX], env->regs[R_EDX], env->xcr0, buffer);
 
-    // qemu_log("Step: 0x%lx Inst: %lu eflags=0x%lx, rax=0x%lx, rbx=0x%lx, rcx=0x%lx,"
-    //          "rdx=0x%lx, rsi=0x%lx, rdi=0x%lx, rsp=0x%lx, rbp=0x%lx, buffer=0x%lx\n",
-    //          env->eip, inst_cnt, env->eflags, env->regs[R_EAX], env->regs[R_EBX],
-    //          env->regs[R_ECX], env->regs[R_EDX], env->regs[R_ESI], env->regs[R_EDI],
-    //          env->regs[R_ESP], env->regs[R_EBP], buffer);
-
     return;
 
     switch (bp_addr) {
@@ -3778,9 +3716,10 @@ void replay_lock_acquire_result(CPUState *cpu)
     env = &x86_cpu->env;
 
     if (cpu->rr_cached_spin_count > 0) {
-        LOG_MSG("[CPU-%d]Replayed acquire spin count %lu\n",
-                cpu->cpu_index, cpu->rr_cached_spin_count);
         env->regs[R_EAX] = cpu->rr_cached_spin_count;
+        cpu->rr_executed_inst += INST_SYNC_MULTI * cpu->rr_cached_spin_count;
+        LOG_MSG("[CPU-%d]Replayed acquire spin count %lu, synced inst %lu\n",
+            cpu->cpu_index, cpu->rr_cached_spin_count, cpu->rr_executed_inst);
     }
 
     cpu->rr_cached_spin_count = 0;

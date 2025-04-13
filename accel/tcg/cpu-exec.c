@@ -1232,7 +1232,6 @@ int cpu_exec(CPUState *cpu)
                     rr_do_replay_io_uring_read_entry(cpu);
                     break;
                 case RR_LOCK_ACQUIRE_RET:
-                    sync_syscall_spin_cnt(cpu);
                     replay_lock_acquire_result(cpu);
                     break;
                 case SYSCALL_ENTRY:

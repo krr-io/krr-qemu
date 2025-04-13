@@ -88,6 +88,9 @@ kernel_rr/rr_gen_replay_symbols.py.
 #define DEV_TYPE_NVME 1
 #define DEV_TYPE_E1000 2
 
+// The multiplier for inst sync, currently
+// 3 instructions on each spinlock loop.
+#define INST_SYNC_MULTI 3
 
 int rr_in_replay(void);
 int rr_in_record(void);
@@ -147,7 +150,6 @@ void rr_handle_kernel_entry(CPUState *cpu, unsigned long bp_addr, unsigned long 
 void rr_do_replay_release(CPUState *cpu);
 void rr_do_replay_sync_inst(CPUState *cpu);
 void cause_other_cpu_debug(CPUState *cpu);
-void sync_syscall_spin_cnt(CPUState *cpu);
 void dump_cpus_state(void);
 void kvm_prep_buf_event(void);
 void try_replay_dma(CPUState *cs, int user_ctx);

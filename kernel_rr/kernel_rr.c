@@ -2353,10 +2353,10 @@ void rr_get_result(void)
 
     fclose(f);
 
-    // if (!rr_in_record()) {
-    //     if (exit_record)
-    //         exit(10);
-    // }
+    if (!rr_in_record()) {
+        if (exit_record)
+            exit(10);
+    }
 }
 
 static void rr_sync_header(void)

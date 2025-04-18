@@ -1411,7 +1411,7 @@ endif
 config_host_data.set('CONFIG_AUDIO_DRIVERS',
                      '"' + '", "'.join(audio_drivers_selected) + '", ')
 
-config_host_data.set('CONFIG_RR_DMA_COPYFREE', config_host.has_key('CONFIG_RR_DMA_COPYFREE'))
+config_host_data.set('CONFIG_RR_DMA_CHECK', config_host.has_key('CONFIG_RR_DMA_CHECK'))
 
 if get_option('cfi')
   cfi_flags=[]
@@ -3512,7 +3512,7 @@ summary_info += {'vhost-user-blk server support': have_vhost_user_blk_server}
 summary_info += {'vhost-user-fs support': config_host.has_key('CONFIG_VHOST_USER_FS')}
 summary_info += {'vhost-vdpa support': config_host.has_key('CONFIG_VHOST_VDPA')}
 summary_info += {'build guest agent': have_ga}
-summary_info += {'rr-dma-copy-free': config_host.has_key('CONFIG_RR_DMA_COPYFREE')}
+summary_info += {'rr-dma-copy-free': config_host.has_key('CONFIG_RR_DMA_CHECK')}
 summary(summary_info, bool_yn: true, section: 'Configurable features')
 
 # Compilation information

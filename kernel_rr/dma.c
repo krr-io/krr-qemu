@@ -5,6 +5,7 @@
 #include "migration/snapshot.h"
 #include "sysemu/dma.h"
 #include "hw/nvme/nvme.h"
+#include "qemu/memalign.h"
 
 #include "cpu.h"
 
@@ -31,6 +32,7 @@
 
 #define MAX_DEV_NUM 8
 #define SG_BUF_POOL_SIZE 8192
+#define DMA_BUF_POOL_SIZE 128 * 1024 * 1024
 
 const char *kernel_rr_dma_log = "kernel_rr_dma.log";
 
@@ -74,6 +76,15 @@ typedef struct {
     int used;               // Number of items currently in use
 } sg_pool_t;
 
+typedef struct {
+    uint8_t *buffer;     /* Base address of the buffer pool */
+    size_t size;         /* Total size of the buffer pool */
+    size_t position;     /* Current allocation position */
+    size_t align_mask;   /* Mask for alignment (e.g., 0x3F for 64-byte alignment) */
+} dma_buffer_pool;
+
+dma_buffer_pool buffer_pool;
+
 // Global pool instance
 static sg_pool_t g_sg_pool = {NULL, 0, 0};
 
@@ -100,9 +111,7 @@ static void sg_pool_init(int size) {
             return;
         }
 
-#ifndef CONFIG_RR_DMA_COPYFREE
         g_sg_pool.items[i]->buf = NULL;
-#endif
     }
 
     g_sg_pool.size = size;
@@ -120,16 +129,13 @@ static rr_sg_data *sg_pool_get(void) {
 }
 
 // Free the pool and all its resources
-static void sg_pool_cleanup(void) {
+__attribute_maybe_unused__ static void sg_pool_cleanup(void) {
     if (g_sg_pool.items == NULL) {
         return;
     }
 
     for (int i = 0; i < g_sg_pool.size; i++) {
         if (g_sg_pool.items[i]) {
-#ifndef CONFIG_RR_DMA_COPYFREE
-            free(g_sg_pool.items[i]->buf);
-#endif
             free(g_sg_pool.items[i]);
         }
     }
@@ -138,6 +144,61 @@ static void sg_pool_cleanup(void) {
     g_sg_pool.items = NULL;
     g_sg_pool.size = 0;
     g_sg_pool.used = 0;
+}
+
+/* Initialize the pool once, this pool is for DMA buffer data */
+static inline int buffer_pool_init(dma_buffer_pool *pool,
+    size_t size,
+    size_t alignment)
+{
+    /* Validate alignment (must be power of 2) */
+    if (alignment == 0 || (alignment & (alignment - 1))) {
+    alignment = 64; /* Default to 64-byte alignment for AVX */
+    }
+
+    /* Align the size up to the alignment */
+    size = (size + alignment - 1) & ~(alignment - 1);
+
+    /* Allocate aligned memory */
+    pool->buffer = qemu_memalign(alignment, size);
+    if (!pool->buffer) {
+    return -1;
+    }
+
+    memset(pool->buffer, 0, size);
+    pool->size = size;
+    pool->position = 0;
+    pool->align_mask = alignment - 1;
+
+    return 0;
+}
+
+/* Get memory from the pool */
+static inline void *buffer_pool_alloc(dma_buffer_pool *pool, size_t size)
+{
+    void *ptr;
+
+    size_t aligned_size;
+
+    if (unlikely(!size)) {
+        return NULL;
+    }
+
+    /* Align the size to prevent misaligned accesses */
+    aligned_size = (size + pool->align_mask) & ~pool->align_mask;
+
+    /* Check if we have enough space */
+    if (unlikely(pool->position + aligned_size > pool->size)) {
+        return NULL;
+    }
+
+    /* Get pointer to current position */
+    ptr = pool->buffer + pool->position;
+
+    /* Advance position */
+    pool->position += aligned_size;
+
+    return ptr;
 }
 
 // === SG Buffer Pool End ===
@@ -322,13 +383,18 @@ void rr_append_general_dma_sg(int dev_type, void *buf, uint64_t len, uint64_t ad
     //     abort();
     // }
 
-    sgd = (rr_sg_data*)malloc(sizeof(rr_sg_data));
-    sgd->buf = (uint8_t*)malloc(sizeof(uint8_t) * len);
+    sgd = sg_pool_get();
+    sgd->buf = buffer_pool_alloc(&buffer_pool, len);
+    if (sgd->buf == NULL) {
+        // Allocation failed, buffer pool used up
+        sgd->buf = (dma_data *)malloc(len);
+    }
 
-    memcpy(sgd->buf, buf, len);
+    __builtin_memcpy(sgd->buf, buf, len);
     sgd->addr = addr;
     sgd->len = len;
-    
+    sgd->do_check = 0;
+
     dma_manager->stat->total_buf_size += len;
     rr_dma_entry_append_sg(dev->pending_dma_entry, sgd);
 }
@@ -341,6 +407,34 @@ static PCIDevice* ide_get_pci_get_dev(void *opaque)
 
     return pdev;
 }
+
+__attribute_maybe_unused__ static inline void
+copy_4k_optimized(void *dst, const void *src)
+{
+    const char *s = (const char *)src;
+
+    /* Prefetch entire buffer in 256-byte strides */
+    __builtin_prefetch(s + 0, 0, 3);
+    __builtin_prefetch(s + 256, 0, 3);
+    __builtin_prefetch(s + 512, 0, 3);
+    __builtin_prefetch(s + 768, 0, 3);
+    __builtin_prefetch(s + 1024, 0, 3);
+    __builtin_prefetch(s + 1280, 0, 3);
+    __builtin_prefetch(s + 1536, 0, 3);
+    __builtin_prefetch(s + 1792, 0, 3);
+    __builtin_prefetch(s + 2048, 0, 3);
+    __builtin_prefetch(s + 2304, 0, 3);
+    __builtin_prefetch(s + 2560, 0, 3);
+    __builtin_prefetch(s + 2816, 0, 3);
+    __builtin_prefetch(s + 3072, 0, 3);
+    __builtin_prefetch(s + 3328, 0, 3);
+    __builtin_prefetch(s + 3584, 0, 3);
+    __builtin_prefetch(s + 3840, 0, 3);
+
+    /* Perform the actual copy */
+    __builtin_memcpy(dst, src, 4096);
+}
+
 
 void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque)
 {
@@ -386,21 +480,19 @@ void rr_append_dma_sg(QEMUSGList *sg, QEMUIOVector *qiov, void *cb, void *opaque
 
     for (i = 0; i < sg->nsg; i++) {
         rr_sg_data *sgd = sg_pool_get();
-#ifdef CONFIG_RR_DMA_COPYFREE
-        sgd->buf = qiov->iov[i].iov_base;
-#else
-        sgd->buf = (uint8_t*)malloc(sizeof(uint8_t) * sg->sg[i].len);
-        res = address_space_read(sg->as,
-                                 sg->sg[i].base,
-                                 MEMTXATTRS_UNSPECIFIED,
-                                 sgd->buf, sg->sg[i].len * sizeof(dma_data));
-        if (res != MEMTX_OK) {
-            printf("failed to read from addr %d\n", res);
+        sgd->buf = buffer_pool_alloc(&buffer_pool, sg->sg[i].len);
+        if (sgd->buf == NULL) {
+            // Allocation failed, buffer pool used up
+            sgd->buf = (dma_data *)malloc(sg->sg[i].len);
         }
-#endif
         sgd->addr = sg->sg[i].base;
         sgd->len = sg->sg[i].len;
 
+        // sgd->checksum = get_checksum(qiov->iov[i].iov_base, qiov->iov[i].iov_len);
+        // sgd->do_check = 1;
+        sgd->do_check = 0;
+
+        __builtin_memcpy(sgd->buf,  qiov->iov[i].iov_base, qiov->iov[i].iov_len);
         dma_manager->stat->total_buf_size += sg->sg[i].len;
         dma_manager->stat->total_buf_cnt++;
 
@@ -469,7 +561,8 @@ void rr_end_ide_dma_entry(IDEDMA *dma)
 }
 
 static void persist_dma_buf(rr_sg_data *sg, FILE *fptr) {
-    sg->checksum = get_checksum(sg->buf, sg->len);
+    if (sg->do_check)
+        assert(sg->checksum == get_checksum(sg->buf, sg->len));
 
     // printf("Save sg addr=0x%lx len=%ld, checksum=%lu\n", sg->addr, sg->len, sg->checksum);
 
@@ -713,6 +806,7 @@ void rr_dma_pre_record(void)
         init_dma_queue(&(dma_manager->dev_list[i]->dma_queue));
     }
 
+    buffer_pool_init(&buffer_pool,  DMA_BUF_POOL_SIZE, 64);
     sg_pool_init(SG_BUF_POOL_SIZE);
 
     remove(kernel_rr_dma_log);

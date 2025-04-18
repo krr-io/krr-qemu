@@ -2896,7 +2896,7 @@ if test "$opengl" = "yes" ; then
 fi
 
 if test "$rrdmacopyfree" = "yes" ; then
-  echo "CONFIG_RR_DMA_COPYFREE=y" >> $config_host_mak
+  echo "CONFIG_RR_DMA_CHECK=y" >> $config_host_mak
 fi
 
 # XXX: suppress that

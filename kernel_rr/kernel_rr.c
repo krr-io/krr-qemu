@@ -2313,16 +2313,14 @@ static void rr_record_settle_events(void)
 
     for (int i = 0; i < MAX_CPU_NUM; i++) {
         if (rr_smp_event_log_queues[i] != NULL) {
-            LOG_MSG("Orphan event from kvm on cpu %d!\n", i);
-
+            LOG_MSG("Orphan event from kvm on cpu %d, record failed!\n", i);
             event = rr_smp_event_log_queues[i];
 
             while (event != NULL) {
                 rr_log_event(event, 0, NULL);
                 event = event->next;
             }
-
-            // exit(1);
+            exit(1);
         }
     }
 }
@@ -2354,8 +2352,10 @@ void rr_get_result(void)
     fclose(f);
 
     if (!rr_in_record()) {
-        if (exit_record)
+        if (exit_record) {
+            printf("exit-record is set, exit directly\n");
             exit(10);
+        }
     }
 }
 

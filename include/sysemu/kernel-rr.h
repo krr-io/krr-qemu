@@ -11,7 +11,7 @@
 #include "qemu/typedefs.h"
 
 #define RR_DEBUG 1
-// #define RR_LOG_DEBUG 1
+#define RR_LOG_DEBUG 1
 // #include "sysemu/dma.h"
 
 
@@ -195,6 +195,7 @@ typedef struct rr_sg_data_t {
     uint64_t addr;
     uint64_t len;
     unsigned long checksum;
+    int do_check;
     dma_data *buf;
     struct rr_sg_data_t *next;
 } rr_sg_data;
@@ -304,6 +305,7 @@ int rr_inject_exception(CPUState *cpu);
 void rr_do_replay_page_map(CPUState *cpu);
 void rr_do_replay_io_uring_read_tail(CPUState *cpu);
 void rr_do_replay_io_uring_read_entry(CPUState *cpu);
+void rr_hook_unmap(void *iov_base, size_t len);
 
 #ifdef RR_LOG_DEBUG
 #define LOG_MSG(fmt, ...) \

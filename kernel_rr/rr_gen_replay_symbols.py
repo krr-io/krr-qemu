@@ -53,6 +53,53 @@ def fetch_random_gen():
 def fetch_exc_page_fault():
     return filter_info_addr("exc_page_fault")
 
+def fetch_exc_general_protectiont():
+    return filter_info_addr("exc_general_protection")
+
+def find_last_return_address(function_name):
+    """
+    Find the address of the last return instruction in a function.
+    
+    Args:
+        function_name: The name of the function to analyze
+        
+    Returns:
+        The address of the last return instruction as an integer, or None if not found
+    """
+    try:
+        # Disassemble the function
+        disassembly = gdb.execute(f"disassemble {function_name}", to_string=True)
+        lines = disassembly.splitlines()
+        
+        # Find all ret instructions and __x86_return_thunk calls
+        ret_instructions = []
+        for line in lines:
+            line = line.strip()
+            if ("ret" in line.split() and "<+" in line) or "__x86_return_thunk" in line:
+                addr_str = line.split()[0]
+                # Handle both regular ret instructions and __x86_return_thunk calls
+                if "<+" in line:
+                    offset = int(line.split("<+")[1].split(">")[0])
+                else:
+                    # For __x86_return_thunk calls, get the offset from its position in the function
+                    # Assuming the line number in disassembly roughly corresponds to offset
+                    offset = lines.index(line)
+                
+                ret_addr = int(addr_str, 16)
+                ret_instructions.append((ret_addr, offset))
+        
+        if not ret_instructions:
+            return None
+        
+        # Sort by offset to find the last one
+        ret_instructions.sort(key=lambda x: x[1])
+        last_ret_addr = ret_instructions[-1][0]
+        
+        return last_ret_addr
+        
+    except gdb.error:
+        return None
+
 def fetch_exc_page_fault_end():
     if "6.1.0" in VERSION or "6.1.18" in VERSION or "6.1.31" in VERSION or "6.1.34" in VERSION or "6.1.35" in VERSION:
         return filter_loc_addr("fault.c:1580")
@@ -135,10 +182,11 @@ def fetch_rr_record_io_uring_entry():
     return filter_info_addr("rr_record_io_uring_entry")
 
 def fetch_acquire_result():
-    start = filter_info_addr("rr_do_acquire_smp_exec")
-    start_hex = int(start, 16)
-    # This is a fixed length if rr_do_acquire_smp_exec is not modified
-    return "0x{}".format(format(start_hex + 135, 'x'))
+    addr = find_last_return_address("rr_do_acquire_smp_exec")
+    if not addr:
+        raise Exception("Failed to analyze symbol of rr_do_acquire_smp_exec")
+
+    return hex(addr)
 
 
 handlers = {
@@ -146,7 +194,8 @@ handlers = {
     "STRNLEN_USER": fetch_strnlen_user,
     "PF_EXEC": fetch_exc_page_fault,
     "PF_EXEC_END": fetch_exc_page_fault_end,
-    "RR_RECORD_CFU": fetch_rr_record_cfu,
+    # "RR_RECORD_CFU": fetch_rr_record_cfu,
+    "GP_EXEC": fetch_exc_general_protectiont,
     "RR_CFU_BEGIN": fetch_rr_cfu_begin,
     "RR_RECORD_GFU": fetch_rr_record_gfu,
     "RR_GFU4": fetch_gfu4,

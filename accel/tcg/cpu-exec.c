@@ -1220,6 +1220,7 @@ int cpu_exec(CPUState *cpu)
                     rr_do_replay_rand(cpu, 0);
                     break;
                 case PF_EXEC:
+                case GP_EXEC:
                     rr_do_replay_exception_end(cpu);
                     // rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst + 1);
                     break;

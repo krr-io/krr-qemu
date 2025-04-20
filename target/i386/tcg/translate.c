@@ -6760,6 +6760,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         gen_op_jmp_v(s->T0);
         gen_bnd_jmp(s);
         gen_jr(s, s->T0);
+        s->io_inst |= INST_RET;
         break;
     case 0xca: /* lret im */
         val = x86_ldsw_code(env, s);

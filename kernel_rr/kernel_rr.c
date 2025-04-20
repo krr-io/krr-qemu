@@ -151,7 +151,7 @@ static rr_event_loader *event_loader;
 
 
 #define DEBUG_POINTS_NUM 15
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff811d0812, 0xffffffff811d085a, 0xffffffff811d02a3};
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff814f104a, 0xffffffff814f111d};
 static int point_index = 6;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
@@ -1714,6 +1714,90 @@ static void interrupt_check(rr_event_log *event)
     }
 }
 
+__attribute_maybe_unused__
+static rr_event_log *rr_event_new_counting(void *event, int type, int* copied)
+{
+    int copied_size = sizeof(rr_event_log_guest);
+
+    __attribute_maybe_unused__ int event_num = get_total_events_num() + 1;
+
+    // printf("type %d\n", type);
+    switch (type)
+    {
+    case EVENT_TYPE_INTERRUPT:
+        copied_size = sizeof(rr_interrupt);
+        event_interrupt_num++;
+        break;
+
+    case EVENT_TYPE_EXCEPTION:
+        copied_size = sizeof(rr_exception);
+        event_exception_num++;
+        break;
+
+    case EVENT_TYPE_SYSCALL:
+        copied_size = sizeof(rr_syscall);
+        event_syscall_num++;
+        break;
+
+    case EVENT_TYPE_IO_IN:
+        copied_size = sizeof(rr_io_input);
+        event_io_input_num++;
+        break;
+    case EVENT_TYPE_RDTSC:
+        copied_size = sizeof(rr_io_input);
+        event_rdtsc_num++;
+        break;
+    case EVENT_TYPE_PTE:
+        copied_size = sizeof(rr_gfu);
+        event_pte_num++;
+        break;
+    case EVENT_TYPE_GFU:
+        copied_size = sizeof(rr_gfu);
+        event_gfu_num++;
+        break;
+    case EVENT_TYPE_CFU:
+        rr_cfu *cfu = (rr_cfu *)event;
+        copied_size = sizeof(rr_cfu);
+
+        // memcpy(&cfu, event, copied_size);
+        int s = cfu->len * sizeof(unsigned char);
+        // printf("%s\n", (unsigned char *)event_record->event.cfu.data);
+        copied_size += s;
+
+        event_cfu_num++;
+        break;
+    case EVENT_TYPE_RDSEED:
+        copied_size = sizeof(rr_gfu);
+        event_rdseed_num++;
+        break;
+    case EVENT_TYPE_MMIO:
+        copied_size = sizeof(rr_io_input);
+        event_io_input_num++;
+        break;
+    case EVENT_TYPE_RELEASE:
+        copied_size = sizeof(rr_event_log_guest);
+        event_release++;
+        break;
+    case EVENT_TYPE_INST_SYNC:
+        copied_size = sizeof(rr_event_log_guest);
+        event_sync_inst++;
+        break;
+    case EVENT_TYPE_DMA_DONE:
+        copied_size = sizeof(rr_dma_done);
+        event_dma_done++;
+        break;
+    default:
+        printf("Shm Event: unrecognized event %d\n", type);
+        abort();
+        break;
+    }
+
+    *copied = copied_size;
+
+    return NULL;
+}
+
+__attribute_maybe_unused__
 static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int* copied)
 {
     int copied_size = sizeof(rr_event_log_guest);
@@ -2352,7 +2436,7 @@ void rr_get_result(void)
     fclose(f);
 
     if (!rr_in_record()) {
-        if (exit_record) {
+        if (exit_record && skip_save) {
             printf("exit-record is set, exit directly\n");
             exit(10);
         }
@@ -2692,14 +2776,16 @@ void rr_do_replay_exception_end(CPUState *cpu)
         abort();
     }
 
-    if (rr_event_log_head->event.exception.cr2 != env->cr[2] ) {
-        printf("Unmatched page fault current: address=0x%lx error_code=%d, expected: address=0x%lx error_code=%d\n",
-                env->cr[2], env->error_code, rr_event_log_head->event.exception.cr2, rr_event_log_head->event.exception.error_code);
-        // abort();
-        cpu->cause_debug = true;
-        // return;
-    } else {
-        LOG_MSG("Expected PF address: 0x%lx, inst=%lu\n", env->cr[2], cpu->rr_executed_inst);
+    if (rr_event_log_head->event.exception.exception_index == PF_VECTOR) {
+        if (rr_event_log_head->event.exception.cr2 != env->cr[2] ) {
+            printf("Unmatched page fault current: address=0x%lx error_code=%d, expected: address=0x%lx error_code=%d\n",
+                    env->cr[2], env->error_code, rr_event_log_head->event.exception.cr2, rr_event_log_head->event.exception.error_code);
+            // abort();
+            cpu->cause_debug = true;
+            // return;
+        } else {
+            LOG_MSG("Expected PF address: 0x%lx, inst=%lu\n", env->cr[2], cpu->rr_executed_inst);
+        }
     }
 
     LOG_MSG("[CPU %d]Replayed exception %d, logged: cr2=0x%lx, error_code=%d, current: cr2=0x%lx, error_code=%d, event number=%d\n", 
@@ -3256,18 +3342,22 @@ static int record_event(void *event_addr)
 
     event_header = (rr_event_entry_header *)(event_addr);
 
-    event_record = rr_event_log_new_from_event_shm(event_addr + sizeof(rr_event_entry_header),
-                                                   event_header->type, &copied);
-    // qemu_log("event type %d\n", event_record->type);
-    if (rr_event_cur == NULL) {
-        rr_event_log_head = event_record;
-        rr_event_cur = event_record;
-    } else {
-        rr_event_cur->next = event_record;
-        rr_event_cur = rr_event_cur->next;
-    }
+    // event_record = rr_event_new_counting(event_addr + sizeof(rr_event_entry_header),
+    //                                                event_header->type, &copied);
+    event_record = rr_event_log_new_from_event_shm(event_addr + sizeof(rr_event_entry_header), event_header->type, &copied);
 
-    rr_event_cur->next = NULL;
+    if (event_record != NULL) {
+        // qemu_log("event type %d\n", event_record->type);
+        if (rr_event_cur == NULL) {
+            rr_event_log_head = event_record;
+            rr_event_cur = event_record;
+        } else {
+            rr_event_cur->next = event_record;
+            rr_event_cur = rr_event_cur->next;
+        }
+
+        rr_event_cur->next = NULL;
+    }
 
     return copied + sizeof(rr_event_entry_header);
 }
@@ -3327,7 +3417,7 @@ void rr_ivshmem_set_rr_enabled(int enabled)
     header->rr_enabled = enabled;
 }
 
-static void rr_reset_ivshmem(void)
+__attribute_maybe_unused__ static void rr_reset_ivshmem(void)
 {
     rr_event_guest_queue_header *header = (rr_event_guest_queue_header *)ivshmem_base_addr;
 
@@ -3358,6 +3448,10 @@ int rr_inc_inst(CPUState *cpu, unsigned long next_pc, TranslationBlock *tb)
         qemu_log("rep in, inc\n");
         // if (env->regs[R_ECX] == 1)
         //     cpu->rr_executed_inst++;
+        cpu->rr_executed_inst++;
+    } else if (tb->io_inst & INST_RET) {
+        /* Linux has some spectre mechanism that could generate
+           multiple ret with the same address on system call entry. */
         cpu->rr_executed_inst++;
     }
 

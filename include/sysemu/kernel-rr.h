@@ -11,7 +11,7 @@
 #include "qemu/typedefs.h"
 
 #define RR_DEBUG 1
-#define RR_LOG_DEBUG 1
+// #define RR_LOG_DEBUG 1
 // #include "sysemu/dma.h"
 
 
@@ -24,6 +24,7 @@ kernel_rr/rr_gen_replay_symbols.py.
 #define STRNLEN_USER 0xffffffff814b8dc0 // info addr strnlen_user
 #define RANDOM_GEN 0xffffffff810316b0 // info addr rr_record_random
 #define PF_EXEC 0xffffffff818a13d0 // info addr exc_page_fault
+#define GP_EXEC 0xffffffff8189fa00
 #define PF_EXEC_END 0xffffffff818a1670 // b fault.c:1580 arch/x86/mm/fault.c:1463
 #define RR_CFU_BEGIN 0xffffffff81031c90
 #define RR_RECORD_CFU 0xffffffff81031d70 // info addr rr_record_cfu
@@ -83,6 +84,7 @@ kernel_rr/rr_gen_replay_symbols.py.
 #define STO_INST_REP 4
 #define INST_REP 8
 #define IO_INST_REP_IN 16
+#define INST_RET 32
 
 #define DEV_TYPE_IDE 0
 #define DEV_TYPE_NVME 1

@@ -246,9 +246,11 @@ def gen_script(cpu_num):
     extra_arg = ""
     disk_image = os.environ["KRR_DISK"]
     extra_param = ""
+    display = "-display none"
 
     if test_name == constants.KERNEL_BUILD_TEST_NAME:
         disk_image = os.environ["KBUILD_DISK"]
+        display = "-vnc :00"
 
     elif test_name == constants.REDIS_TEST_NAME:
         disk_image = os.environ["REDIS_DISK"]
@@ -291,7 +293,7 @@ def gen_script(cpu_num):
     "root=/dev/sda rw init=/lib/systemd/systemd tsc=reliable console=ttyS0 benchmark={benchmark} {extra_param}" \
     -hda {disk_image} \
     {ivshmem} -D rec.log {extra_dev} -exit-record 1 \
-    -qmp unix:{socket_path},server=on,wait=off -display none -checkpoint-interval 0 -record-skipsave 1 {extra_arg}
+    -qmp unix:{socket_path},server=on,wait=off {display} -checkpoint-interval 0 -record-skipsave 1 {extra_arg}
     """.format(
         qemu_binary=qemu_binary, kernel_image=kernel_image,
         benchmark=benchmark,
@@ -299,6 +301,7 @@ def gen_script(cpu_num):
         disk_image=disk_image, cpu_num=cpu_num,
         ivshmem=ivshmem, extra_dev=extra_dev,
         socket_path=socket_path,
+        display=display,
         extra_arg=extra_arg,
     )
 

@@ -119,7 +119,7 @@ static void sg_pool_init(int size) {
 }
 
 // Get an rr_sg_data from the pool or allocate a new one if pool is empty
-static rr_sg_data *sg_pool_get(void) {
+static inline rr_sg_data *sg_pool_get(void) {
     if (g_sg_pool.items == NULL || g_sg_pool.used >= g_sg_pool.size) {
         // Pool not initialized or empty, use malloc
         return (rr_sg_data *)malloc(sizeof(rr_sg_data));
@@ -147,28 +147,19 @@ __attribute_maybe_unused__ static void sg_pool_cleanup(void) {
 }
 
 /* Initialize the pool once, this pool is for DMA buffer data */
-static inline int buffer_pool_init(dma_buffer_pool *pool,
-    size_t size,
-    size_t alignment)
+static inline int buffer_pool_init(dma_buffer_pool *pool, size_t size)
 {
-    /* Validate alignment (must be power of 2) */
-    if (alignment == 0 || (alignment & (alignment - 1))) {
-    alignment = 64; /* Default to 64-byte alignment for AVX */
-    }
-
-    /* Align the size up to the alignment */
-    size = (size + alignment - 1) & ~(alignment - 1);
-
+    int align_size = 64;
     /* Allocate aligned memory */
-    pool->buffer = qemu_memalign(alignment, size);
+    pool->buffer = qemu_memalign(align_size, size);
     if (!pool->buffer) {
     return -1;
     }
 
-    memset(pool->buffer, 0, size);
+    memset(pool->buffer, 0xff, size);
     pool->size = size;
     pool->position = 0;
-    pool->align_mask = alignment - 1;
+    pool->align_mask = align_size - 1;
 
     return 0;
 }
@@ -189,6 +180,7 @@ static inline void *buffer_pool_alloc(dma_buffer_pool *pool, size_t size)
 
     /* Check if we have enough space */
     if (unlikely(pool->position + aligned_size > pool->size)) {
+        abort();
         return NULL;
     }
 
@@ -806,7 +798,7 @@ void rr_dma_pre_record(void)
         init_dma_queue(&(dma_manager->dev_list[i]->dma_queue));
     }
 
-    buffer_pool_init(&buffer_pool,  DMA_BUF_POOL_SIZE, 64);
+    buffer_pool_init(&buffer_pool,  DMA_BUF_POOL_SIZE);
     sg_pool_init(SG_BUF_POOL_SIZE);
 
     remove(kernel_rr_dma_log);

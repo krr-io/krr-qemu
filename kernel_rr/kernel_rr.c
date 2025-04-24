@@ -1942,6 +1942,9 @@ static void append_event_shm(void *event, int type)
 void rr_pop_event_head(void) {
     rr_event_cur = rr_event_log_head;
     rr_event_log_head = rr_event_log_head->next;
+
+    /* Usually we want to free, but this will still
+       be used when doing replay rollback */
     // free(rr_event_cur);
     // rr_event_cur = NULL;
 

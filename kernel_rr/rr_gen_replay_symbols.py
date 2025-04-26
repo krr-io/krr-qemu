@@ -1,3 +1,4 @@
+import os
 import sys
 
 import gdb
@@ -256,4 +257,5 @@ def generate_symbols(kernel_rr_header):
 
 
 if __name__ == "__main__":
-    generate_symbols("/home/projects/qemu-tcg-kvm/include/sysemu/kernel-rr.h")
+    qemu_path = sys.argv[0]
+    generate_symbols(os.path.join(qemu_path, "include/sysemu/kernel-rr.h"))

@@ -8,5 +8,5 @@ fi
 vmlinux=$1
 prefix=$2
 
-gdb $vmlinux -ex 'python import sys; sys.argv = ["'${prefix}'/kernel_rr/rr_gen_replay_symbols.py", "'${prefix}'/include/sysemu/kernel-rr.h"]' -ex 'source '${prefix}'kernel_rr/rr_gen_replay_symbols.py' -ex 'quit'
-
+gdb $vmlinux -ex 'python import sys; sys.argv = ["'${prefix}'"]' -ex 'source '${prefix}'/kernel_rr/rr_gen_replay_symbols.py' -ex 'quit'
+cd ${prefix}/build; make -j$(nproc)

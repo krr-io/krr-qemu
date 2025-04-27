@@ -2400,7 +2400,7 @@ static void rr_record_settle_events(void)
 
     for (int i = 0; i < MAX_CPU_NUM; i++) {
         if (rr_smp_event_log_queues[i] != NULL) {
-            LOG_MSG("Orphan event from kvm on cpu %d, record failed!\n", i);
+            printf("Orphan event from kvm on cpu %d, record failed!\n", i);
             event = rr_smp_event_log_queues[i];
 
             while (event != NULL) {

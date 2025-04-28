@@ -180,7 +180,6 @@ static inline void *buffer_pool_alloc(dma_buffer_pool *pool, size_t size)
 
     /* Check if we have enough space */
     if (unlikely(pool->position + aligned_size > pool->size)) {
-        abort();
         return NULL;
     }
 

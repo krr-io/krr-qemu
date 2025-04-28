@@ -2584,8 +2584,13 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
     if (rr_event_log_head->type == EVENT_TYPE_INTERRUPT) {
 
         if (env->eip == rr_event_log_head->rip && env->regs[R_ECX] == rr_event_log_head->event.interrupt.regs.rcx) {
+            /* 
+                TODO: currently the interrupt is matched only when
+                rr_event_log_head->inst_cnt - 1 = cpu->rr_executed_inst, and
+                this is what is happening all the time.
+            */
             if (abs_value(cpu->rr_executed_inst, rr_event_log_head->inst_cnt) < 4) {
-                qemu_log("temp fixed the cpu number, %lu -> %lu, rcx=0x%lx\n",
+                qemu_log("interrupt matched the cpu inst cnt, %lu -> %lu, rcx=0x%lx\n",
                          cpu->rr_executed_inst, rr_event_log_head->inst_cnt, env->regs[R_ECX]);
                 cpu->rr_executed_inst = rr_event_log_head->inst_cnt;
                 matched = true;
@@ -3203,14 +3208,32 @@ void rr_do_replay_page_map(CPUState *cpu)
     CPUArchState *env;
     int ret;
     rr_event_log *node = rr_event_log_head;
+    bool reordered = false;
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
+    rr_event_log *cur = rr_event_log_head;
 
     if (node->type != EVENT_TYPE_CFU) {
-        cpu->cause_debug = true;
-        printf("Expected CFU, current %d\n", node->type);
-        return;
+        qemu_log("Current[%d] not local page map, look for next\n", rr_event_log_head->type);
+        while (cur->next != NULL) {
+	    if (cur->next->type == EVENT_TYPE_CFU && cur->next->event.cfu.src_addr == env->regs[R_ESI]) {
+	        break;
+	    }
+            cur = cur->next;
+        }
+
+        if (cur->next == NULL) {
+            printf("Expected log copy from user, but got %d, ip=0x%lx\n", rr_event_log_head->type, env->eip);
+                // abort();
+            cpu->cause_debug = 1;
+            return;
+        }
+
+        if (cur->next->type == EVENT_TYPE_CFU) {
+            node = cur->next;
+            reordered = true;
+        }
     }
 
     if (node->event.cfu.src_addr != env->regs[R_ESI]) {
@@ -3226,7 +3249,12 @@ void rr_do_replay_page_map(CPUState *cpu)
         printf("Failed too write to %lx\n", node->event.cfu.src_addr);
     }
 
-    rr_pop_event_head();
+    if (!reordered)
+        rr_pop_event_head();
+    else {
+        cur->next = cur->next->next;
+        replayed_event_num++;
+    }
 }
 
 

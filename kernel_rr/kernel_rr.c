@@ -2266,6 +2266,7 @@ static void rr_load_events(void) {
 
     fptr = event_loader->fptr;
 
+    rr_event_cur = NULL;
 	while(loaded_event < event_loader->total_events && loaded_event < max_events) {
         if (!fread(&entry_header, sizeof(rr_event_entry_header), 1, fptr)) {
             printf("Failed to read event header\n");
@@ -2584,12 +2585,7 @@ void rr_replay_interrupt(CPUState *cpu, int *interrupt)
     if (rr_event_log_head->type == EVENT_TYPE_INTERRUPT) {
 
         if (env->eip == rr_event_log_head->rip && env->regs[R_ECX] == rr_event_log_head->event.interrupt.regs.rcx) {
-            /* 
-                TODO: currently the interrupt is matched only when
-                rr_event_log_head->inst_cnt - 1 = cpu->rr_executed_inst, and
-                this is what is happening all the time.
-            */
-            if (abs_value(cpu->rr_executed_inst, rr_event_log_head->inst_cnt) < 4) {
+            if (cpu->rr_executed_inst == rr_event_log_head->inst_cnt - 1 || cpu->rr_executed_inst == rr_event_log_head->inst_cnt) {
                 qemu_log("interrupt matched the cpu inst cnt, %lu -> %lu, rcx=0x%lx\n",
                          cpu->rr_executed_inst, rr_event_log_head->inst_cnt, env->regs[R_ECX]);
                 cpu->rr_executed_inst = rr_event_log_head->inst_cnt;

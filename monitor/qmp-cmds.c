@@ -112,6 +112,10 @@ void qmp_rr_record(Error **errp)
     if (rr_get_ignore_record())
         return;
 
+    if (rr_in_record()) {
+        error_setg(errp, "Already in the record session, cannot start recording");
+    }
+
     if (runstate_is_running()){
         autostart = true;
         vm_stop(RUN_STATE_PAUSED);

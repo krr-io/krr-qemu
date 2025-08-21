@@ -1118,7 +1118,11 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
     bool autostart = false;
     unsigned long trace_interval;
     int enable_trace = 0;
-    // CPUState *cs;
+
+    if (rr_in_record()) {
+        error_setg(&err, "Already in the record session, cannot start recording");
+        goto error;
+    }
 
     trace_mode = qdict_get_try_int(qdict, "trace", 0);
     trace_interval = qdict_get_try_int(qdict, "trace_interval", 10000);
@@ -1150,7 +1154,8 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
     if (autostart)
         vm_start();
 
-    // hmp_handle_error(mon, err);
+error:
+    hmp_handle_error(mon, err);
 }
 
 void hmp_rr_end_record(Monitor *mon, const QDict *qdict)

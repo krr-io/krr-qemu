@@ -837,6 +837,20 @@ ERST
 SRST
   ``info sev``
     Show SEV information.
+
+ERST
+
+    {
+        .name       = "krr-replay",
+        .args_type  = "",
+        .params     = "",
+        .help       = "show KRR replay information",
+        .cmd        = hmp_info_krr_replay,
+    },
+
+SRST
+  ``info krr-replay``
+    Display the krr replay info.
 ERST
 
     {

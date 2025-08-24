@@ -1168,6 +1168,22 @@ void hmp_rr_end_record(Monitor *mon, const QDict *qdict)
     vm_start();
 }
 
+void hmp_info_krr_replay(Monitor *mon, const QDict *qdict)
+{
+    Error *err = NULL;
+
+    if (!rr_in_replay()) {
+        error_setg(&err, "Not in replay");
+        goto error;
+    }
+
+    monitor_printf(mon, "Replayed events: %d", get_replayed_event_num());
+    return;
+
+error:
+    hmp_handle_error(mon, err);
+}
+
 void hmp_rr_replay(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;

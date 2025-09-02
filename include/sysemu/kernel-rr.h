@@ -19,47 +19,47 @@
 The symbols below are automatically generated with
 kernel_rr/rr_gen_replay_symbols.py.
 */
-#define RR_GFU_BEGIN 0xffffffff81031c20
-#define STRNCPY_FROM_USER 0xffffffff814b8c30 // b lib/strncpy_from_user.c:42
-#define STRNLEN_USER 0xffffffff814b8dc0 // info addr strnlen_user
+#define RR_GFU_BEGIN 0xffffffff81031b40
+#define STRNCPY_FROM_USER 0xffffffff814708d0 // b lib/strncpy_from_user.c:42
+#define STRNLEN_USER 0xffffffff81470a60 // info addr strnlen_user
 #define RANDOM_GEN 0xffffffff810316b0 // info addr rr_record_random
-#define PF_EXEC 0xffffffff818a13d0 // info addr exc_page_fault
-#define GP_EXEC 0xffffffff8189fa00
-#define PF_EXEC_END 0xffffffff818a1670 // b fault.c:1580 arch/x86/mm/fault.c:1463
-#define RR_CFU_BEGIN 0xffffffff81031c90
+#define PF_EXEC 0xffffffff81822780 // info addr exc_page_fault
+#define GP_EXEC 0xffffffff81820db0
+#define PF_EXEC_END 0xffffffff81822a20 // b fault.c:1580 arch/x86/mm/fault.c:1463
+#define RR_CFU_BEGIN 0xffffffff81031bb0
 #define RR_RECORD_CFU 0xffffffff81031d70 // info addr rr_record_cfu
-#define RR_GFU_NOCHECK1 0xffffffff81859f9e // b arch/x86/lib/getuser.S:127
-#define RR_RECORD_GFU 0xffffffff81859f84 // b getuser.S:103
-#define RR_GFU_NOCHECK4 0xffffffff81859fdd // b getuser.S:162
-#define RR_GFU_NOCHECK8 0xffffffff81859ffe // b getuser.S:147
-#define RR_GFU4 0xffffffff81859f53 // b getuser.S:88
+#define RR_GFU_NOCHECK1 0xffffffff817e5f8e // b arch/x86/lib/getuser.S:127
+#define RR_RECORD_GFU 0xffffffff817e5f74 // b getuser.S:103
+#define RR_GFU_NOCHECK4 0xffffffff817e5fcd // b getuser.S:162
+#define RR_GFU_NOCHECK8 0xffffffff817e5fee // b getuser.S:147
+#define RR_GFU4 0xffffffff817e5f43 // b getuser.S:88
 #define PF_ENTRY 0xffffffff81a00b40 // info addr asm_exc_page_fault
-#define RR_PTE_CLEAR 0xffffffff81032080 // info addr rr_record_pte_clear
-#define RR_PTE_READ 0xffffffff810320f0 // info addr rr_read_pte
+#define RR_PTE_CLEAR 0xffffffff81031ea0 // info addr rr_record_pte_clear
+#define RR_PTE_READ 0xffffffff81031f10 // info addr rr_read_pte
 #define RR_GFU_CALL_BEGIN 0xffffffff810346b0
-#define RR_PTE_READ_ONCE 0xffffffff81032160
-#define RR_PAGE_MAP 0xffffffff81032220
+#define RR_PTE_READ_ONCE 0xffffffff81031f80
+#define RR_PAGE_MAP 0xffffffff81032040
 
 #define RR_IRET 0xffffffff81a00eed // b arch/x86/entry/entry_64.S:702
 #define RR_SYSRET 0xffffffff81a00193 // b arch/x86/entry/entry_64.S:226
 #define SYSCALL_ENTRY 0xffffffff81a00000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff818a1c40 // info addr syscall_exit_to_user_mode
+#define SYSCALL_EXIT 0xffffffff81822ff0 // info addr syscall_exit_to_user_mode
 #define PF_ASM_EXC 0xffffffff81a00b40 // info addr asm_exc_page_fault
 #define INT_ASM_EXC 0xffffffff81a00b00 // info addr asm_exc_int3
 #define INT_ASM_DEBUG 0xffffffff81a00b70 // info addr asm_exc_debug
 
-#define IRQ_ENTRY 0xffffffff818a1b40 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff818a1cb0 // info addr irqentry_exit
-#define RR_IO_URING_BEGIN 0xffffffff81032340
-#define RR_IO_URING_RECORD_ENTRY 0xffffffff81032350
+#define IRQ_ENTRY 0xffffffff81822ef0 // info addr irqentry_enter
+#define IRQ_EXIT 0xffffffff81823060 // info addr irqentry_exit
+#define RR_IO_URING_BEGIN 0xffffffff81032160
+#define RR_IO_URING_RECORD_ENTRY 0xffffffff81032170
 
-#define LOCK_RELEASE 0xffffffff81031853 // info addr rr_record_release
-#define RR_RECORD_SYSCALL 0xffffffff8103189e // info addr rr_record_syscall
-#define RR_HANDLE_SYSCALL 0xffffffff81031870
+#define LOCK_RELEASE 0xffffffff81031733 // info addr rr_record_release
+#define RR_RECORD_SYSCALL 0xffffffff8103176e // info addr rr_record_syscall
+#define RR_HANDLE_SYSCALL 0xffffffff81031740
 #define RR_HANDLE_IRQ 0xffffffff81035210
 #define RR_RECORD_IRQ 0xffffffff8103523f
 #define RR_RECORD_EXCP 0xffffffff810350d1
-#define RR_LOCK_ACQUIRE_RET 0xffffffff81031747
+#define RR_LOCK_ACQUIRE_RET 0xffffffff81031627
 
 #define E1000_CLEAN 0xffffffff816056a0
 #define E1000_CLEAN_MID 0xffffffff81605a02

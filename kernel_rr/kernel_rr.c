@@ -134,6 +134,7 @@ static clock_t replay_start_time;
 static long long record_start_time;
 static long long record_end_time;
 __attribute_maybe_unused__ static bool log_trace = false;
+static unsigned long vcpu_inst_cnt_offset = sizeof(rr_event_guest_queue_header) + sizeof(unsigned long);
 
 static int cpu_cnt = 0;
 static unsigned long total_pos = 0;
@@ -150,9 +151,9 @@ typedef struct rr_event_loader_t {
 static rr_event_loader *event_loader;
 
 
-#define DEBUG_POINTS_NUM 15
-static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff814f104a, 0xffffffff814f111d};
-static int point_index = 6;
+#define DEBUG_POINTS_NUM 1
+static unsigned long debug_points[DEBUG_POINTS_NUM] = { 0xffffffff81031af9};
+static int point_index = 0;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
 
@@ -1341,7 +1342,7 @@ finish:
     qemu_mutex_unlock(&replay_queue_mutex);
 }
 
-static void
+__attribute_maybe_unused__ static void
 rr_merge_user_interrupt_of_guest_and_hypervisor(rr_interrupt *guest_interrupt)
 {
     rr_event_log *vcpu_event_head = rr_smp_event_log_queues[guest_interrupt->id];
@@ -1819,11 +1820,6 @@ static rr_event_log *rr_event_log_new_from_event_shm(void *event, int type, int*
         rr_interrupt *in = (rr_interrupt *)event;
 
         memcpy(&event_record->event.interrupt, in, copied_size);
-        if (event_record->event.interrupt.from == 3) {
-            // printf("merging interrupt: %d\n", event_num);
-            rr_merge_user_interrupt_of_guest_and_hypervisor(&(event_record->event.interrupt));
-            qemu_log("Merged user interrupt, inst=%lu\n", event_record->event.interrupt.inst_cnt);
-        }
 
         interrupt_check(event_record);
         event_interrupt_num++;
@@ -2468,8 +2464,6 @@ void rr_post_record(void)
         rr_smp_event_log_queues[i] = NULL;
     }
 
-    rr_get_vcpu_events();
-
     rr_read_shm_events_info();
 
     printf("Getting result\n");
@@ -3032,7 +3026,7 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     __attribute_maybe_unused__ CPUArchState *env;
     // verify_inst is true only when we do rdtsc exit during record,
     // for verification only.
-    bool verify_inst = false;
+    bool verify_inst = true;
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
@@ -3130,6 +3124,13 @@ void rr_do_replay_rdseed(unsigned long *val)
     qemu_mutex_unlock(&replay_queue_mutex);
 }
 
+__attribute_maybe_unused__ static void
+fill_intr_info(CPUState *cpu, rr_interrupt *intr)
+{
+    printf("fill_intr_info\n");
+    memcpy(ivshmem_base_addr + vcpu_inst_cnt_offset + cpu->cpu_index * sizeof(rr_interrupt), intr, sizeof(rr_interrupt));
+}
+
 void rr_do_replay_intno(CPUState *cpu, int *intno)
 {
     X86CPU *x86_cpu;
@@ -3175,6 +3176,8 @@ void rr_do_replay_intno(CPUState *cpu, int *intno)
 
         if (rr_event_log_head->event.interrupt.from == 0) {
             append_to_queue(EVENT_TYPE_INTERRUPT, &(rr_event_log_head->event.interrupt));
+        } else {
+            fill_intr_info(cpu, &(rr_event_log_head->event.interrupt));
         }
 
         /*

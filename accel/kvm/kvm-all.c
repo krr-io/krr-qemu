@@ -2935,6 +2935,11 @@ int kvm_cpu_exec(CPUState *cpu)
                 break;
             }
 
+            if (run_ret == RR_HANDLE_EVENT_FAILED) {
+                ret = EXCP_KRR_ERR;
+                break;
+            }
+
             if (run_ret == -100) {
                 ret = EXCP_START_RECORD;
                 break;
@@ -3600,7 +3605,7 @@ int kvm_start_record(int enable_trace, unsigned long trace_interval)
 
     ret = kvm_vm_ioctl(kvm_state, KVM_START_RECORD, &data);
     if (ret) {
-        printf("Failed to call start record\n");
+        printf("Failed to call start record: %d\n", ret);
         return ret;
     }
 
@@ -3620,6 +3625,8 @@ int kvm_end_record(void) {
     ret = kvm_vm_ioctl(kvm_state, KVM_END_RECORD, NULL);
     if (ret) {
         printf("Failed to call end record: %d\n", ret);
+        printf("KRR KVM reports failed record session, please check kernel message\n");
+        exit(1);
         return ret;
     }
 

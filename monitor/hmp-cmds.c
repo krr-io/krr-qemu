@@ -1118,6 +1118,7 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
     bool autostart = false;
     unsigned long trace_interval;
     int enable_trace = 0;
+    int r;
 
     if (rr_in_record()) {
         error_setg(&err, "Already in the record session, cannot start recording");
@@ -1149,7 +1150,11 @@ void hmp_rr_record(Monitor *mon, const QDict *qdict)
         printf("Breakpoint trace is enabled\n");
         rr_insert_breakpoints();
     }
-    kvm_start_record(enable_trace, trace_interval);
+    r = kvm_start_record(enable_trace, trace_interval);
+    if (r != 0) {
+        error_setg(&err, "Failed to start record %d", r);
+        goto error;
+    }
 
     if (autostart)
         vm_start();

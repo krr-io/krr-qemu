@@ -108,6 +108,7 @@ void qmp_system_reset(Error **errp)
 void qmp_rr_record(Error **errp)
 {
     bool autostart = false;
+    int r;
 
     if (rr_get_ignore_record())
         return;
@@ -130,7 +131,10 @@ void qmp_rr_record(Error **errp)
 
     printf("Snapshot taken, start recording...\n");
 
-    kvm_start_record(0, 0);
+    r = kvm_start_record(0, 0);
+    if (r != 0) {
+        error_setg(errp, "Failed to start record: %d", r);
+    }
 
     if (autostart)
         vm_start();

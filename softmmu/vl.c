@@ -2877,6 +2877,8 @@ void qemu_init(int argc, char **argv, char **envp)
 
     qemu_init_subsystems();
 
+    krr_init_config();
+
     /* first pass of option parsing */
     optind = 1;
     while (optind < argc) {
@@ -3123,6 +3125,9 @@ void qemu_init(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_gdb:
                 add_device_config(DEV_GDB, optarg);
+                break;
+            case QEMU_OPTION_krr_trap:
+                krr_set_trap_error(1);
                 break;
             case QEMU_OPTION_L:
                 if (is_help_option(optarg)) {

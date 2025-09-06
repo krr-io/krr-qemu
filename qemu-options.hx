@@ -4121,6 +4121,14 @@ SRST
     items.
 ERST
 
+DEF("krr-trap", 0, QEMU_OPTION_krr_trap, \
+    "-krr-trap should work with gdb console, it traps to gdb KVM encounters error",
+    QEMU_ARCH_ALL)
+SRST
+``-krr-trap``
+    should work with gdb console, it traps to gdb KVM encounters error
+ERST
+
 DEF("D", HAS_ARG, QEMU_OPTION_D, \
     "-D logfile      output log to logfile (default stderr)\n",
     QEMU_ARCH_ALL)

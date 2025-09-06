@@ -208,4 +208,9 @@ struct rr_record_data {
     unsigned long trace_interval;
 };
 
+// === Error code ===
+#define RR_HIT_BREAKPOINT -199
+#define RR_HANDLE_EVENT_FAILED -205
+#define RR_RECORD_SETUP_FAILED -206
+
 #endif

@@ -215,16 +215,17 @@ end:
 }
 
 
-static void start_record(void)
+static int start_record(void)
 {
     Error *err = NULL;
     int interval;
     int trace_mode;
+    int r;
 
     if (rr_get_ignore_record()) {
         FILE* file = fopen("/dev/shm/record", "w");
         fclose(file);
-        return;
+        return 0;
     }
 
     printf("start record\n");
@@ -244,14 +245,16 @@ static void start_record(void)
             printf("Breakpoint trace is enabled\n");
             rr_insert_breakpoints();
         }
-        kvm_start_record(0, 0);
+        r = kvm_start_record(0, 0);
     } else {
         rr_insert_entry_breakpoints();
-        kvm_start_record(1, interval);
+        r = kvm_start_record(1, interval);
     }
 
     resume_all_vcpus();
     // vm_start();
+
+    return r;
 }
 
 static void end_record(void)
@@ -292,12 +295,22 @@ static void *kvm_vcpu_thread_fn(void *arg)
             r = kvm_cpu_exec(cpu);
 
             if (r == EXCP_START_RECORD) {
-                start_record();
+                if (start_record() != 0) {
+                    printf("Failed to start record, exiting\n");
+                    exit(1);
+                }
                 continue;
             }
 
             if (r == EXCP_END_RECORD) {
                 end_record();
+                continue;
+            }
+
+            if (r == EXCP_KRR_ERR) {
+                if (krr_get_config().gdb_trap_error) {
+                    cpu_handle_guest_debug(cpu);
+                }
                 continue;
             }
 

@@ -11,7 +11,7 @@
 #include "qemu/typedefs.h"
 
 #define RR_DEBUG 1
-// #define RR_LOG_DEBUG 1
+#define RR_LOG_DEBUG 1
 // #include "sysemu/dma.h"
 
 
@@ -25,7 +25,7 @@ kernel_rr/rr_gen_replay_symbols.py.
 #define RANDOM_GEN 0xffffffff810316b0 // info addr rr_record_random
 #define PF_EXEC 0xffffffff81822780 // info addr exc_page_fault
 #define GP_EXEC 0xffffffff81820db0
-#define PF_EXEC_END 0xffffffff81822a20 // b fault.c:1580 arch/x86/mm/fault.c:1463
+#define PF_EXEC_END 0xffffffff81822a34
 #define RR_CFU_BEGIN 0xffffffff81031bb0
 #define RR_RECORD_CFU 0xffffffff81031d70 // info addr rr_record_cfu
 #define RR_GFU_NOCHECK1 0xffffffff817e5f8e // b arch/x86/lib/getuser.S:127
@@ -94,6 +94,11 @@ kernel_rr/rr_gen_replay_symbols.py.
 // 3 instructions on each spinlock loop.
 #define INST_SYNC_MULTI 3
 
+typedef struct krr_config_t {
+    int gdb_trap_error;
+} krr_config;
+
+void krr_init_config(void);
 int rr_in_replay(void);
 int rr_in_record(void);
 void rr_set_record(int record);
@@ -102,6 +107,8 @@ void accel_start_kernel_replay(void);
 int replay_should_skip_wait(void);
 void rr_pop_event_head(void);
 int get_replayed_event_num(void);
+void krr_set_trap_error(int trap_error);
+krr_config krr_get_config(void);
 
 void rr_replay_interrupt(CPUState *cpu, int *interrupt);
 void rr_do_replay_intno(CPUState *cpu, int *intno);

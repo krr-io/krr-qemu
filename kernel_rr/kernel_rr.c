@@ -116,6 +116,7 @@ volatile int current_owner = -1;
 static int exit_record = 0;
 static int ignore_record = 0;
 static int skip_save = 0;
+static krr_config *global_config = NULL;
 
 static void rr_read_shm_events(void);
 static void rr_reset_ivshmem(void);
@@ -157,6 +158,22 @@ static int point_index = 0;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
 
+
+void krr_init_config(void)
+{
+    global_config = (krr_config *)malloc(sizeof(krr_config));
+    global_config->gdb_trap_error = 0;
+}
+
+void krr_set_trap_error(int trap_error)
+{
+    global_config->gdb_trap_error = 1;
+}
+
+krr_config krr_get_config(void)
+{
+    return *global_config;
+}
 
 void set_skip_save(int skip)
 {
@@ -3026,7 +3043,7 @@ void rr_do_replay_rdtsc(CPUState *cpu, unsigned long *tsc)
     __attribute_maybe_unused__ CPUArchState *env;
     // verify_inst is true only when we do rdtsc exit during record,
     // for verification only.
-    bool verify_inst = true;
+    bool verify_inst = false;
 
     x86_cpu = X86_CPU(cpu);
     env = &x86_cpu->env;
@@ -3070,15 +3087,9 @@ void rr_do_replay_release(CPUState *cpu)
 
     qemu_mutex_lock(&replay_queue_mutex);
 
-    // if (rr_event_log_head->type != EVENT_TYPE_RELEASE) {
-    //     printf("Unexpected %d, expected lock release, inst_cnt=%lu\n",
-    //            rr_event_log_head->type, cpu->rr_executed_inst);
-    //     cpu->cause_debug = true;
-    //     goto finish;
-    //     // abort();
-    // } else {
-    //     rr_pop_event_head();
-    // }
+    if (rr_event_log_head->type == EVENT_TYPE_RELEASE) {
+        rr_pop_event_head();
+    }
 
     if (rr_event_log_head && rr_event_log_head->id == cpu->cpu_index) {
         goto finish;
@@ -3127,7 +3138,6 @@ void rr_do_replay_rdseed(unsigned long *val)
 __attribute_maybe_unused__ static void
 fill_intr_info(CPUState *cpu, rr_interrupt *intr)
 {
-    printf("fill_intr_info\n");
     memcpy(ivshmem_base_addr + vcpu_inst_cnt_offset + cpu->cpu_index * sizeof(rr_interrupt), intr, sizeof(rr_interrupt));
 }
 

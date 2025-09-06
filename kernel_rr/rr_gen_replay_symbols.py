@@ -102,16 +102,39 @@ def find_last_return_address(function_name):
         return None
 
 def fetch_exc_page_fault_end():
-    if "6.1.0" in VERSION or "6.1.18" in VERSION or "6.1.31" in VERSION or "6.1.34" in VERSION or "6.1.35" in VERSION:
-        return filter_loc_addr("fault.c:1580")
-    elif "6.1.86" in VERSION or "6.1.84" in VERSION:
-        return filter_loc_addr("fault.c:1523")
-    elif "6.1.61" in VERSION or "6.1.77" in VERSION or "6.1.38" in VERSION or "6.1.62" in VERSION or "6.1.66" in VERSION:
-        return filter_loc_addr("fault.c:1532")
-    elif "5.17.4" in VERSION:
-        return filter_loc_addr("fault.c:1545")
-    else:
-        return filter_loc_addr("fault.c:1463")
+    try:
+        # Execute the disassemble command for exc_page_fault
+        disasm_output = gdb.execute("disassemble exc_page_fault", to_string=True)
+
+        # Split the output into lines
+        lines = disasm_output.strip().split('\n')
+
+        # Search for the line containing irqentry_exit
+        for line in lines:
+            if 'irqentry_exit' in line:
+                # Extract the address using string operations
+                # Line format: 0xffffffff89204dec <+124>:	jmp    0xffffffff89205770 <irqentry_exit>
+
+                # Find the first 0x which should be the instruction address
+                start_idx = line.find('0x')
+                if start_idx == -1:
+                    continue
+
+                # Find the end of the hex address (before the space and <)
+                end_idx = line.find(' ', start_idx)
+                if end_idx == -1:
+                    continue
+
+                address = line[start_idx:end_idx]
+                print("Found irqentry_exit call at address: " + address)
+                return address
+
+        print("irqentry_exit not found in exc_page_fault disassembly")
+        return None
+
+    except:
+        print("Error occurred while searching for irqentry_exit")
+        return None
 
 def fetch_rr_record_cfu():
     return filter_info_addr("rr_record_cfu")

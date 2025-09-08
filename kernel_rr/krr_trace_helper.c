@@ -225,7 +225,7 @@ static int find_and_print_events(void* mapped_mem, int target_type, int target_i
 
     for (vcpu_id = 0; vcpu_id < 2; vcpu_id++) {
         intr_info = (rr_interrupt *)(mapped_mem + sizeof(rr_event_guest_queue_header) + sizeof(unsigned long) + sizeof(rr_interrupt) * vcpu_id);
-        printf("  vCPU %d, interrupt instruction %lu, rip=0x%lx\n", vcpu_id, intr_info->inst_cnt, intr_info->rip);
+        printf("  vCPU %d, interrupt instruction %lu, rip=0x%lx, vector %d\n", vcpu_id, intr_info->inst_cnt, intr_info->rip, intr_info->vector);
     }
 
     if (header->current_byte <= header->header_size) {

@@ -11,7 +11,7 @@
 #include "qemu/typedefs.h"
 
 #define RR_DEBUG 1
-#define RR_LOG_DEBUG 1
+// #define RR_LOG_DEBUG 1
 // #include "sysemu/dma.h"
 
 
@@ -43,13 +43,13 @@ kernel_rr/rr_gen_replay_symbols.py.
 #define RR_IRET 0xffffffff81a00eed // b arch/x86/entry/entry_64.S:702
 #define RR_SYSRET 0xffffffff81a00193 // b arch/x86/entry/entry_64.S:226
 #define SYSCALL_ENTRY 0xffffffff81a00000 // info addr entry_SYSCALL_64
-#define SYSCALL_EXIT 0xffffffff81822ff0 // info addr syscall_exit_to_user_mode
+#define SYSCALL_EXIT 0xffffffff81823000 // info addr syscall_exit_to_user_mode
 #define PF_ASM_EXC 0xffffffff81a00b40 // info addr asm_exc_page_fault
 #define INT_ASM_EXC 0xffffffff81a00b00 // info addr asm_exc_int3
 #define INT_ASM_DEBUG 0xffffffff81a00b70 // info addr asm_exc_debug
 
 #define IRQ_ENTRY 0xffffffff81822ef0 // info addr irqentry_enter
-#define IRQ_EXIT 0xffffffff81823060 // info addr irqentry_exit
+#define IRQ_EXIT 0xffffffff81823070 // info addr irqentry_exit
 #define RR_IO_URING_BEGIN 0xffffffff81032160
 #define RR_IO_URING_RECORD_ENTRY 0xffffffff81032170
 
@@ -315,15 +315,17 @@ void rr_do_replay_page_map(CPUState *cpu);
 void rr_do_replay_io_uring_read_tail(CPUState *cpu);
 void rr_do_replay_io_uring_read_entry(CPUState *cpu);
 void rr_hook_unmap(void *iov_base, size_t len);
+void rr_enable_debug_msg(void);
 
-#ifdef RR_LOG_DEBUG
+extern int rr_debug_enabled;
+
 #define LOG_MSG(fmt, ...) \
     do { \
-        printf(fmt, ##__VA_ARGS__); \
-        qemu_log(fmt, ##__VA_ARGS__); \
+        if (unlikely(rr_debug_enabled)) { \
+            printf(fmt, ##__VA_ARGS__); \
+            qemu_log(fmt, ##__VA_ARGS__); \
+        } \
     } while (0)
-#else
-#define LOG_MSG(fmt, ...) do {} while (0)
-#endif
+
 
 #endif /* KERNEL_RR_H */

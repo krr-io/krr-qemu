@@ -47,6 +47,8 @@ rr_event_log *rr_event_cur = NULL;
 
 rr_event_log* rr_smp_event_log_queues[MAX_CPU_NUM];
 
+int rr_debug_enabled = 0;
+
 
 typedef struct rr_replay_info_node_t {
     unsigned long cpu_inst_list[MAX_CPU_NUM];
@@ -158,6 +160,11 @@ static int point_index = 0;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
 
+
+void rr_enable_debug_msg(void)
+{
+    rr_debug_enabled = 1;
+}
 
 void krr_init_config(void)
 {

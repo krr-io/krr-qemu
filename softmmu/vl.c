@@ -3129,6 +3129,9 @@ void qemu_init(int argc, char **argv, char **envp)
             case QEMU_OPTION_krr_trap:
                 krr_set_trap_error(1);
                 break;
+            case QEMU_OPTION_rr_enable_debug:
+                rr_enable_debug_msg();
+                break;
             case QEMU_OPTION_L:
                 if (is_help_option(optarg)) {
                     list_data_dirs = true;

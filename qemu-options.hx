@@ -4129,6 +4129,14 @@ SRST
     should work with gdb console, it traps to gdb KVM encounters error
 ERST
 
+DEF("krr-debug", 0, QEMU_OPTION_rr_enable_debug, \
+    "-krr-debug print out more debug message",
+    QEMU_ARCH_ALL)
+SRST
+``-krr-debug``
+    print out more debug message
+ERST
+
 DEF("D", HAS_ARG, QEMU_OPTION_D, \
     "-D logfile      output log to logfile (default stderr)\n",
     QEMU_ARCH_ALL)

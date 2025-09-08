@@ -1761,9 +1761,7 @@ ERST
 
 SRST
 ``rr_record``
-  Start a round of dirty rate measurement with the period specified in *second*.
-  The result of the dirty rate measurement may be observed with ``info
-  dirty_rate`` command.
+  Start record session
 ERST
 
     {
@@ -1773,6 +1771,20 @@ ERST
         .help       = "",
         .cmd        = hmp_rr_record,
     },
+
+SRST
+``rr-record``
+  Start record session
+ERST
+
+    {
+        .name       = "rr-record",
+        .args_type  = "name:s,trace:i?,trace_interval:i?",
+        .params     = "tag",
+        .help       = "",
+        .cmd        = hmp_rr_record,
+    },
+
 
 SRST
 ``rr_replay``
@@ -1807,9 +1819,7 @@ ERST
 
 SRST
 ``rr_end_record``
-  Start a round of dirty rate measurement with the period specified in *second*.
-  The result of the dirty rate measurement may be observed with ``info
-  dirty_rate`` command.
+  Finish record session
 ERST
 
     {
@@ -1819,3 +1829,17 @@ ERST
         .help       = "",
         .cmd        = hmp_rr_end_record,
     },
+
+SRST
+``rr-end-record``
+  Finish record session
+ERST
+
+    {
+        .name       = "rr-end-record",
+        .args_type  = "",
+        .params     = "tag",
+        .help       = "",
+        .cmd        = hmp_rr_end_record,
+    },
+  

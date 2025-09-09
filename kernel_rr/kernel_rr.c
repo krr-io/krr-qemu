@@ -154,9 +154,9 @@ typedef struct rr_event_loader_t {
 static rr_event_loader *event_loader;
 
 
-#define DEBUG_POINTS_NUM 1
-static unsigned long debug_points[DEBUG_POINTS_NUM] = { 0xffffffff81031af9};
-static int point_index = 0;
+#define DEBUG_POINTS_NUM 7
+static unsigned long debug_points[DEBUG_POINTS_NUM] = {SYSCALL_ENTRY, RR_SYSRET, PF_ENTRY, RR_IRET, INT_ASM_EXC, INT_ASM_DEBUG, 0xffffffff81031af9};
+static int point_index = 6;
 static int checkpoint_interval = -1;
 static int trace_mode = 0;
 

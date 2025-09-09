@@ -4129,6 +4129,14 @@ SRST
     should work with gdb console, it traps to gdb KVM encounters error
 ERST
 
+DEF("krr-autostart", 0, QEMU_OPTION_krr_autostart, \
+    "-krr-autostart automatically start replaying",
+    QEMU_ARCH_ALL)
+SRST
+``-krr-trap``
+    should work with gdb console, it traps to gdb KVM encounters error
+ERST
+
 DEF("krr-debug", 0, QEMU_OPTION_rr_enable_debug, \
     "-krr-debug print out more debug message",
     QEMU_ARCH_ALL)

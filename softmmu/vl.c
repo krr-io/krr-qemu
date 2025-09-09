@@ -191,6 +191,7 @@ static int default_cdrom = 1;
 static int default_sdcard = 1;
 static int default_vga = 1;
 static int default_net = 1;
+static int krr_autostart = 0;
 
 static const char *kernel_replay_name;
 
@@ -2816,7 +2817,7 @@ void qmp_x_exit_preconfig(Error **errp)
             }
         }
     } else if (autostart) {
-        if (!rr_in_replay())
+        if (!rr_in_replay() || krr_autostart)
             qmp_cont(NULL);
     }
 
@@ -3147,6 +3148,9 @@ void qemu_init(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_S:
                 autostart = 0;
+                break;
+            case QEMU_OPTION_krr_autostart:
+                krr_autostart = 1;
                 break;
             case QEMU_OPTION_k:
                 keyboard_layout = optarg;

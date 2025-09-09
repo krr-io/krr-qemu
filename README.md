@@ -25,7 +25,7 @@ Supported Networ Emulation:
 ### Install KRR KVM
 1. Download the KRR's KVM hypervisor source code linux:
 ```
-git clone -b rr-para https://github.com/tianrenz2/kernel-rr-linux.git
+git clone https://github.com/tianrenz2/kernel-rr-linux.git
 ```
 
 2. Generate the .config file:
@@ -57,7 +57,7 @@ cd build
 make -j
 ```
 
-3. Get the kernel you want to test, here is a prepared [Linux kernel image](https://drive.google.com/file/d/1cO0qMsqkReSKdHDZ1XC8r3-lT-ixJqfW/view?usp=drive_link) & [vmlinux](https://drive.google.com/file/d/1ZgOJHexDfFAvf2TX9EFhv_Fn_DBsb3oe/view?usp=drive_link) based on 6.1.0, if you want to build on your own, here is a [guide](#make-your-own-recordable-kernel) to help compile your recordable guest kernel image.
+3. Get the kernel you want to test, here is a prepared [Linux kernel image](https://drive.google.com/file/d/135wyIqwCpd2l1wiDS3pL6Ghuq-KuZKFF/view?usp=sharing) & [vmlinux](https://drive.google.com/file/d/1vAYcB4PeHYQA9CloThZ07B_JLGgRoYJq/view?usp=sharing) based on 6.1.0, if you want to build on your own, here is a [guide](#make-your-own-recordable-kernel) to help compile your recordable guest kernel image.
 
 4. Get the root disk image you want to boot, [here](https://github.com/google/syzkaller/blob/master/tools/create-image.sh) is a script from syzkaller that helps you create a simple rootfs image.
 
@@ -306,10 +306,10 @@ Full command:
 ```
 
 ## Make your own recordable kernel
-Due to its split-recorder design, KRR requires some modifications to the guest linux kernel. The full changes refers to this [repo](https://github.com/tianrenz2/linux-6.1.0/tree/smp-rr), but here is a single [patch file](kernel_rr/Support-for-KRR-guest-recorder-patch) that contains all the changes. To apply the changes, mv the file to your kernel source code directory and execute:
+Due to its split-recorder design, KRR requires some modifications to the guest linux kernel. The full changes refers to this [repo](https://github.com/tianrenz2/linux-6.1.0/), clone this repo and execute `generate_patch.sh`, then you can generate a patch file. To apply the changes, mv the file to your kernel source code directory and execute:
 ```
 mv Support-for-KRR-guest-recorder-patch Support-for-KRR-guest-recorder.patch
-git apply Support-for-KRR-guest-recorder-patch
+git apply --reject Support-for-KRR-guest-recorder-patch
 ```
 Note that this patch file is based on Linux 6.1.0, different version of source code may encounter some conflicts to resolve.
 

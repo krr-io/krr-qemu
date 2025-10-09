@@ -112,6 +112,7 @@ static void sg_pool_init(int size) {
         }
 
         g_sg_pool.items[i]->buf = NULL;
+        g_sg_pool.items[i]->do_check = 0;
     }
 
     g_sg_pool.size = size;

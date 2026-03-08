@@ -2396,6 +2396,10 @@ void rr_post_record(void)
 
 void replay_ready(void)
 {
+    while (initial_queue_header == NULL) {
+        usleep(1000);
+    }
+
     printf("replay initial queue header enabled=%d, current_byte=%lu\n",
            initial_queue_header->rr_enabled, initial_queue_header->current_byte);
     memcpy(ivshmem_base_addr, initial_queue_header, sizeof(rr_event_guest_queue_header));

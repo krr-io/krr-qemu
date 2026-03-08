@@ -1655,10 +1655,12 @@ static void gen_shift_rm_T1(DisasContext *s, MemOp ot, int op1,
     gen_shift_flags(s, ot, s->T0, s->tmp0, s->T1, is_right, false);
 
     // qemu_log("arith=%d, is_right=%d, op1=%d\n", is_arith, is_right, op1);
-    if (!is_arith && is_right) {
-        tcg_gen_mov_tl(cpu_cc_src2, s->tmp4);
-        set_cc_op(s, CC_OP_SHRB + ot);
-    } 
+    if (rr_in_replay()) {
+        if (!is_arith && is_right) {
+            tcg_gen_mov_tl(cpu_cc_src2, s->tmp4);
+            set_cc_op(s, CC_OP_SHRB + ot);
+        }
+    }
 }
 
 static void gen_shift_rm_im(DisasContext *s, MemOp ot, int op1, int op2,
@@ -4616,13 +4618,6 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
     }
 }
 
-// static void restore_eflags(DisasContext *s)
-// {
-//     tcg_gen_ld_tl(s->T0, cpu_env, offsetof(CPUX86State, eflags));
-//     gen_helper_write_eflags(cpu_env, s->T0, tcg_const_i32((TF_MASK | AC_MASK | ID_MASK | NT_MASK) & 0xffff));
-//     set_cc_op(s, CC_OP_EFLAGS);
-// }
-
 /* convert one instruction. s->base.is_jmp is set if the translation must
    be stopped. Return the next pc value */
 static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
@@ -4792,14 +4787,15 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     s->aflag = aflag;
     s->dflag = dflag;
 
-    if (s->syscall_only) {
-        b = 0x105;
-    }
+    if (rr_in_replay()) {
+        if (s->syscall_only) {
+            b = 0x105;
+        }
 
-    if (s->prefix & (PREFIX_REPZ)) {
-        s->krr_flag |= INST_REP;
+        if (s->prefix & (PREFIX_REPZ)) {
+            s->krr_flag |= INST_REP;
+        }
     }
-
     /* now check op code */
  reswitch:
     // qemu_log("op byte: %x\n", b);
@@ -5932,7 +5928,6 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 opreg = (modrm & 7) | REX_B(s);
             }
 
-            // qemu_log("shift %d\n", shift);
             /* simpler op */
             if (shift == 0) {
                 gen_shift(s, op, ot, opreg, OR_ECX);
@@ -6566,7 +6561,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         ot = mo_b_d(b, dflag);
         if (prefixes & (PREFIX_REPZ | PREFIX_REPNZ)) {
             gen_repz_stos(s, ot, pc_start - s->cs_base, s->pc - s->cs_base);
-            s->krr_flag |= STO_INST_REP;
+            if (rr_in_replay()) {
+                s->krr_flag |= STO_INST_REP;
+            }
         } else {
             gen_stos(s, ot);
         }
@@ -6760,7 +6757,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         gen_op_jmp_v(s->T0);
         gen_bnd_jmp(s);
         gen_jr(s, s->T0);
-        s->krr_flag |= INST_RET;
+        if (rr_in_replay()) {
+            s->krr_flag |= INST_RET;
+        }
         break;
     case 0xca: /* lret im */
         val = x86_ldsw_code(env, s);
@@ -8429,7 +8428,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                     || (prefixes & (PREFIX_REPZ | PREFIX_REPNZ))) {
                     goto illegal_op;
                 }
-                s->krr_flag |= INST_REP;
+                if (rr_in_replay()) {
+                    s->krr_flag |= INST_REP;
+                }
                 gen_lea_modrm(env, s, modrm);
                 tcg_gen_concat_tl_i64(s->tmp1_i64, cpu_regs[R_EAX],
                                       cpu_regs[R_EDX]);
@@ -8590,11 +8591,12 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         goto unknown_op;
     }
 
-    // qemu_log("cc op %d\n", s->cc_op);
-    rr_gen_compute_eflags(s);
-    gen_helper_rr_write_eflags(cpu_env, cpu_cc_src,
-                               tcg_const_i32((CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C) & 0xffff));  // Write the computed flags to env->eflags
-
+    if (rr_in_replay()) {
+        // qemu_log("cc op %d\n", s->cc_op);
+        rr_gen_compute_eflags(s);
+        gen_helper_rr_write_eflags(cpu_env, cpu_cc_src,
+                                tcg_const_i32((CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C) & 0xffff));  // Write the computed flags to env->eflags
+    }
     return s->pc;
  illegal_op:
     printf("Error: Invalid ops!\n");

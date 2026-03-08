@@ -2771,6 +2771,11 @@ void qmp_x_exit_preconfig(Error **errp)
 
     rr_init_dma();
 
+    /* Set replay mode before vCPU threads are created (in qemu_init_board) */
+    if (kernel_replay_name) {
+        rr_set_replay(1, ram_size);
+    }
+
     qemu_init_board();
     qemu_create_cli_devices();
     qemu_machine_creation_done();
@@ -2783,8 +2788,6 @@ void qmp_x_exit_preconfig(Error **errp)
     }
 
     if (kernel_replay_name) {
-        rr_set_replay(1, ram_size);
-
         rr_load_snapshot(kernel_replay_name, &error_fatal);
         if (error_fatal == NULL) {
             // vm_start();

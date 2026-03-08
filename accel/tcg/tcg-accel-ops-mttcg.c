@@ -106,7 +106,9 @@ static void *mttcg_cpu_thread_fn(void *arg)
     // else
     //     cpu->exit_request = 0;
 
-    cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
+    if (rr_in_replay()) {
+        cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
+    }
 
     do {
         if (cpu_can_run(cpu)) {
@@ -119,7 +121,10 @@ static void *mttcg_cpu_thread_fn(void *arg)
                 cpu_handle_guest_debug(cpu);
                 break;
             case EXCP_HLT:
-                break;
+                if (rr_in_replay()) {
+                    break;
+                }
+                QEMU_FALLTHROUGH;
             case EXCP_HALTED:
                 /*
                  * during start-up the vCPU is reset and the thread is
@@ -129,9 +134,12 @@ static void *mttcg_cpu_thread_fn(void *arg)
                  *
                  * cpu->halted should ensure we sleep in wait_io_event
                  */
-                // g_assert(cpu->halted);
-                qemu_log("enter halt, jump to next\n");
-                jump_next = true;
+                if (rr_in_replay()) {
+                    qemu_log("enter halt, jump to next\n");
+                    jump_next = true;
+                } else {
+                    g_assert(cpu->halted);
+                }
                 // cpu->rr_guest_instr_count = rr_num_instr_before_next_interrupt();
                 // qatomic_mb_set(&cpu->exit_request, 0);
                 break;
@@ -177,9 +185,11 @@ void mttcg_start_vcpu_thread(CPUState *cpu)
 
     cpu->thread = g_new0(QemuThread, 1);
     cpu->halt_cond = g_malloc0(sizeof(QemuCond));
-    cpu->replay_cond = g_malloc0(sizeof(QemuCond));
     qemu_cond_init(cpu->halt_cond);
-    qemu_cond_init(cpu->replay_cond);
+    if (rr_in_replay()) {
+        cpu->replay_cond = g_malloc0(sizeof(QemuCond));
+        qemu_cond_init(cpu->replay_cond);
+    }
 
     /* create a thread per vCPU with TCG (MTTCG) */
     snprintf(thread_name, VCPU_THREAD_NAME_SIZE, "CPU %d/TCG",

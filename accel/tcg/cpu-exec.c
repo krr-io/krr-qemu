@@ -981,7 +981,7 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
 {
     int32_t insns_left;
 
-    if (should_log_trace(cpu)) {
+    if (rr_in_replay() && should_log_trace(cpu)) {
         log_regs(cpu);
         qemu_log("[cpu %d]0x%lx, inst_cnt=%lu\n", cpu->cpu_index, tb->pc, cpu->rr_executed_inst);
         log_tb(cpu, tb);
@@ -1098,7 +1098,7 @@ int cpu_exec(CPUState *cpu)
         TranslationBlock *last_tb = NULL;
         int tb_exit = 0;
 
-        while (replay_cpu_exec_ready(cpu) && !cpu_handle_interrupt(cpu, &last_tb)) {
+        while ((!rr_in_replay() || replay_cpu_exec_ready(cpu)) && !cpu_handle_interrupt(cpu, &last_tb)) {
             TranslationBlock *tb;
             target_ulong cs_base, pc;
             uint32_t flags, cflags;
@@ -1138,7 +1138,7 @@ int cpu_exec(CPUState *cpu)
             rr_check_for_breakpoint(pc, cpu);
 
 
-            if (pc < 0xBFFFFFFFFFFF) {
+            if (rr_in_replay() && pc < 0xBFFFFFFFFFFF) {
                 rr_event_log *event = rr_get_next_event();
                 if (event->type == EVENT_TYPE_INTERRUPT && event->event.interrupt.rip == pc) {
                     cpu->force_interrupt = true;
@@ -1259,8 +1259,10 @@ int cpu_exec(CPUState *cpu)
                 break;
             }
 
-            replay_snapshot_checkpoint();
-            rr_inc_inst(cpu, tb->pc, tb);
+            if (rr_in_replay()) {
+                replay_snapshot_checkpoint();
+                rr_inc_inst(cpu, tb->pc, tb);
+            }
             // qemu_log("PC 0x%lx %lu\n", tb->pc, cpu->rr_executed_inst);
 
             if (addr_in_extra_debug_points(tb->pc)) {

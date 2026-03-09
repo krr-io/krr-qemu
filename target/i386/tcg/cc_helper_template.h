@@ -191,10 +191,15 @@ static int glue(compute_all_shl, SUFFIX)(DATA_TYPE dst, DATA_TYPE src1, DATA_TYP
     zf = (dst == 0) * CC_Z;
     sf = lshift(dst, 8 - DATA_BITS) & CC_S;
     /* of is defined iff shift count == 1 */
-    if (src2 == 1)
+    if (rr_in_replay()) {
+        if (src2 == 1)
+            of = lshift(src1 ^ dst, 12 - DATA_BITS) & CC_O;
+        else
+            of = 0;
+    } else {
         of = lshift(src1 ^ dst, 12 - DATA_BITS) & CC_O;
-    else
-        of = 0;
+    }
+
     return cf | pf | af | zf | sf | of;
 }
 
@@ -258,7 +263,11 @@ static int glue(compute_all_mul, SUFFIX)(DATA_TYPE dst, target_long src1)
     cf = (src1 != 0);
     pf = parity_table[(uint8_t)dst];
     af = 0; /* undefined */
-    zf = 0;
+    if (rr_in_replay()) {
+        zf = 0;
+    } else {
+        zf = (dst == 0) * CC_Z;
+    }
     sf = lshift(dst, 8 - DATA_BITS) & CC_S;
     of = cf * CC_O;
     return cf | pf | af | zf | sf | of;

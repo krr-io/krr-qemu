@@ -1642,7 +1642,9 @@ static void gen_shift_rm_T1(DisasContext *s, MemOp ot, int op1,
             gen_extu(ot, s->T0);
             tcg_gen_shr_tl(s->tmp0, s->T0, s->tmp0);
             tcg_gen_shr_tl(s->T0, s->T0, s->T1);
-            gen_op_mov_v_reg(s, ot, s->tmp4, op1);
+            if (rr_in_replay()) {
+                gen_op_mov_v_reg(s, ot, s->tmp4, op1);
+            }
         }
     } else {
         tcg_gen_shl_tl(s->tmp0, s->T0, s->tmp0);
@@ -1683,7 +1685,9 @@ static void gen_shift_rm_im(DisasContext *s, MemOp ot, int op1, int op2,
                 tcg_gen_sari_tl(s->T0, s->T0, op2);
             } else {
                 gen_extu(ot, s->T0);
-                gen_op_mov_v_reg(s, ot, s->T1, op1);
+                if (rr_in_replay()){
+                    gen_op_mov_v_reg(s, ot, s->T1, op1);
+                }
                 tcg_gen_shri_tl(s->tmp4, s->T0, op2 - 1);
                 tcg_gen_shri_tl(s->T0, s->T0, op2);
             }
@@ -1702,12 +1706,17 @@ static void gen_shift_rm_im(DisasContext *s, MemOp ot, int op1, int op2,
         tcg_gen_mov_tl(cpu_cc_src, s->tmp4);
         tcg_gen_mov_tl(cpu_cc_dst, s->T0);
 
-        if (!is_arith && is_right) {
-            tcg_gen_mov_tl(cpu_cc_src2, s->T1);
-            set_cc_op(s, CC_OP_SHRB + ot);
+        if (rr_in_replay()) {
+            if (!is_arith && is_right) {
+                tcg_gen_mov_tl(cpu_cc_src2, s->T1);
+                set_cc_op(s, CC_OP_SHRB + ot);
+            } else {
+                if (!is_right)
+                    tcg_gen_movi_i64(cpu_cc_src2, op2);
+                set_cc_op(s, (is_right ? CC_OP_SARB : CC_OP_SHLB) + ot);
+            }
         } else {
-            if (!is_right)
-                tcg_gen_movi_i64(cpu_cc_src2, op2);
+            /* Native TCG: use original behavior (no CC_OP_SHRB, no cc_src2) */
             set_cc_op(s, (is_right ? CC_OP_SARB : CC_OP_SHLB) + ot);
         }
     }
@@ -2013,9 +2022,6 @@ static void gen_shiftd_rm_T1(DisasContext *s, MemOp ot, int op1,
     gen_op_st_rm_T0_A0(s, ot, op1);
 
     gen_shift_flags(s, ot, s->T0, s->tmp0, count, is_right, true);
-
-    // if (is_right)
-    //     set_cc_op(s, CC_OP_SHRDB + ot);
 
     tcg_temp_free(count);
 }
@@ -4653,7 +4659,6 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
 
  next_byte:
     b = x86_ldub_code(env, s);
-    // qemu_log("prefix: %d\n", b);
     /* Collect prefixes.  */
     switch (b) {
     case 0xf3:
@@ -4798,8 +4803,6 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     }
     /* now check op code */
  reswitch:
-    // qemu_log("op byte: %x\n", b);
-
     switch(b) {
     case 0x0f:
         /**************************/
@@ -6654,10 +6657,12 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         /* port I/O */
     case 0xe4:
     case 0xe5:
-        qemu_log("port IO1 %d\n", prefixes);
-        if (prefixes & (PREFIX_REPZ | PREFIX_REPNZ)) {
-            cpu->is_rep_io_inst |= IO_INST_REP;
-            s->krr_flag |= IO_INST_REP;
+        if (rr_in_replay()) {
+            qemu_log("port IO1 %d\n", prefixes);
+            if (prefixes & (PREFIX_REPZ | PREFIX_REPNZ)) {
+                cpu->is_rep_io_inst |= IO_INST_REP;
+                s->krr_flag |= IO_INST_REP;
+            }
         }
 
         ot = mo_b_d32(b, dflag);
@@ -6678,11 +6683,13 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         break;
     case 0xe6:
     case 0xe7:
-        qemu_log("port IO2 %d\n", prefixes);
-        if (prefixes & (PREFIX_REPZ | PREFIX_REPNZ)) {
-            cpu->is_rep_io_inst |= IO_INST_REP;
-            cpu->is_rep_io_inst |= IO_INST_REP_OUT;
-            s->krr_flag |= (IO_INST_REP | IO_INST_REP_OUT);
+        if (rr_in_replay()) {
+            qemu_log("port IO2 %d\n", prefixes);
+            if (prefixes & (PREFIX_REPZ | PREFIX_REPNZ)) {
+                cpu->is_rep_io_inst |= IO_INST_REP;
+                cpu->is_rep_io_inst |= IO_INST_REP_OUT;
+                s->krr_flag |= (IO_INST_REP | IO_INST_REP_OUT);
+            }
         }
         ot = mo_b_d32(b, dflag);
         val = x86_ldub_code(env, s);
@@ -7180,6 +7187,12 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_op_update1_cc(s);
             set_cc_op(s, CC_OP_BMILGB + ot);
         } else {
+            if (!rr_in_replay()) {
+                /* For bsr/bsf, only the Z bit is defined and it is related
+                to the input and not the result.  */
+                tcg_gen_mov_tl(cpu_cc_dst, s->T0);
+                set_cc_op(s, CC_OP_LOGICB + ot);
+            }
             /* ??? The manual says that the output is undefined when the
                input is zero, but real hardware leaves it unchanged, and
                real programs appear to depend on that.  Accomplish this
@@ -7193,12 +7206,13 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             } else {
                 tcg_gen_ctz_tl(s->T0, s->T0, cpu_regs[reg]);
             }
-
-            /* For bsr/bsf, only the Z bit is defined and it is related
-               to the input and not the result.  */
-            tcg_gen_mov_tl(cpu_cc_dst, s->T0);
-            tcg_gen_mov_tl(cpu_cc_src, cpu_regs[reg]);
-            set_cc_op(s, CC_OP_BSRB + ot);
+            if (rr_in_replay()) {
+                /* For bsr/bsf, only the Z bit is defined and it is related
+                to the input and not the result.  */
+                tcg_gen_mov_tl(cpu_cc_dst, s->T0);
+                tcg_gen_mov_tl(cpu_cc_src, cpu_regs[reg]);
+                set_cc_op(s, CC_OP_BSRB + ot);
+            }
         }
         gen_op_mov_reg_v(s, ot, reg, s->T0);
         break;
@@ -7421,7 +7435,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         gen_update_cc_op(s);
         gen_jmp_im(s, pc_start - s->cs_base);
         gen_helper_rdpmc(cpu_env);
-        // s->base.is_jmp = DISAS_NORETURN;
+        if (!rr_in_replay()) {
+            s->base.is_jmp = DISAS_NORETURN;
+        }
         break;
     case 0x134: /* sysenter */
         /* For Intel SYSENTER is valid on 64-bit */

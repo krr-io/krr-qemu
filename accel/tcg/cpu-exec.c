@@ -255,11 +255,13 @@ static inline TranslationBlock *tb_lookup(CPUState *cpu, target_ulong pc,
                tb->flags == flags &&
                tb->trace_vcpu_dstate == *cpu->trace_dstate &&
                tb_cflags(tb) == cflags)) {
-        
-        /* We don't wanna use cached tb of rep io instruction, because we
-           need to handle it in replay() */
-        if (tb->jump_next_event != -1 || (tb->krr_flag & IO_INST_REP)) {
-            return NULL;
+
+        if (rr_in_replay()) {
+            /* We don't wanna use cached tb of rep io instruction, because we
+               need to handle it in replay() */
+            if (tb->jump_next_event != -1 || (tb->krr_flag & IO_INST_REP)) {
+                return NULL;
+            }
         }
 
         return tb;
@@ -269,12 +271,14 @@ static inline TranslationBlock *tb_lookup(CPUState *cpu, target_ulong pc,
         return NULL;
     }
 
-    if (tb->jump_next_event != -1) {
-        return NULL;
-    }
-
-    if (tb->jump_next_event == -1) {
-        // qemu_log("Caching tb pc=0x%lx\n", tb->pc);
+    if (rr_in_replay()) {
+        if (tb->jump_next_event != -1) {
+            return NULL;
+        }
+        if (tb->jump_next_event == -1) {
+            qatomic_set(&cpu->tb_jmp_cache[hash], tb);
+        }
+    } else {
         qatomic_set(&cpu->tb_jmp_cache[hash], tb);
     }
     return tb;
@@ -316,18 +320,20 @@ static bool check_for_breakpoints(CPUState *cpu, target_ulong pc,
     CPUBreakpoint *bp;
     bool match_page = false;
 
-    if (cpu->cause_debug == 1) {
-        cpu->cause_debug = 0;
-        cpu->exception_index = EXCP_DEBUG;
-        return true;
-    }
+    if (rr_in_replay()) {
+        if (cpu->cause_debug == 1) {
+            cpu->cause_debug = 0;
+            cpu->exception_index = EXCP_DEBUG;
+            return true;
+        }
 
-    if (cpu->rr_break_inst > 0 && cpu->rr_executed_inst == cpu->rr_break_inst) {
-        printf("[CPU-%d]Hit the break inst\n", cpu->cpu_index);
-        cpu->rr_break_inst = 0;
-        cpu->exception_index = EXCP_DEBUG;
-        reset_in_reverse_continue();
-        return true;
+        if (cpu->rr_break_inst > 0 && cpu->rr_executed_inst == cpu->rr_break_inst) {
+            printf("[CPU-%d]Hit the break inst\n", cpu->cpu_index);
+            cpu->rr_break_inst = 0;
+            cpu->exception_index = EXCP_DEBUG;
+            reset_in_reverse_continue();
+            return true;
+        }
     }
 
     if (likely(QTAILQ_EMPTY(&cpu->breakpoints))) {
@@ -347,12 +353,14 @@ static bool check_for_breakpoints(CPUState *cpu, target_ulong pc,
         return false;
     }
 
-    if (is_in_reverse_continue() && !is_reverse_bp_hit(cpu)) {
-        return false;
-    }
+    if (rr_in_replay()) {
+        if (is_in_reverse_continue() && !is_reverse_bp_hit(cpu)) {
+            return false;
+        }
 
-    if (is_reverse_bp_hit(cpu)) {
-        reset_in_reverse_continue();
+        if (is_reverse_bp_hit(cpu)) {
+            reset_in_reverse_continue();
+        }
     }
 
     QTAILQ_FOREACH(bp, &cpu->breakpoints, entry) {
@@ -377,7 +385,9 @@ static bool check_for_breakpoints(CPUState *cpu, target_ulong pc,
 
             if (match_bp) {
                 cpu->exception_index = EXCP_DEBUG;
-                krr_note_breakpoint(cpu);
+                if (rr_in_replay()) {
+                    krr_note_breakpoint(cpu);
+                }
                 return true;
             }
         } else if (((pc ^ bp->pc) & TARGET_PAGE_MASK) == 0) {
@@ -907,7 +917,9 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
             do_cpu_init(x86_cpu);
             cpu->exception_index = EXCP_HALTED;
             qemu_mutex_unlock_iothread();
-            qemu_log("Int init\n");
+            if (rr_in_replay()) {
+                qemu_log("Int init\n");
+            }
             return true;
         }
 #else
@@ -964,8 +976,9 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
         || (icount_enabled()
             && (cpu->cflags_next_tb == -1 || cpu->cflags_next_tb & CF_USE_ICOUNT)
             && cpu_neg(cpu)->icount_decr.u16.low + cpu->icount_extra == 0)) {
-        // printf("Exit need\n");
-        qemu_log("need exit\n");
+        if (rr_in_replay()) {
+            qemu_log("need exit\n");
+        }
         qatomic_set(&cpu->exit_request, 0);
         if (cpu->exception_index == -1) {
             cpu->exception_index = EXCP_INTERRUPT;
@@ -1130,12 +1143,15 @@ int cpu_exec(CPUState *cpu)
             }
 
             if (check_for_breakpoints(cpu, pc, &cflags)) {
-                // qemu_log("Reach breakpoint\n");
-                cause_other_cpu_debug(cpu);
+                if (rr_in_replay()) {
+                    cause_other_cpu_debug(cpu);
+                }
                 break;
             }
 
-            rr_check_for_breakpoint(pc, cpu);
+            if (rr_in_replay()) {
+                rr_check_for_breakpoint(pc, cpu);
+            }
 
 
             if (rr_in_replay() && pc < 0xBFFFFFFFFFFF) {
@@ -1155,25 +1171,30 @@ int cpu_exec(CPUState *cpu)
                  * We add the TB in the virtual pc hash table
                  * for the fast lookup
                  */
-                if (tb->jump_next_event == -1) {
-                    // qemu_log("Caching tb pc=0x%lx\n", tb->pc);
+                if (rr_in_replay()) {
+                    if (tb->jump_next_event == -1) {
+                        qatomic_set(&cpu->tb_jmp_cache[tb_jmp_cache_hash_func(pc)], tb);
+                    }
+                } else {
                     qatomic_set(&cpu->tb_jmp_cache[tb_jmp_cache_hash_func(pc)], tb);
                 }
             }
 
-            if (tb->jump_next_event == EVENT_TYPE_INTERRUPT) {
-                cpu->force_interrupt = true;
-                tb->jump_next_event = -1;
-                continue;
+            if (rr_in_replay()) {
+                if (tb->jump_next_event == EVENT_TYPE_INTERRUPT) {
+                    cpu->force_interrupt = true;
+                    tb->jump_next_event = -1;
+                    continue;
+                }
             }
 
-            if (rr_inject_exception(cpu)) {
+            if (rr_in_replay() && rr_inject_exception(cpu)) {
                 rr_do_replay_exception(cpu, 1);
                 break;
             }
 
-            if (tb->jump_next_event == EVENT_TYPE_EXCEPTION) {
-                 tb->jump_next_event = -1;
+            if (rr_in_replay() && tb->jump_next_event == EVENT_TYPE_EXCEPTION) {
+                tb->jump_next_event = -1;
                 rr_do_replay_exception(cpu, 1);
                 break;
             }
@@ -1253,8 +1274,7 @@ int cpu_exec(CPUState *cpu)
                 }
             }
 
-            if (check_for_breakpoints(cpu, pc, &cflags)) {
-                // qemu_log("Reach breakpoint\n");
+            if (rr_in_replay() && check_for_breakpoints(cpu, pc, &cflags)) {
                 cause_other_cpu_debug(cpu);
                 break;
             }
@@ -1263,14 +1283,14 @@ int cpu_exec(CPUState *cpu)
                 replay_snapshot_checkpoint();
                 rr_inc_inst(cpu, tb->pc, tb);
             }
-            // qemu_log("PC 0x%lx %lu\n", tb->pc, cpu->rr_executed_inst);
 
-            if (addr_in_extra_debug_points(tb->pc)) {
+            if (rr_in_replay() && addr_in_extra_debug_points(tb->pc)) {
                 rr_handle_kernel_entry(cpu, tb->pc, cpu->rr_executed_inst);
             }
 
-            if (tb->jump_next_event == -1)
+            if (rr_in_replay() && tb->jump_next_event == -1) {
                 handle_replay_rr_checkpoint(cpu, tb->krr_flag & INST_REP);
+            }
 
             cpu->last_pc = tb->pc;
 

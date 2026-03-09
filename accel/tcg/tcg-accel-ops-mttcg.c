@@ -90,8 +90,9 @@ static void *mttcg_cpu_thread_fn(void *arg)
     qemu_guest_random_seed_thread_part2(cpu->random_seed);
     bool jump_next = false;
 
-    if (rr_mem_logs_enabled())
+    if (rr_in_replay() && rr_mem_logs_enabled()) {
         rr_load_mem_logs();
+    }
 
     // rr_gdb_set_stopped(1);
     // cpu->stop = true;

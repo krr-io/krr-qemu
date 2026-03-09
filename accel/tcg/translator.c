@@ -61,11 +61,6 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
 {
     uint32_t cflags = tb_cflags(tb);
     bool plugin_enabled;
-    // X86CPU *x86_cpu;
-    // CPUArchState *env;
-
-    // x86_cpu = X86_CPU(cpu);
-    // env = &x86_cpu->env;
 
     /* Initialize DisasContext */
     db->tb = tb;
@@ -115,10 +110,11 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
         try_replay_dma(cpu, 1);
     }
 
-
-    if (tb->jump_next_event == EVENT_TYPE_INTERRUPT || 
-        tb->jump_next_event == EVENT_TYPE_EXCEPTION) {
-        return;
+    if (rr_in_replay()){
+        if (tb->jump_next_event == EVENT_TYPE_INTERRUPT || 
+            tb->jump_next_event == EVENT_TYPE_EXCEPTION) {
+            return;
+        }
     }
 
     /* Reset the temp count so that we can identify leaks */
@@ -189,13 +185,16 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
     /* The disas_log hook may use these values rather than recompute.  */
     tb->size = db->pc_next - db->pc_first;
     tb->icount = db->num_insns;
-    tb->jump_next_event = -1;
 
-    if (db->do_syscall) {
-        tb->jump_next_event = EVENT_TYPE_SYSCALL;
+    if (rr_in_replay()) {
+        tb->jump_next_event = -1;
+
+        if (db->do_syscall) {
+            tb->jump_next_event = EVENT_TYPE_SYSCALL;
+        }
+
+        tb->krr_flag = db->krr_flag;
     }
-
-    tb->krr_flag = db->krr_flag;
 
 #ifdef DEBUG_DISAS
     if (qemu_loglevel_mask(CPU_LOG_TB_IN_ASM)

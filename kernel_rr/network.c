@@ -90,13 +90,6 @@ void rr_append_network_dma_sg(void *buf, uint64_t len, uint64_t addr)
 
     if (pending_dma_entry->len >= SG_NUM) {
         printf("Error: dma sg number exceeds max\n");
-        free(sgd->buf);
-        free(sgd);
-        return;
-    }
-
-    if (pending_dma_entry->len >= SG_NUM) {
-        printf("Error: dma sg number exceeds max\n");
         return;
     }
 
@@ -106,7 +99,9 @@ void rr_append_network_dma_sg(void *buf, uint64_t len, uint64_t addr)
     memcpy(sgd->buf, buf, len);
     sgd->addr = addr;
     sgd->len = len;
-    
+    // malloc'd memory is not zeroed; persist_dma_buf() asserts on checksum if do_check is set
+    sgd->do_check = 0;
+
     total_network_buf += len;
     // printf("data appended 0x%lx, len=%lu\n", sgd->addr, sgd->len);
 
